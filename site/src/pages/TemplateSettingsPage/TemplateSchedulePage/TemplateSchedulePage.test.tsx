@@ -1,6 +1,6 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, test, expect, describe, it } from "vitest"
+import { vi , beforeEach, test, expect, describe, it } from "vitest"
 import * as API from "api/api";
 import { Language as FooterFormLanguage } from "components/FormFooter/FormFooter";
 import {
@@ -134,7 +134,7 @@ describe("TemplateSchedulePage", () => {
 
   it("Calls the API when user fills in and submits a form", async () => {
     await renderTemplateSchedulePage();
-    jest.spyOn(API, "updateTemplateMeta").mockResolvedValueOnce({
+    vi.spyOn(API, "updateTemplateMeta").mockResolvedValueOnce({
       ...MockTemplate,
       ...validFormValues,
     });
@@ -148,7 +148,7 @@ describe("TemplateSchedulePage", () => {
   test("default is converted to and from hours", async () => {
     await renderTemplateSchedulePage();
 
-    jest.spyOn(API, "updateTemplateMeta").mockResolvedValueOnce({
+    vi.spyOn(API, "updateTemplateMeta").mockResolvedValueOnce({
       ...MockTemplate,
       ...validFormValues,
     });
@@ -171,7 +171,7 @@ describe("TemplateSchedulePage", () => {
   test("failure, dormancy, and dormancy auto-deletion converted to and from days", async () => {
     await renderTemplateSchedulePage();
 
-    jest.spyOn(API, "updateTemplateMeta").mockResolvedValueOnce({
+    vi.spyOn(API, "updateTemplateMeta").mockResolvedValueOnce({
       ...MockTemplate,
       ...validFormValues,
     });

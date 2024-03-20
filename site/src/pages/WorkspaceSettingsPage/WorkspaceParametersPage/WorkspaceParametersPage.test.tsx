@@ -1,6 +1,6 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { test, expect } from "vitest"
+import { vi , test, expect } from "vitest"
 import * as api from "api/api";
 import {
   MockWorkspace,
@@ -23,13 +23,13 @@ test("Submit the workspace settings page successfully", async () => {
   jest
     .spyOn(api, "getWorkspaceByOwnerAndName")
     .mockResolvedValueOnce(MockWorkspace);
-  jest.spyOn(api, "getTemplateVersionRichParameters").mockResolvedValueOnce([
+  vi.spyOn(api, "getTemplateVersionRichParameters").mockResolvedValueOnce([
     MockTemplateVersionParameter1,
     MockTemplateVersionParameter2,
     // Immutable parameters
     MockTemplateVersionParameter4,
   ]);
-  jest.spyOn(api, "getWorkspaceBuildParameters").mockResolvedValueOnce([
+  vi.spyOn(api, "getWorkspaceBuildParameters").mockResolvedValueOnce([
     MockWorkspaceBuildParameter1,
     MockWorkspaceBuildParameter2,
     // Immutable value

@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { HttpResponse, http } from "msw";
 import { RouterProvider, createMemoryRouter } from "react-router-dom";
-import { test } from "vitest"
+import { vi , test } from "vitest"
 import { AppProviders } from "App";
 import { RequireAuth } from "contexts/auth/RequireAuth";
 import { MockTemplate } from "testHelpers/entities";
@@ -11,7 +11,7 @@ import TemplateFilesPage from "./TemplateFilesPage";
 
 // Occasionally, Jest encounters HTML5 canvas errors. As the SyntaxHighlight is
 // not required for these tests, we can safely mock it.
-jest.mock("components/SyntaxHighlighter/SyntaxHighlighter", () => ({
+vi.mock("components/SyntaxHighlighter/SyntaxHighlighter", () => ({
   SyntaxHighlighter: () => <div data-testid="syntax-highlighter" />,
 }));
 

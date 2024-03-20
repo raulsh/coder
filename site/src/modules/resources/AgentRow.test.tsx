@@ -1,5 +1,5 @@
 import { screen } from "@testing-library/react";
-import { test, expect } from "vitest"
+import { vi , test, expect } from "vitest"
 import {
   MockTemplate,
   MockWorkspace,
@@ -12,7 +12,7 @@ import {
 import { AgentRow, type AgentRowProps } from "./AgentRow";
 import { DisplayAppNameMap } from "./AppLink/AppLink";
 
-jest.mock("modules/resources/AgentMetadata", () => {
+vi.mock("modules/resources/AgentMetadata", () => {
   const AgentMetadata = () => <></>;
   return { AgentMetadata };
 });

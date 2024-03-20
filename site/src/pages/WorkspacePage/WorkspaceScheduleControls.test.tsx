@@ -5,7 +5,7 @@ import { HttpResponse, http } from "msw";
 import type { FC } from "react";
 import { QueryClient, QueryClientProvider, useQuery } from "react-query";
 import { RouterProvider, createMemoryRouter } from "react-router-dom";
-import { test, expect } from "vitest"
+import { vi , test, expect } from "vitest"
 import * as API from "api/api";
 import { workspaceByOwnerAndName } from "api/queries/workspaces";
 import { GlobalSnackbar } from "components/GlobalSnackbar/GlobalSnackbar";
@@ -120,7 +120,7 @@ test("remove 2 hours to deadline", async () => {
 test("rollback to previous deadline on error", async () => {
   const user = userEvent.setup();
   const initialScheduleMessage = "Stop in 3 hours";
-  jest.spyOn(API, "putWorkspaceExtension").mockRejectedValue({});
+  vi.spyOn(API, "putWorkspaceExtension").mockRejectedValue({});
 
   await renderScheduleControls();
 

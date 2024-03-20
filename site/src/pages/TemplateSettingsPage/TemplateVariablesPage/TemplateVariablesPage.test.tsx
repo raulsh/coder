@@ -1,6 +1,6 @@
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { expect, describe, it } from "vitest"
+import { vi , expect, describe, it } from "vitest"
 import * as API from "api/api";
 import { Language as FooterFormLanguage } from "components/FormFooter/FormFooter";
 import {
@@ -33,7 +33,7 @@ const renderTemplateVariablesPage = async () => {
 
 describe("TemplateVariablesPage", () => {
   it("renders with variables", async () => {
-    jest.spyOn(API, "getTemplateByName").mockResolvedValueOnce(MockTemplate);
+    vi.spyOn(API, "getTemplateByName").mockResolvedValueOnce(MockTemplate);
     jest
       .spyOn(API, "getTemplateVersion")
       .mockResolvedValueOnce(MockTemplateVersion);
@@ -58,7 +58,7 @@ describe("TemplateVariablesPage", () => {
   });
 
   it("user submits the form successfully", async () => {
-    jest.spyOn(API, "getTemplateByName").mockResolvedValueOnce(MockTemplate);
+    vi.spyOn(API, "getTemplateByName").mockResolvedValueOnce(MockTemplate);
     jest
       .spyOn(API, "getTemplateVersion")
       .mockResolvedValue(MockTemplateVersion);
@@ -71,7 +71,7 @@ describe("TemplateVariablesPage", () => {
     jest
       .spyOn(API, "createTemplateVersion")
       .mockResolvedValueOnce(MockTemplateVersion2);
-    jest.spyOn(API, "updateActiveTemplateVersion").mockResolvedValueOnce({
+    vi.spyOn(API, "updateActiveTemplateVersion").mockResolvedValueOnce({
       message: "done",
     });
 

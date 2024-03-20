@@ -1,12 +1,12 @@
 import { fireEvent, screen } from "@testing-library/react";
-import { expect, describe, it } from "vitest"
+import { vi , expect, describe, it } from "vitest"
 import { renderComponent } from "testHelpers/renderHelpers";
 import { ConfirmDialog } from "./ConfirmDialog";
 
 describe("ConfirmDialog", () => {
   it("onClose is called when cancelled", () => {
     // Given
-    const onCloseMock = jest.fn();
+    const onCloseMock = vi.fn();
     const props = {
       cancelText: "CANCEL",
       hideCancel: false,
@@ -25,8 +25,8 @@ describe("ConfirmDialog", () => {
 
   it("onConfirm is called when confirmed", () => {
     // Given
-    const onCloseMock = jest.fn();
-    const onConfirmMock = jest.fn();
+    const onCloseMock = vi.fn();
+    const onConfirmMock = vi.fn();
     const props = {
       cancelText: "CANCEL",
       confirmText: "CONFIRM",

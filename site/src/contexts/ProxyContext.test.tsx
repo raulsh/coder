@@ -2,7 +2,7 @@ import "testHelpers/localStorage";
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
-import { beforeEach, expect, describe } from "vitest";
+import { vi, beforeEach, expect, describe } from "vitest";
 import type { Region } from "api/typesGenerated";
 import {
   MockPrimaryWorkspaceProxy,
@@ -23,11 +23,11 @@ import {
 } from "./ProxyContext";
 import type * as ProxyLatency from "./useProxyLatency";
 
-// Mock useProxyLatency to use a hard-coded latency. 'jest.mock' must be called
+// Mock useProxyLatency to use a hard-coded latency. 'vi.mock' must be called
 // here and not inside a unit test.
-jest.mock("contexts/useProxyLatency", () => ({
+vi.mock("contexts/useProxyLatency", () => ({
   useProxyLatency: () => {
-    return { proxyLatencies: hardCodedLatencies, refetch: jest.fn() };
+    return { proxyLatencies: hardCodedLatencies, refetch: vi.fn() };
   },
 }));
 

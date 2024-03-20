@@ -1,6 +1,6 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { test, expect } from "vitest"
+import { vi , test, expect } from "vitest"
 import * as API from "api/api";
 import {
   MockTemplateExample,
@@ -36,14 +36,14 @@ test("Create template from starter template", async () => {
   const { router, container } = await renderPage(searchParams);
   const form = container.querySelector("form") as HTMLFormElement;
 
-  jest.spyOn(API, "createTemplateVersion").mockResolvedValueOnce({
+  vi.spyOn(API, "createTemplateVersion").mockResolvedValueOnce({
     ...MockTemplateVersion,
     job: {
       ...MockTemplateVersion.job,
       status: "pending",
     },
   });
-  jest.spyOn(API, "getTemplateVersion").mockResolvedValue({
+  vi.spyOn(API, "getTemplateVersion").mockResolvedValue({
     ...MockTemplateVersion,
     job: {
       ...MockTemplateVersion.job,
@@ -88,8 +88,8 @@ test("Create template from starter template", async () => {
   jest
     .spyOn(API, "createTemplateVersion")
     .mockResolvedValue(MockTemplateVersion);
-  jest.spyOn(API, "getTemplateVersion").mockResolvedValue(MockTemplateVersion);
-  jest.spyOn(API, "createTemplate").mockResolvedValue(MockTemplate);
+  vi.spyOn(API, "getTemplateVersion").mockResolvedValue(MockTemplateVersion);
+  vi.spyOn(API, "createTemplate").mockResolvedValue(MockTemplate);
   await userEvent.click(
     within(form).getByRole("button", { name: /create template/i }),
   );
@@ -111,8 +111,8 @@ test("Create template from starter template", async () => {
 });
 
 test("Create template from duplicating a template", async () => {
-  jest.spyOn(API, "getTemplateByName").mockResolvedValue(MockTemplate);
-  jest.spyOn(API, "getTemplateVersion").mockResolvedValue(MockTemplateVersion);
+  vi.spyOn(API, "getTemplateByName").mockResolvedValue(MockTemplate);
+  vi.spyOn(API, "getTemplateVersion").mockResolvedValue(MockTemplateVersion);
   jest
     .spyOn(API, "getTemplateVersionVariables")
     .mockResolvedValue([MockTemplateVersionVariable1]);
@@ -138,8 +138,8 @@ test("Create template from duplicating a template", async () => {
   jest
     .spyOn(API, "createTemplateVersion")
     .mockResolvedValue(MockTemplateVersion);
-  jest.spyOn(API, "getTemplateVersion").mockResolvedValue(MockTemplateVersion);
-  jest.spyOn(API, "createTemplate").mockResolvedValue(MockTemplate);
+  vi.spyOn(API, "getTemplateVersion").mockResolvedValue(MockTemplateVersion);
+  vi.spyOn(API, "createTemplate").mockResolvedValue(MockTemplate);
   await userEvent.click(
     screen.getByRole("button", { name: /create template/i }),
   );

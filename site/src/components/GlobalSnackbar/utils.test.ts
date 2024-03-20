@@ -1,4 +1,4 @@
-import { beforeEach, afterEach, expect, describe, it } from "vitest"
+import { vi , beforeEach, afterEach, expect, describe, it } from "vitest"
 import {
   displayError,
   displaySuccess,
@@ -68,7 +68,7 @@ describe("Snackbar", () => {
     };
 
     beforeEach(() => {
-      dispatchEventMock = jest.fn();
+      dispatchEventMock = vi.fn();
       window.dispatchEvent =
         dispatchEventMock as unknown as typeof window.dispatchEvent;
     });

@@ -1,10 +1,10 @@
 import { renderHook, waitFor } from "@testing-library/react";
-import { beforeAll, afterAll, expect, describe, it } from "vitest"
+import { vi , beforeAll, afterAll, expect, describe, it } from "vitest"
 import { useDebouncedFunction, useDebouncedValue } from "./debounce";
 
 beforeAll(() => {
   jest.useFakeTimers();
-  jest.spyOn(global, "setTimeout");
+  vi.spyOn(global, "setTimeout");
 });
 
 afterAll(() => {
@@ -79,12 +79,12 @@ describe(`${useDebouncedFunction.name}`, () => {
   describe("hook", () => {
     it("Should provide stable function references across re-renders", () => {
       const time = 5000;
-      const { result, rerender } = renderDebouncedFunction(jest.fn(), time);
+      const { result, rerender } = renderDebouncedFunction(vi.fn(), time);
 
       const { debounced: oldDebounced, cancelDebounce: oldCancel } =
         result.current;
 
-      rerender({ callback: jest.fn(), time });
+      rerender({ callback: vi.fn(), time });
       const { debounced: newDebounced, cancelDebounce: newCancel } =
         result.current;
 
@@ -94,7 +94,7 @@ describe(`${useDebouncedFunction.name}`, () => {
 
     it("Resets any pending debounces if the timer argument changes", async () => {
       const time = 5000;
-      const mockCallback = jest.fn();
+      const mockCallback = vi.fn();
       const { result, rerender } = renderDebouncedFunction(mockCallback, time);
 
       result.current.debounced();
@@ -107,7 +107,7 @@ describe(`${useDebouncedFunction.name}`, () => {
 
   describe("debounced function", () => {
     it("Resolve the debounce after specified milliseconds pass with no other calls", async () => {
-      const mockCallback = jest.fn();
+      const mockCallback = vi.fn();
       const { result } = renderDebouncedFunction(mockCallback, 100);
       result.current.debounced();
 
@@ -116,8 +116,8 @@ describe(`${useDebouncedFunction.name}`, () => {
     });
 
     it("Always uses the most recent callback argument passed in (even if it switches while a debounce is queued)", async () => {
-      const mockCallback1 = jest.fn();
-      const mockCallback2 = jest.fn();
+      const mockCallback1 = vi.fn();
+      const mockCallback2 = vi.fn();
       const time = 500;
 
       const { result, rerender } = renderDebouncedFunction(mockCallback1, time);
@@ -130,7 +130,7 @@ describe(`${useDebouncedFunction.name}`, () => {
     });
 
     it("Should reset the debounce timer with repeated calls to the method", async () => {
-      const mockCallback = jest.fn();
+      const mockCallback = vi.fn();
       const { result } = renderDebouncedFunction(mockCallback, 2000);
 
       for (let i = 0; i < 10; i++) {
@@ -146,7 +146,7 @@ describe(`${useDebouncedFunction.name}`, () => {
 
   describe("cancelDebounce function", () => {
     it("Should be able to cancel a pending debounce", async () => {
-      const mockCallback = jest.fn();
+      const mockCallback = vi.fn();
       const { result } = renderDebouncedFunction(mockCallback, 2000);
 
       result.current.debounced();

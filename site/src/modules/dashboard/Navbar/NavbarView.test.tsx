@@ -1,5 +1,5 @@
 import { screen } from "@testing-library/react";
-import { expect, describe, it } from "vitest"
+import { vi , expect, describe, it } from "vitest"
 import type { ProxyContextValue } from "contexts/ProxyContext";
 import { MockPrimaryWorkspaceProxy, MockUser } from "testHelpers/entities";
 import { renderWithAuth } from "testHelpers/renderHelpers";
@@ -13,14 +13,14 @@ const proxyContextValue: ProxyContextValue = {
   },
   isLoading: false,
   isFetched: true,
-  setProxy: jest.fn(),
-  clearProxy: jest.fn(),
-  refetchProxyLatencies: jest.fn(),
+  setProxy: vi.fn(),
+  clearProxy: vi.fn(),
+  refetchProxyLatencies: vi.fn(),
   proxyLatencies: {},
 };
 
 describe("NavbarView", () => {
-  const noop = jest.fn();
+  const noop = vi.fn();
 
   it("workspaces nav link has the correct href", async () => {
     renderWithAuth(

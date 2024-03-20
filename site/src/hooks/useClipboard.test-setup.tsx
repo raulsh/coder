@@ -1,5 +1,5 @@
 import { act, renderHook } from "@testing-library/react";
-import { beforeAll, afterAll, afterEach, expect, it } from "vitest"
+import { vi , beforeAll, afterAll, afterEach, expect, it } from "vitest"
 /**
  * @file This is a very weird test setup.
  *
@@ -111,11 +111,11 @@ function makeMockClipboard(isSecureContext: boolean): MockClipboard {
       mockClipboardValue = newText;
     },
 
-    addEventListener: jest.fn(),
-    removeEventListener: jest.fn(),
-    dispatchEvent: jest.fn(),
-    read: jest.fn(),
-    write: jest.fn(),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+    read: vi.fn(),
+    write: vi.fn(),
   };
 }
 
@@ -141,7 +141,7 @@ export function scheduleClipboardTests({ isHttps }: ScheduleConfig) {
 
   const originalNavigator = window.navigator;
   beforeAll(() => {
-    jest.spyOn(window, "navigator", "get").mockImplementation(() => ({
+    vi.spyOn(window, "navigator", "get").mockImplementation(() => ({
       ...originalNavigator,
       clipboard: mockClipboardInstance,
     }));
@@ -149,7 +149,7 @@ export function scheduleClipboardTests({ isHttps }: ScheduleConfig) {
     if (!isHttps) {
       // Not the biggest fan of exposing implementation details like this, but
       // making any kind of mock for execCommand is really gnarly in general
-      global.document.execCommand = jest.fn(() => {
+      global.document.execCommand = vi.fn(() => {
         if (mockClipboardInstance.simulateFailure) {
           return false;
         }
@@ -209,7 +209,7 @@ export function scheduleClipboardTests({ isHttps }: ScheduleConfig) {
 
   it("Should notify the user of an error using the provided callback", async () => {
     const textToCopy = "birds";
-    const onError = jest.fn();
+    const onError = vi.fn();
     const { result } = renderUseClipboard({ textToCopy, onError });
 
     mockClipboardInstance.setSimulateFailure(true);

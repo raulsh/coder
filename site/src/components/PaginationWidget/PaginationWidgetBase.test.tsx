@@ -1,6 +1,6 @@
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { expect, describe, it } from "vitest"
+import { vi , expect, describe, it } from "vitest"
 import { renderWithAuth } from "testHelpers/renderHelpers";
 import {
   PaginationWidgetBase,
@@ -18,7 +18,7 @@ describe(PaginationWidgetBase.name, () => {
     ];
 
     for (const props of sampleProps) {
-      const onPageChange = jest.fn();
+      const onPageChange = vi.fn();
       const { unmount } = renderWithAuth(
         <PaginationWidgetBase {...props} onPageChange={onPageChange} />,
       );
@@ -41,7 +41,7 @@ describe(PaginationWidgetBase.name, () => {
     ];
 
     for (const props of sampleProps) {
-      const onPageChange = jest.fn();
+      const onPageChange = vi.fn();
       const { unmount } = renderWithAuth(
         <PaginationWidgetBase {...props} onPageChange={onPageChange} />,
       );
@@ -64,7 +64,7 @@ describe(PaginationWidgetBase.name, () => {
     ];
 
     for (const props of sampleProps) {
-      const onPageChange = jest.fn();
+      const onPageChange = vi.fn();
       const { unmount } = renderWithAuth(
         <PaginationWidgetBase {...props} onPageChange={onPageChange} />,
       );

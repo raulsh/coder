@@ -1,7 +1,7 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
-import { beforeAll, afterAll, beforeEach, test, expect, describe, it } from "vitest"
+import { vi , beforeAll, afterAll, beforeEach, test, expect, describe, it } from "vitest"
 import * as api from "api/api";
 import type { TemplateVersionParameter, Workspace } from "api/typesGenerated";
 import EventSourceMock from "eventsourcemock";
@@ -25,9 +25,9 @@ import { WorkspacePage } from "./WorkspacePage";
 
 // Renders the workspace page and waits for it be loaded
 const renderWorkspacePage = async (workspace: Workspace) => {
-  jest.spyOn(api, "getWorkspaceByOwnerAndName").mockResolvedValue(workspace);
-  jest.spyOn(api, "getTemplate").mockResolvedValueOnce(MockTemplate);
-  jest.spyOn(api, "getTemplateVersionRichParameters").mockResolvedValueOnce([]);
+  vi.spyOn(api, "getWorkspaceByOwnerAndName").mockResolvedValue(workspace);
+  vi.spyOn(api, "getTemplate").mockResolvedValueOnce(MockTemplate);
+  vi.spyOn(api, "getTemplateVersionRichParameters").mockResolvedValueOnce([]);
   jest
     .spyOn(api, "getDeploymentConfig")
     .mockResolvedValueOnce(MockDeploymentConfig);
@@ -310,7 +310,7 @@ describe("WorkspacePage", () => {
 
   it("restart the workspace with one time parameters when having the confirmation dialog", async () => {
     localStorage.removeItem(`${MockUser.id}_ignoredWarnings`);
-    jest.spyOn(api, "getWorkspaceParameters").mockResolvedValue({
+    vi.spyOn(api, "getWorkspaceParameters").mockResolvedValue({
       templateVersionRichParameters: [
         {
           ...MockTemplateVersionParameter1,
@@ -322,7 +322,7 @@ describe("WorkspacePage", () => {
       ],
       buildParameters: [{ name: "rebuild", value: "false" }],
     });
-    const restartWorkspaceSpy = jest.spyOn(api, "restartWorkspace");
+    const restartWorkspaceSpy = vi.spyOn(api, "restartWorkspace");
     const user = userEvent.setup();
     await renderWorkspacePage(MockWorkspace);
     await user.click(screen.getByTestId("build-parameters-button"));
@@ -352,7 +352,7 @@ describe("WorkspacePage", () => {
     const retryDebugButtonRe = /^Debug$/i;
 
     describe("Retries a failed 'Start' transition", () => {
-      const mockStart = jest.spyOn(api, "startWorkspace");
+      const mockStart = vi.spyOn(api, "startWorkspace");
       const failedStart: Workspace = {
         ...MockFailedWorkspace,
         latest_build: {
@@ -385,7 +385,7 @@ describe("WorkspacePage", () => {
     });
 
     describe("Retries a failed 'Stop' transition", () => {
-      const mockStop = jest.spyOn(api, "stopWorkspace");
+      const mockStop = vi.spyOn(api, "stopWorkspace");
       const failedStop: Workspace = {
         ...MockFailedWorkspace,
         latest_build: {
@@ -406,7 +406,7 @@ describe("WorkspacePage", () => {
     });
 
     describe("Retries a failed 'Delete' transition", () => {
-      const mockDelete = jest.spyOn(api, "deleteWorkspace");
+      const mockDelete = vi.spyOn(api, "deleteWorkspace");
       const failedDelete: Workspace = {
         ...MockFailedWorkspace,
         latest_build: {
@@ -451,7 +451,7 @@ describe("WorkspacePage", () => {
         return HttpResponse.json([parameter]);
       }),
     );
-    const startWorkspaceSpy = jest.spyOn(api, "startWorkspace");
+    const startWorkspaceSpy = vi.spyOn(api, "startWorkspace");
 
     await renderWorkspacePage(workspace);
     const retryWithBuildParametersButton = await screen.findByRole("button", {
@@ -497,7 +497,7 @@ describe("WorkspacePage", () => {
         return HttpResponse.json([parameter]);
       }),
     );
-    const startWorkspaceSpy = jest.spyOn(api, "startWorkspace");
+    const startWorkspaceSpy = vi.spyOn(api, "startWorkspace");
 
     await renderWorkspacePage(workspace);
     const retryWithBuildParametersButton = await screen.findByRole("button", {

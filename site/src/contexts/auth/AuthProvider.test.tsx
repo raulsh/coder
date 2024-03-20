@@ -1,7 +1,7 @@
 import { renderHook } from "@testing-library/react";
 import type { FC, PropsWithChildren } from "react";
 import { QueryClientProvider } from "react-query";
-import { expect, describe, it } from "vitest"
+import { vi , expect, describe, it } from "vitest"
 import { createTestQueryClient } from "testHelpers/renderHelpers";
 import { AuthProvider, useAuthContext } from "./AuthProvider";
 
@@ -15,7 +15,7 @@ const Wrapper: FC<PropsWithChildren> = ({ children }) => {
 
 describe("useAuth", () => {
   it("throws an error if it is used outside of <AuthProvider />", () => {
-    jest.spyOn(console, "error").mockImplementation(() => {});
+    vi.spyOn(console, "error").mockImplementation(() => {});
 
     expect(() => {
       renderHook(() => useAuthContext());

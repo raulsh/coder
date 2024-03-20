@@ -1,7 +1,7 @@
 import { fireEvent, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
-import { expect, describe, it } from "vitest"
+import { vi , expect, describe, it } from "vitest"
 import * as API from "api/api";
 import type { Role } from "api/typesGenerated";
 import {
@@ -125,7 +125,7 @@ const updateUserRole = async (role: Role) => {
   };
 };
 
-jest.spyOn(console, "error").mockImplementation(() => {});
+vi.spyOn(console, "error").mockImplementation(() => {});
 
 describe("UsersPage", () => {
   describe("suspend user", () => {
@@ -282,7 +282,7 @@ describe("UsersPage", () => {
         renderPage();
 
         await resetUserPassword(() => {
-          jest.spyOn(API, "updateUserPassword").mockRejectedValueOnce({});
+          vi.spyOn(API, "updateUserPassword").mockRejectedValueOnce({});
         });
 
         // Check if the error message is displayed

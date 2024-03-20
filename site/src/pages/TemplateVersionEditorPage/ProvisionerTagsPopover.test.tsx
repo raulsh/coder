@@ -1,6 +1,6 @@
 import { fireEvent, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { expect, describe, it } from "vitest"
+import { vi , expect, describe, it } from "vitest"
 import { MockTemplateVersion } from "testHelpers/entities";
 import { renderComponent } from "testHelpers/renderHelpers";
 import { ProvisionerTagsPopover } from "./ProvisionerTagsPopover";
@@ -10,10 +10,10 @@ let tags = MockTemplateVersion.job.tags;
 describe("ProvisionerTagsPopover", () => {
   describe("click the button", () => {
     it("can add a tag", async () => {
-      const onSubmit = jest.fn().mockImplementation(({ key, value }) => {
+      const onSubmit = vi.fn().mockImplementation(({ key, value }) => {
         tags = { ...tags, [key]: value };
       });
-      const onDelete = jest.fn().mockImplementation((key) => {
+      const onDelete = vi.fn().mockImplementation((key) => {
         const newTags = { ...tags };
         delete newTags[key];
         tags = newTags;
@@ -67,10 +67,10 @@ describe("ProvisionerTagsPopover", () => {
       expect(el4).toBeInTheDocument();
     });
     it("can remove a tag", async () => {
-      const onSubmit = jest.fn().mockImplementation(({ key, value }) => {
+      const onSubmit = vi.fn().mockImplementation(({ key, value }) => {
         tags = { ...tags, [key]: value };
       });
-      const onDelete = jest.fn().mockImplementation((key) => {
+      const onDelete = vi.fn().mockImplementation((key) => {
         delete tags[key];
         tags = { ...tags };
       });

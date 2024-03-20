@@ -1,6 +1,6 @@
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { test, expect } from "vitest"
+import { vi , test, expect } from "vitest"
 import * as API from "api/api";
 import { TemplateLayout } from "pages/TemplatePage/TemplateLayout";
 import {
@@ -44,7 +44,7 @@ test("Users can fill the parameters and copy the open in coder url", async () =>
   await user.clear(secondParameterField);
   await user.type(secondParameterField, "123456");
 
-  jest.spyOn(window.navigator.clipboard, "writeText");
+  vi.spyOn(window.navigator.clipboard, "writeText");
   const copyButton = screen.getByRole("button", { name: /copy/i });
   await userEvent.click(copyButton);
   expect(window.navigator.clipboard.writeText).toBeCalledWith(

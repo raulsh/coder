@@ -3,7 +3,7 @@ import userEvent, { type UserEvent } from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { QueryClient } from "react-query";
 import { RouterProvider, createMemoryRouter } from "react-router-dom";
-import { test, expect, it } from "vitest"
+import { vi , test, expect, it } from "vitest"
 import * as api from "api/api";
 import { templateVersionVariablesKey } from "api/queries/templates";
 import type { TemplateVersion } from "api/typesGenerated";
@@ -27,7 +27,7 @@ import TemplateVersionEditorPage from "./TemplateVersionEditorPage";
 
 // For some reason this component in Jest is throwing a MUI style warning so,
 // since we don't need it for this test, we can mock it out
-jest.mock(
+vi.mock(
   "modules/templates/TemplateResourcesTable/TemplateResourcesTable",
   () => ({
     TemplateResourcesTable: () => <div></div>,
@@ -36,7 +36,7 @@ jest.mock(
 
 // Occasionally, Jest encounters HTML5 canvas errors. As the MonacoEditor is not
 // required for these tests, we can safely mock it.
-jest.mock("pages/TemplateVersionEditorPage/MonacoEditor", () => ({
+vi.mock("pages/TemplateVersionEditorPage/MonacoEditor", () => ({
   MonacoEditor: (props: MonacoEditorProps) => (
     <textarea
       data-testid="monaco-editor"
@@ -71,8 +71,8 @@ const buildTemplateVersion = async (
   user: UserEvent,
   topbar: HTMLElement,
 ) => {
-  jest.spyOn(api, "uploadFile").mockResolvedValueOnce({ hash: "hash" });
-  jest.spyOn(api, "createTemplateVersion").mockResolvedValue({
+  vi.spyOn(api, "uploadFile").mockResolvedValueOnce({ hash: "hash" });
+  vi.spyOn(api, "createTemplateVersion").mockResolvedValue({
     ...templateVersion,
     job: {
       ...templateVersion.job,
@@ -88,7 +88,7 @@ const buildTemplateVersion = async (
       options.onMessage(MockWorkspaceBuildLogs[0]);
       options.onDone?.();
       const wsMock = {
-        close: jest.fn(),
+        close: vi.fn(),
       } as unknown;
       return wsMock as WebSocket;
     });

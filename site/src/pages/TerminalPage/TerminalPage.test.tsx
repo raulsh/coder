@@ -2,7 +2,7 @@ import "jest-canvas-mock";
 import { waitFor } from "@testing-library/react";
 import WS from "jest-websocket-mock";
 import { HttpResponse, http } from "msw";
-import { expect, describe, it } from "vitest";
+import { vi, expect, describe, it } from "vitest";
 import * as API from "api/api";
 import {
   MockUser,
@@ -18,15 +18,15 @@ import TerminalPage, { Language } from "./TerminalPage";
 
 Object.defineProperty(window, "matchMedia", {
   writable: true,
-  value: jest.fn().mockImplementation((query) => ({
+  value: vi.fn().mockImplementation((query) => ({
     matches: false,
     media: query,
     onchange: null,
-    addListener: jest.fn(), // deprecated
-    removeListener: jest.fn(), // deprecated
-    addEventListener: jest.fn(),
-    removeEventListener: jest.fn(),
-    dispatchEvent: jest.fn(),
+    addListener: vi.fn(), // deprecated
+    removeListener: vi.fn(), // deprecated
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn(),
   })),
 });
 

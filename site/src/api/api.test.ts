@@ -1,5 +1,5 @@
 import axios from "axios";
-import { expect, describe, it } from "vitest"
+import { vi , expect, describe, it } from "vitest"
 import {
   MockTemplate,
   MockTemplateVersionParameter1,
@@ -18,7 +18,7 @@ describe("api.ts", () => {
       const loginResponse: TypesGen.LoginWithPasswordResponse = {
         session_token: "abc_123_test",
       };
-      jest.spyOn(axios, "post").mockResolvedValueOnce({ data: loginResponse });
+      vi.spyOn(axios, "post").mockResolvedValueOnce({ data: loginResponse });
 
       // when
       const result = await api.login("test", "123");
@@ -36,7 +36,7 @@ describe("api.ts", () => {
         message: "Validation failed",
         errors: [{ field: "email", code: "email" }],
       };
-      const axiosMockPost = jest.fn().mockImplementationOnce(() => {
+      const axiosMockPost = vi.fn().mockImplementationOnce(() => {
         return Promise.reject(expectedError);
       });
       axios.post = axiosMockPost;
@@ -52,7 +52,7 @@ describe("api.ts", () => {
   describe("logout", () => {
     it("should return without erroring", async () => {
       // given
-      const axiosMockPost = jest.fn().mockImplementationOnce(() => {
+      const axiosMockPost = vi.fn().mockImplementationOnce(() => {
         return Promise.resolve();
       });
       axios.post = axiosMockPost;
@@ -71,7 +71,7 @@ describe("api.ts", () => {
       const expectedError = {
         message: "Failed to logout.",
       };
-      const axiosMockPost = jest.fn().mockImplementationOnce(() => {
+      const axiosMockPost = vi.fn().mockImplementationOnce(() => {
         return Promise.reject(expectedError);
       });
       axios.post = axiosMockPost;
@@ -90,7 +90,7 @@ describe("api.ts", () => {
       const apiKeyResponse: TypesGen.GenerateAPIKeyResponse = {
         key: "abc_123_test",
       };
-      const axiosMockPost = jest.fn().mockImplementationOnce(() => {
+      const axiosMockPost = vi.fn().mockImplementationOnce(() => {
         return Promise.resolve({ data: apiKeyResponse });
       });
       axios.post = axiosMockPost;
@@ -110,7 +110,7 @@ describe("api.ts", () => {
       const expectedError = {
         message: "No Cookie!",
       };
-      const axiosMockPost = jest.fn().mockImplementationOnce(() => {
+      const axiosMockPost = vi.fn().mockImplementationOnce(() => {
         return Promise.reject(expectedError);
       });
       axios.post = axiosMockPost;
@@ -169,7 +169,7 @@ describe("api.ts", () => {
       jest
         .spyOn(api, "postWorkspaceBuild")
         .mockResolvedValueOnce(MockWorkspaceBuild);
-      jest.spyOn(api, "getTemplate").mockResolvedValueOnce(MockTemplate);
+      vi.spyOn(api, "getTemplate").mockResolvedValueOnce(MockTemplate);
       await api.updateWorkspace(MockWorkspace);
       expect(api.postWorkspaceBuild).toHaveBeenCalledWith(MockWorkspace.id, {
         transition: "start",
@@ -182,8 +182,8 @@ describe("api.ts", () => {
       jest
         .spyOn(api, "postWorkspaceBuild")
         .mockResolvedValue(MockWorkspaceBuild);
-      jest.spyOn(api, "getTemplate").mockResolvedValue(MockTemplate);
-      jest.spyOn(api, "getWorkspaceBuildParameters").mockResolvedValue([]);
+      vi.spyOn(api, "getTemplate").mockResolvedValue(MockTemplate);
+      vi.spyOn(api, "getWorkspaceBuildParameters").mockResolvedValue([]);
       jest
         .spyOn(api, "getTemplateVersionRichParameters")
         .mockResolvedValue([
@@ -210,7 +210,7 @@ describe("api.ts", () => {
       jest
         .spyOn(api, "postWorkspaceBuild")
         .mockResolvedValueOnce(MockWorkspaceBuild);
-      jest.spyOn(api, "getTemplate").mockResolvedValueOnce(MockTemplate);
+      vi.spyOn(api, "getTemplate").mockResolvedValueOnce(MockTemplate);
       jest
         .spyOn(api, "getWorkspaceBuildParameters")
         .mockResolvedValue([MockWorkspaceBuildParameter1]);

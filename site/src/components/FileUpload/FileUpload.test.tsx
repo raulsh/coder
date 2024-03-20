@@ -1,10 +1,10 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { test, expect } from "vitest"
+import { vi , test, expect } from "vitest"
 import { ThemeProvider } from "contexts/ThemeProvider";
 import { FileUpload } from "./FileUpload";
 
 test("accepts files with the correct extension", async () => {
-  const onUpload = jest.fn();
+  const onUpload = vi.fn();
 
   render(
     <ThemeProvider>

@@ -1,5 +1,5 @@
 import { waitFor } from "@testing-library/react";
-import { beforeAll, afterAll, test, expect, describe, it } from "vitest"
+import { vi , beforeAll, afterAll, test, expect, describe, it } from "vitest"
 import { renderHookWithAuth } from "testHelpers/hooks";
 import {
   type PaginatedData,
@@ -40,10 +40,10 @@ function render<
  */
 describe.skip(usePaginatedQuery.name, () => {
   describe("queryPayload method", () => {
-    const mockQueryFn = jest.fn(() => Promise.resolve({ count: 0 }));
+    const mockQueryFn = vi.fn(() => Promise.resolve({ count: 0 }));
 
     it("Passes along an undefined payload if queryPayload is not used", async () => {
-      const mockQueryKey = jest.fn(() => ["mockQuery"]);
+      const mockQueryKey = vi.fn(() => ["mockQuery"]);
 
       await render({
         queryKey: mockQueryKey,
@@ -59,7 +59,7 @@ describe.skip(usePaginatedQuery.name, () => {
     });
 
     it("Passes along type-safe payload if queryPayload is provided", async () => {
-      const mockQueryKey = jest.fn(({ payload }) => {
+      const mockQueryKey = vi.fn(({ payload }) => {
         return ["mockQuery", payload];
       });
 
@@ -80,8 +80,8 @@ describe.skip(usePaginatedQuery.name, () => {
   });
 
   describe("Querying for current page", () => {
-    const mockQueryKey = jest.fn(() => ["mock"]);
-    const mockQueryFn = jest.fn(() => Promise.resolve({ count: 50 }));
+    const mockQueryKey = vi.fn(() => ["mock"]);
+    const mockQueryFn = vi.fn(() => Promise.resolve({ count: 50 }));
 
     it("Parses page number if it exists in URL params", async () => {
       const pageNumbers = [1, 2, 7, 39, 743];
@@ -108,7 +108,7 @@ describe.skip(usePaginatedQuery.name, () => {
   });
 
   describe("Prefetching", () => {
-    const mockQueryKey = jest.fn(({ pageNumber }) => ["query", pageNumber]);
+    const mockQueryKey = vi.fn(({ pageNumber }) => ["query", pageNumber]);
 
     type Context = { pageNumber: number; limit: number };
     const mockQueryFnImplementation = ({ pageNumber, limit }: Context) => {
@@ -129,7 +129,7 @@ describe.skip(usePaginatedQuery.name, () => {
     ) => {
       // Have to reinitialize mock function every call to avoid false positives
       // from shared mutable tracking state
-      const mockQueryFn = jest.fn(mockQueryFnImplementation);
+      const mockQueryFn = vi.fn(mockQueryFnImplementation);
       const { result } = await render(
         { queryKey: mockQueryKey, queryFn: mockQueryFn },
         `/?page=${startingPage}`,
@@ -170,7 +170,7 @@ describe.skip(usePaginatedQuery.name, () => {
 
     it("Reuses the same queryKey and queryFn methods for the current page and all prefetching (on a given render)", async () => {
       const startPage = 2;
-      const mockQueryFn = jest.fn(mockQueryFnImplementation);
+      const mockQueryFn = vi.fn(mockQueryFnImplementation);
 
       await render(
         { queryKey: mockQueryKey, queryFn: mockQueryFn },
@@ -196,8 +196,8 @@ describe.skip(usePaginatedQuery.name, () => {
   });
 
   describe("Safety nets/redirects for invalid pages", () => {
-    const mockQueryKey = jest.fn(() => ["mock"]);
-    const mockQueryFn = jest.fn(({ pageNumber, limit }) =>
+    const mockQueryKey = vi.fn(() => ["mock"]);
+    const mockQueryFn = vi.fn(({ pageNumber, limit }) =>
       Promise.resolve({
         data: new Array(limit).fill(pageNumber),
         count: 100,
@@ -239,7 +239,7 @@ describe.skip(usePaginatedQuery.name, () => {
         page: "1000",
       });
 
-      const onInvalidPageChange = jest.fn();
+      const onInvalidPageChange = vi.fn();
       await render({
         onInvalidPageChange,
         queryKey: mockQueryKey,
@@ -265,8 +265,8 @@ describe.skip(usePaginatedQuery.name, () => {
   });
 
   describe("Passing in searchParams property", () => {
-    const mockQueryKey = jest.fn(() => ["mock"]);
-    const mockQueryFn = jest.fn(({ pageNumber, limit }) =>
+    const mockQueryKey = vi.fn(() => ["mock"]);
+    const mockQueryFn = vi.fn(({ pageNumber, limit }) =>
       Promise.resolve({
         data: new Array(limit).fill(pageNumber),
         count: 100,
@@ -306,9 +306,9 @@ describe.skip(usePaginatedQuery.name, () => {
 
 describe(`${usePaginatedQuery.name} - Returned properties`, () => {
   describe("Page change methods", () => {
-    const mockQueryKey = jest.fn(() => ["mock"]);
+    const mockQueryKey = vi.fn(() => ["mock"]);
 
-    const mockQueryFn = jest.fn(({ pageNumber, limit }) => {
+    const mockQueryFn = vi.fn(({ pageNumber, limit }) => {
       type Data = PaginatedData & { data: readonly number[] };
 
       return new Promise<Data>((resolve) => {
@@ -322,7 +322,7 @@ describe(`${usePaginatedQuery.name} - Returned properties`, () => {
     });
 
     test("goToFirstPage always succeeds regardless of fetch status", async () => {
-      const queryFns = [mockQueryFn, jest.fn(() => Promise.reject("Too bad"))];
+      const queryFns = [mockQueryFn, vi.fn(() => Promise.reject("Too bad"))];
 
       for (const queryFn of queryFns) {
         const { result, unmount } = await render(

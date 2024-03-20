@@ -1,6 +1,6 @@
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { expect, describe, it } from "vitest"
+import { vi , expect, describe, it } from "vitest"
 import * as API from "api/api";
 import { MockUser } from "testHelpers/entities";
 import { renderWithAuth } from "testHelpers/renderHelpers";
@@ -10,7 +10,7 @@ describe("appearance page", () => {
   it("does nothing when selecting current theme", async () => {
     renderWithAuth(<AppearancePage />);
 
-    jest.spyOn(API, "updateAppearanceSettings").mockResolvedValueOnce({
+    vi.spyOn(API, "updateAppearanceSettings").mockResolvedValueOnce({
       ...MockUser,
       theme_preference: "dark",
     });
@@ -25,7 +25,7 @@ describe("appearance page", () => {
   it("changes theme to dark blue", async () => {
     renderWithAuth(<AppearancePage />);
 
-    jest.spyOn(API, "updateAppearanceSettings").mockResolvedValueOnce({
+    vi.spyOn(API, "updateAppearanceSettings").mockResolvedValueOnce({
       ...MockUser,
       theme_preference: "darkBlue",
     });
@@ -43,7 +43,7 @@ describe("appearance page", () => {
   it("changes theme to light", async () => {
     renderWithAuth(<AppearancePage />);
 
-    jest.spyOn(API, "updateAppearanceSettings").mockResolvedValueOnce({
+    vi.spyOn(API, "updateAppearanceSettings").mockResolvedValueOnce({
       ...MockUser,
       theme_preference: "light",
     });

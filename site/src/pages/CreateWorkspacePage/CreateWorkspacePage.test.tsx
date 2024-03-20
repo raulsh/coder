@@ -1,6 +1,6 @@
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { expect, describe, it } from "vitest"
+import { vi , expect, describe, it } from "vitest"
 import * as API from "api/api";
 import {
   MockTemplate,
@@ -42,7 +42,7 @@ describe("CreateWorkspacePage", () => {
     jest
       .spyOn(API, "getWorkspaceQuota")
       .mockResolvedValueOnce(MockWorkspaceQuota);
-    jest.spyOn(API, "createWorkspace").mockResolvedValueOnce(MockWorkspace);
+    vi.spyOn(API, "createWorkspace").mockResolvedValueOnce(MockWorkspace);
     jest
       .spyOn(API, "getTemplateVersionRichParameters")
       .mockResolvedValueOnce([MockTemplateVersionParameter1]);
@@ -158,7 +158,7 @@ describe("CreateWorkspacePage", () => {
   });
 
   it("rich parameter: number validation fails with custom error", async () => {
-    jest.spyOn(API, "getTemplateVersionRichParameters").mockResolvedValueOnce([
+    vi.spyOn(API, "getTemplateVersionRichParameters").mockResolvedValueOnce([
       MockTemplateVersionParameter1,
       {
         ...MockTemplateVersionParameter2,
@@ -193,7 +193,7 @@ describe("CreateWorkspacePage", () => {
     jest
       .spyOn(API, "getUsers")
       .mockResolvedValueOnce({ users: [MockUser], count: 1 });
-    jest.spyOn(API, "createWorkspace").mockResolvedValueOnce(MockWorkspace);
+    vi.spyOn(API, "createWorkspace").mockResolvedValueOnce(MockWorkspace);
     jest
       .spyOn(API, "getTemplateVersionExternalAuth")
       .mockResolvedValue([MockTemplateVersionExternalAuthGithub]);
@@ -237,7 +237,7 @@ describe("CreateWorkspacePage", () => {
   it("auto create a workspace if uses mode=auto", async () => {
     const param = "first_parameter";
     const paramValue = "It works!";
-    const createWorkspaceSpy = jest.spyOn(API, "createWorkspace");
+    const createWorkspaceSpy = vi.spyOn(API, "createWorkspace");
 
     renderWithAuth(<CreateWorkspacePage />, {
       route:
@@ -268,7 +268,7 @@ describe("CreateWorkspacePage", () => {
   it("disables mode=auto if a required external auth provider is not connected", async () => {
     const param = "first_parameter";
     const paramValue = "It works!";
-    const createWorkspaceSpy = jest.spyOn(API, "createWorkspace");
+    const createWorkspaceSpy = vi.spyOn(API, "createWorkspace");
 
     const externalAuthSpy = jest
       .spyOn(API, "getTemplateVersionExternalAuth")
@@ -297,7 +297,7 @@ describe("CreateWorkspacePage", () => {
   it("auto create a workspace if uses mode=auto and version=version-id", async () => {
     const param = "first_parameter";
     const paramValue = "It works!";
-    const createWorkspaceSpy = jest.spyOn(API, "createWorkspace");
+    const createWorkspaceSpy = vi.spyOn(API, "createWorkspace");
 
     renderWithAuth(<CreateWorkspacePage />, {
       route:

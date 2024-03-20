@@ -6,7 +6,7 @@ import type {
   MouseEventHandler,
   PropsWithChildren,
 } from "react";
-import { test, expect, describe, it } from "vitest"
+import { vi , test, expect, describe, it } from "vitest"
 import { type ClickableAriaRole, useClickable } from "./useClickable";
 
 /**
@@ -36,14 +36,14 @@ const NonNativeButton: FC<NonNativeButtonProps<HTMLElement>> = ({
 
 describe(useClickable.name, () => {
   it("Always defaults to role 'button'", () => {
-    render(<NonNativeButton onInteraction={jest.fn()} />);
+    render(<NonNativeButton onInteraction={vi.fn()} />);
     expect(() => screen.getByRole("button")).not.toThrow();
   });
 
   it("Overrides the native role of any element that receives the hook result (be very careful with this behavior)", () => {
     const anchorText = "I'm a button that's secretly a link!";
     render(
-      <NonNativeButton as="a" role="button" onInteraction={jest.fn()}>
+      <NonNativeButton as="a" role="button" onInteraction={vi.fn()}>
         {anchorText}
       </NonNativeButton>,
     );
@@ -56,7 +56,7 @@ describe(useClickable.name, () => {
   });
 
   it("Always returns out the same role override received via arguments", () => {
-    const placeholderCallback = jest.fn();
+    const placeholderCallback = vi.fn();
     const roles = [
       "button",
       "switch",
@@ -74,7 +74,7 @@ describe(useClickable.name, () => {
 
   it("Allows an element to receive keyboard focus", async () => {
     const user = userEvent.setup();
-    const mockCallback = jest.fn();
+    const mockCallback = vi.fn();
 
     render(<NonNativeButton role="button" onInteraction={mockCallback} />, {
       wrapper: ({ children }) => (
@@ -91,7 +91,7 @@ describe(useClickable.name, () => {
   });
 
   it("Allows an element to respond to clicks and Space/Enter, following all rules for native Button element interactions", async () => {
-    const mockCallback = jest.fn();
+    const mockCallback = vi.fn();
     const user = userEvent.setup();
     render(<NonNativeButton role="button" onInteraction={mockCallback} />);
 
@@ -108,7 +108,7 @@ describe(useClickable.name, () => {
   });
 
   it("Will keep firing events if the Enter key is held down", async () => {
-    const mockCallback = jest.fn();
+    const mockCallback = vi.fn();
     const user = userEvent.setup();
     render(<NonNativeButton role="button" onInteraction={mockCallback} />);
 
@@ -120,7 +120,7 @@ describe(useClickable.name, () => {
   });
 
   it("Will NOT keep firing events if the Space key is held down", async () => {
-    const mockCallback = jest.fn();
+    const mockCallback = vi.fn();
     const user = userEvent.setup();
     render(<NonNativeButton role="button" onInteraction={mockCallback} />);
 
@@ -134,7 +134,7 @@ describe(useClickable.name, () => {
   });
 
   test("If focus is lost while Space is held down, then releasing the key will do nothing", async () => {
-    const mockCallback = jest.fn();
+    const mockCallback = vi.fn();
     const user = userEvent.setup();
 
     render(<NonNativeButton role="button" onInteraction={mockCallback} />, {

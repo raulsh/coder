@@ -1,6 +1,6 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { expect, describe, it } from "vitest"
+import { vi , expect, describe, it } from "vitest"
 import * as API from "api/api";
 import type { UpdateTemplateMeta } from "api/typesGenerated";
 import { Language as FooterFormLanguage } from "components/FormFooter/FormFooter";
@@ -100,7 +100,7 @@ const fillAndSubmitForm = async ({
 describe("TemplateSettingsPage", () => {
   it("succeeds", async () => {
     await renderTemplateSettingsPage();
-    jest.spyOn(API, "updateTemplateMeta").mockResolvedValueOnce({
+    vi.spyOn(API, "updateTemplateMeta").mockResolvedValueOnce({
       ...MockTemplate,
       ...validFormValues,
     });

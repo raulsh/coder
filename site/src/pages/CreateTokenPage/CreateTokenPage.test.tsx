@@ -1,6 +1,6 @@
 import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { expect, describe, it } from "vitest"
+import { vi , expect, describe, it } from "vitest"
 import * as API from "api/api";
 import {
   renderWithAuth,
@@ -10,7 +10,7 @@ import { CreateTokenPage } from "./CreateTokenPage";
 
 describe("TokenPage", () => {
   it("shows the success modal", async () => {
-    jest.spyOn(API, "createToken").mockResolvedValueOnce({
+    vi.spyOn(API, "createToken").mockResolvedValueOnce({
       key: "abcd",
     });
 

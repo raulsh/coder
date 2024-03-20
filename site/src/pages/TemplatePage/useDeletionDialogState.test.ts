@@ -1,18 +1,18 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { test, expect } from "vitest"
+import { vi , test, expect } from "vitest"
 import * as API from "api/api";
 import { MockTemplate } from "testHelpers/entities";
 import { useDeletionDialogState } from "./useDeletionDialogState";
 
 test("delete dialog starts closed", () => {
   const { result } = renderHook(() =>
-    useDeletionDialogState(MockTemplate.id, jest.fn()),
+    useDeletionDialogState(MockTemplate.id, vi.fn()),
   );
   expect(result.current.isDeleteDialogOpen).toBeFalsy();
 });
 
 test("confirm template deletion", async () => {
-  const onDeleteTemplate = jest.fn();
+  const onDeleteTemplate = vi.fn();
   const { result } = renderHook(() =>
     useDeletionDialogState(MockTemplate.id, onDeleteTemplate),
   );
@@ -24,7 +24,7 @@ test("confirm template deletion", async () => {
   expect(result.current.isDeleteDialogOpen).toBeTruthy();
 
   // Confirm delete
-  jest.spyOn(API, "deleteTemplate");
+  vi.spyOn(API, "deleteTemplate");
   await act(async () => result.current.confirmDelete());
   await waitFor(() => expect(API.deleteTemplate).toBeCalledTimes(1));
   expect(onDeleteTemplate).toBeCalledTimes(1);
@@ -32,7 +32,7 @@ test("confirm template deletion", async () => {
 
 test("cancel template deletion", () => {
   const { result } = renderHook(() =>
-    useDeletionDialogState(MockTemplate.id, jest.fn()),
+    useDeletionDialogState(MockTemplate.id, vi.fn()),
   );
 
   //Open delete confirmation
