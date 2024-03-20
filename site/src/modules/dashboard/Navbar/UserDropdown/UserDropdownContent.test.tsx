@@ -1,4 +1,5 @@
 import { screen } from "@testing-library/react";
+import { expect, describe, it } from "vitest"
 import { Popover } from "components/Popover/Popover";
 import { MockUser } from "testHelpers/entities";
 import { render, waitForLoaderToBeRemoved } from "testHelpers/renderHelpers";

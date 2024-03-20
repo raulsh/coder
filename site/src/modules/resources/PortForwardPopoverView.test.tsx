@@ -1,5 +1,6 @@
 import { screen } from "@testing-library/react";
 import { QueryClientProvider } from "react-query";
+import { expect, describe, it } from "vitest"
 import {
   MockListeningPortsResponse,
   MockTemplate,

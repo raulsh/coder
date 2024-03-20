@@ -1,3 +1,5 @@
+import { act, renderHook } from "@testing-library/react";
+import { beforeAll, afterAll, afterEach, expect, it } from "vitest"
 /**
  * @file This is a very weird test setup.
  *
@@ -41,7 +43,6 @@
  *    order of operations involving closure, but you have no idea why the code
  *    is working, and it's impossible to debug.
  */
-import { act, renderHook } from "@testing-library/react";
 import { GlobalSnackbar } from "components/GlobalSnackbar/GlobalSnackbar";
 import {
   type UseClipboardInput,

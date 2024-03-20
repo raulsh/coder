@@ -1,4 +1,5 @@
 import { screen } from "@testing-library/react";
+import { expect, describe, it } from "vitest"
 import type { WorkspaceResourceMetadata } from "api/typesGenerated";
 import { MockWorkspaceResource } from "testHelpers/entities";
 import { renderComponent } from "testHelpers/renderHelpers";

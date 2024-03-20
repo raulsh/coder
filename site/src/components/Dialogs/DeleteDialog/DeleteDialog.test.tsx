@@ -1,6 +1,7 @@
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { act } from "react-dom/test-utils";
+import { expect, describe, it } from "vitest"
 import { renderComponent } from "testHelpers/renderHelpers";
 import { DeleteDialog } from "./DeleteDialog";
 

@@ -1,3 +1,4 @@
+import { describe } from "vitest"
 /**
  * This test is for all useClipboard functionality, with the browser context
  * set to insecure (HTTP connections).

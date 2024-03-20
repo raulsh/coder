@@ -1,3 +1,4 @@
+import { expect, describe, it } from "vitest"
 import { dispatchCustomEvent, isCustomEvent } from "./events";
 
 describe("events", () => {

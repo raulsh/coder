@@ -1,4 +1,5 @@
 import { screen } from "@testing-library/react";
+import { expect, describe, it } from "vitest"
 import type { UpdateUserProfileRequest } from "api/typesGenerated";
 import { MockUser2 } from "testHelpers/entities";
 import { render } from "testHelpers/renderHelpers";

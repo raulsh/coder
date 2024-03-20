@@ -1,5 +1,6 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { test, expect } from "vitest"
 import * as API from "api/api";
 import {
   MockTemplateExample,

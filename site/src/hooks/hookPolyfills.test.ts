@@ -1,4 +1,5 @@
 import { renderHook } from "@testing-library/react";
+import { expect, describe, it } from "vitest"
 import { useEffectEvent } from "./hookPolyfills";
 
 describe(useEffectEvent.name, () => {

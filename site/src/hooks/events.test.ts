@@ -1,4 +1,5 @@
 import { renderHook, waitFor } from "@testing-library/react";
+import { expect, describe, it } from "vitest"
 import { dispatchCustomEvent } from "utils/events";
 import { useCustomEvent } from "./events";
 

@@ -1,5 +1,6 @@
 import { renderHook } from "@testing-library/react";
 import { RouterProvider, createMemoryRouter } from "react-router-dom";
+import { expect, describe, it } from "vitest"
 import type { WorkspaceResource } from "api/typesGenerated";
 import { MockWorkspaceResource } from "testHelpers/entities";
 import { resourceOptionValue, useResourcesNav } from "./useResourcesNav";

@@ -1,4 +1,5 @@
 import { screen } from "@testing-library/react";
+import { expect, describe } from "vitest"
 import {
   DisplayApps,
   type DisplayApp,

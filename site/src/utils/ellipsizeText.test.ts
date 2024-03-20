@@ -1,3 +1,4 @@
+import { expect, describe } from "vitest"
 import { ellipsizeText } from "./ellipsizeText";
 import type { Nullable } from "./nullable";
 

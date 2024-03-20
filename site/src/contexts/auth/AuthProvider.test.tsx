@@ -1,6 +1,7 @@
 import { renderHook } from "@testing-library/react";
 import type { FC, PropsWithChildren } from "react";
 import { QueryClientProvider } from "react-query";
+import { expect, describe, it } from "vitest"
 import { createTestQueryClient } from "testHelpers/renderHelpers";
 import { AuthProvider, useAuthContext } from "./AuthProvider";
 

@@ -2,6 +2,7 @@ import { screen, renderHook } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
 import type { FC, PropsWithChildren } from "react";
 import { QueryClientProvider } from "react-query";
+import { expect, describe, it } from "vitest"
 import { MockPermissions, MockUser } from "testHelpers/entities";
 import {
   renderWithAuth,

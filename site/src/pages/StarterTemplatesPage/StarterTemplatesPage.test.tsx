@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { HttpResponse, http } from "msw";
 import { RouterProvider, createMemoryRouter } from "react-router-dom";
+import { test, expect } from "vitest"
 import { AppProviders } from "App";
 import { RequireAuth } from "contexts/auth/RequireAuth";
 import {

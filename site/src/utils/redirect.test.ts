@@ -1,3 +1,4 @@
+import { expect, describe, it } from "vitest"
 import { embedRedirect, retrieveRedirect } from "./redirect";
 
 describe("redirect helper functions", () => {

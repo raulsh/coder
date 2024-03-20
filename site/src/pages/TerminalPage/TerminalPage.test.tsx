@@ -2,6 +2,7 @@ import "jest-canvas-mock";
 import { waitFor } from "@testing-library/react";
 import WS from "jest-websocket-mock";
 import { HttpResponse, http } from "msw";
+import { expect, describe, it } from "vitest";
 import * as API from "api/api";
 import {
   MockUser,

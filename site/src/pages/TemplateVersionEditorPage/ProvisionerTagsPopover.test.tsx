@@ -1,5 +1,6 @@
 import { fireEvent, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { expect, describe, it } from "vitest"
 import { MockTemplateVersion } from "testHelpers/entities";
 import { renderComponent } from "testHelpers/renderHelpers";
 import { ProvisionerTagsPopover } from "./ProvisionerTagsPopover";

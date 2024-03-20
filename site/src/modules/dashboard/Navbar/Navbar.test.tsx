@@ -1,5 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import { HttpResponse, http } from "msw";
+import { expect, describe, it } from "vitest"
 import { App } from "App";
 import {
   MockEntitlementsWithAuditLog,

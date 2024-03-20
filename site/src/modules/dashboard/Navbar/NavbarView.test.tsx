@@ -1,4 +1,5 @@
 import { screen } from "@testing-library/react";
+import { expect, describe, it } from "vitest"
 import type { ProxyContextValue } from "contexts/ProxyContext";
 import { MockPrimaryWorkspaceProxy, MockUser } from "testHelpers/entities";
 import { renderWithAuth } from "testHelpers/renderHelpers";

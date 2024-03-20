@@ -6,6 +6,7 @@ import type {
   MouseEventHandler,
   PropsWithChildren,
 } from "react";
+import { test, expect, describe, it } from "vitest"
 import { type ClickableAriaRole, useClickable } from "./useClickable";
 
 /**

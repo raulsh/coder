@@ -3,6 +3,7 @@ import userEvent, { type UserEvent } from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { QueryClient } from "react-query";
 import { RouterProvider, createMemoryRouter } from "react-router-dom";
+import { test, expect, it } from "vitest"
 import * as api from "api/api";
 import { templateVersionVariablesKey } from "api/queries/templates";
 import type { TemplateVersion } from "api/typesGenerated";
