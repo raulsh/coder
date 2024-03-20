@@ -1,7 +1,7 @@
 import { fireEvent, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
-import { vi , expect, describe, it } from "vitest"
+import { vi, expect, describe, it } from "vitest";
 import * as API from "api/api";
 import type { Role } from "api/typesGenerated";
 import {
@@ -261,9 +261,7 @@ describe("UsersPage", () => {
         renderPage();
 
         await resetUserPassword(() => {
-          jest
-            .spyOn(API, "updateUserPassword")
-            .mockResolvedValueOnce(undefined);
+          vi.spyOn(API, "updateUserPassword").mockResolvedValueOnce(undefined);
         });
 
         // Check if the success message is displayed

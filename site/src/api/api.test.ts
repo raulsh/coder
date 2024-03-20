@@ -1,5 +1,5 @@
 import axios from "axios";
-import { vi , expect, describe, it } from "vitest"
+import { vi, expect, describe, it } from "vitest";
 import {
   MockTemplate,
   MockTemplateVersionParameter1,
@@ -166,9 +166,9 @@ describe("api.ts", () => {
 
   describe("update", () => {
     it("creates a build with start and the latest template", async () => {
-      jest
-        .spyOn(api, "postWorkspaceBuild")
-        .mockResolvedValueOnce(MockWorkspaceBuild);
+      vi.spyOn(api, "postWorkspaceBuild").mockResolvedValueOnce(
+        MockWorkspaceBuild,
+      );
       vi.spyOn(api, "getTemplate").mockResolvedValueOnce(MockTemplate);
       await api.updateWorkspace(MockWorkspace);
       expect(api.postWorkspaceBuild).toHaveBeenCalledWith(MockWorkspace.id, {
@@ -179,17 +179,13 @@ describe("api.ts", () => {
     });
 
     it("fails when having missing parameters", async () => {
-      jest
-        .spyOn(api, "postWorkspaceBuild")
-        .mockResolvedValue(MockWorkspaceBuild);
+      vi.spyOn(api, "postWorkspaceBuild").mockResolvedValue(MockWorkspaceBuild);
       vi.spyOn(api, "getTemplate").mockResolvedValue(MockTemplate);
       vi.spyOn(api, "getWorkspaceBuildParameters").mockResolvedValue([]);
-      jest
-        .spyOn(api, "getTemplateVersionRichParameters")
-        .mockResolvedValue([
-          MockTemplateVersionParameter1,
-          { ...MockTemplateVersionParameter2, mutable: false },
-        ]);
+      vi.spyOn(api, "getTemplateVersionRichParameters").mockResolvedValue([
+        MockTemplateVersionParameter1,
+        { ...MockTemplateVersionParameter2, mutable: false },
+      ]);
 
       let error = new Error();
       try {
@@ -207,18 +203,16 @@ describe("api.ts", () => {
     });
 
     it("creates a build with the no parameters if it is already filled", async () => {
-      jest
-        .spyOn(api, "postWorkspaceBuild")
-        .mockResolvedValueOnce(MockWorkspaceBuild);
+      vi.spyOn(api, "postWorkspaceBuild").mockResolvedValueOnce(
+        MockWorkspaceBuild,
+      );
       vi.spyOn(api, "getTemplate").mockResolvedValueOnce(MockTemplate);
-      jest
-        .spyOn(api, "getWorkspaceBuildParameters")
-        .mockResolvedValue([MockWorkspaceBuildParameter1]);
-      jest
-        .spyOn(api, "getTemplateVersionRichParameters")
-        .mockResolvedValue([
-          { ...MockTemplateVersionParameter1, required: true, mutable: false },
-        ]);
+      vi.spyOn(api, "getWorkspaceBuildParameters").mockResolvedValue([
+        MockWorkspaceBuildParameter1,
+      ]);
+      vi.spyOn(api, "getTemplateVersionRichParameters").mockResolvedValue([
+        { ...MockTemplateVersionParameter1, required: true, mutable: false },
+      ]);
       await api.updateWorkspace(MockWorkspace);
       expect(api.postWorkspaceBuild).toHaveBeenCalledWith(MockWorkspace.id, {
         transition: "start",

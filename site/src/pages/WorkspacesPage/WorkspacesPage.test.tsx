@@ -1,7 +1,7 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
-import { vi , beforeEach, expect, describe, it } from "vitest"
+import { vi, beforeEach, expect, describe, it } from "vitest";
 import * as API from "api/api";
 import type { Workspace } from "api/typesGenerated";
 import {
@@ -58,9 +58,10 @@ describe("WorkspacesPage", () => {
       { ...MockWorkspace, id: "2" },
       { ...MockWorkspace, id: "3" },
     ];
-    jest
-      .spyOn(API, "getWorkspaces")
-      .mockResolvedValue({ workspaces, count: workspaces.length });
+    vi.spyOn(API, "getWorkspaces").mockResolvedValue({
+      workspaces,
+      count: workspaces.length,
+    });
     const deleteWorkspace = vi.spyOn(API, "deleteWorkspace");
     const user = userEvent.setup();
     renderWithAuth(<WorkspacesPage />);
@@ -95,9 +96,10 @@ describe("WorkspacesPage", () => {
         { ...MockOutdatedWorkspace, id: "3" },
         { ...MockOutdatedWorkspace, id: "4" },
       ];
-      jest
-        .spyOn(API, "getWorkspaces")
-        .mockResolvedValue({ workspaces, count: workspaces.length });
+      vi.spyOn(API, "getWorkspaces").mockResolvedValue({
+        workspaces,
+        count: workspaces.length,
+      });
       const updateWorkspace = vi.spyOn(API, "updateWorkspace");
       const user = userEvent.setup();
       renderWithAuth(<WorkspacesPage />);
@@ -134,9 +136,10 @@ describe("WorkspacesPage", () => {
         { ...MockOutdatedWorkspace, id: "2" },
         { ...MockOutdatedWorkspace, id: "3" },
       ];
-      jest
-        .spyOn(API, "getWorkspaces")
-        .mockResolvedValue({ workspaces, count: workspaces.length });
+      vi.spyOn(API, "getWorkspaces").mockResolvedValue({
+        workspaces,
+        count: workspaces.length,
+      });
       const updateWorkspace = vi.spyOn(API, "updateWorkspace");
       const user = userEvent.setup();
       renderWithAuth(<WorkspacesPage />);
@@ -172,9 +175,10 @@ describe("WorkspacesPage", () => {
         { ...MockOutdatedWorkspace, id: "2" },
         { ...MockOutdatedWorkspace, id: "3" },
       ];
-      jest
-        .spyOn(API, "getWorkspaces")
-        .mockResolvedValue({ workspaces, count: workspaces.length });
+      vi.spyOn(API, "getWorkspaces").mockResolvedValue({
+        workspaces,
+        count: workspaces.length,
+      });
       const updateWorkspace = vi.spyOn(API, "updateWorkspace");
       const user = userEvent.setup();
       renderWithAuth(<WorkspacesPage />);
@@ -212,9 +216,10 @@ describe("WorkspacesPage", () => {
         { ...MockOutdatedWorkspace, id: "4" },
         { ...MockWorkspace, id: "5" },
       ];
-      jest
-        .spyOn(API, "getWorkspaces")
-        .mockResolvedValue({ workspaces, count: workspaces.length });
+      vi.spyOn(API, "getWorkspaces").mockResolvedValue({
+        workspaces,
+        count: workspaces.length,
+      });
       const updateWorkspace = vi.spyOn(API, "updateWorkspace");
       const user = userEvent.setup();
       renderWithAuth(<WorkspacesPage />);
@@ -254,9 +259,10 @@ describe("WorkspacesPage", () => {
       { ...MockWorkspace, id: "2" },
       { ...MockWorkspace, id: "3" },
     ];
-    jest
-      .spyOn(API, "getWorkspaces")
-      .mockResolvedValue({ workspaces, count: workspaces.length });
+    vi.spyOn(API, "getWorkspaces").mockResolvedValue({
+      workspaces,
+      count: workspaces.length,
+    });
     const stopWorkspace = vi.spyOn(API, "stopWorkspace");
     const user = userEvent.setup();
     renderWithAuth(<WorkspacesPage />);
@@ -281,9 +287,10 @@ describe("WorkspacesPage", () => {
       { ...MockStoppedWorkspace, id: "2" },
       { ...MockStoppedWorkspace, id: "3" },
     ];
-    jest
-      .spyOn(API, "getWorkspaces")
-      .mockResolvedValue({ workspaces, count: workspaces.length });
+    vi.spyOn(API, "getWorkspaces").mockResolvedValue({
+      workspaces,
+      count: workspaces.length,
+    });
     const startWorkspace = vi.spyOn(API, "startWorkspace");
     const user = userEvent.setup();
     renderWithAuth(<WorkspacesPage />);

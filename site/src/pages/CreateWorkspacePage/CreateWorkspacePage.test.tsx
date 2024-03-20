@@ -1,6 +1,6 @@
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { vi , expect, describe, it } from "vitest"
+import { vi, expect, describe, it } from "vitest";
 import * as API from "api/api";
 import {
   MockTemplate,
@@ -36,16 +36,17 @@ const renderCreateWorkspacePage = () => {
 
 describe("CreateWorkspacePage", () => {
   it("succeeds with default owner", async () => {
-    jest
-      .spyOn(API, "getUsers")
-      .mockResolvedValueOnce({ users: [MockUser], count: 1 });
-    jest
-      .spyOn(API, "getWorkspaceQuota")
-      .mockResolvedValueOnce(MockWorkspaceQuota);
+    vi.spyOn(API, "getUsers").mockResolvedValueOnce({
+      users: [MockUser],
+      count: 1,
+    });
+    vi.spyOn(API, "getWorkspaceQuota").mockResolvedValueOnce(
+      MockWorkspaceQuota,
+    );
     vi.spyOn(API, "createWorkspace").mockResolvedValueOnce(MockWorkspace);
-    jest
-      .spyOn(API, "getTemplateVersionRichParameters")
-      .mockResolvedValueOnce([MockTemplateVersionParameter1]);
+    vi.spyOn(API, "getTemplateVersionRichParameters").mockResolvedValueOnce([
+      MockTemplateVersionParameter1,
+    ]);
 
     renderCreateWorkspacePage();
 
@@ -73,9 +74,9 @@ describe("CreateWorkspacePage", () => {
   it("uses default rich param values passed from the URL", async () => {
     const param = "first_parameter";
     const paramValue = "It works!";
-    jest
-      .spyOn(API, "getTemplateVersionRichParameters")
-      .mockResolvedValueOnce([MockTemplateVersionParameter1]);
+    vi.spyOn(API, "getTemplateVersionRichParameters").mockResolvedValueOnce([
+      MockTemplateVersionParameter1,
+    ]);
 
     renderWithAuth(<CreateWorkspacePage />, {
       route:
@@ -89,12 +90,10 @@ describe("CreateWorkspacePage", () => {
   });
 
   it("rich parameter: number validation fails", async () => {
-    jest
-      .spyOn(API, "getTemplateVersionRichParameters")
-      .mockResolvedValueOnce([
-        MockTemplateVersionParameter1,
-        MockTemplateVersionParameter2,
-      ]);
+    vi.spyOn(API, "getTemplateVersionRichParameters").mockResolvedValueOnce([
+      MockTemplateVersionParameter1,
+      MockTemplateVersionParameter2,
+    ]);
 
     renderCreateWorkspacePage();
     await waitForLoaderToBeRemoved();
@@ -124,12 +123,10 @@ describe("CreateWorkspacePage", () => {
   });
 
   it("rich parameter: string validation fails", async () => {
-    jest
-      .spyOn(API, "getTemplateVersionRichParameters")
-      .mockResolvedValueOnce([
-        MockTemplateVersionParameter1,
-        MockTemplateVersionParameter3,
-      ]);
+    vi.spyOn(API, "getTemplateVersionRichParameters").mockResolvedValueOnce([
+      MockTemplateVersionParameter1,
+      MockTemplateVersionParameter3,
+    ]);
 
     renderCreateWorkspacePage();
     await waitForLoaderToBeRemoved();
@@ -187,16 +184,17 @@ describe("CreateWorkspacePage", () => {
   });
 
   it("external auth authenticates and succeeds", async () => {
-    jest
-      .spyOn(API, "getWorkspaceQuota")
-      .mockResolvedValueOnce(MockWorkspaceQuota);
-    jest
-      .spyOn(API, "getUsers")
-      .mockResolvedValueOnce({ users: [MockUser], count: 1 });
+    vi.spyOn(API, "getWorkspaceQuota").mockResolvedValueOnce(
+      MockWorkspaceQuota,
+    );
+    vi.spyOn(API, "getUsers").mockResolvedValueOnce({
+      users: [MockUser],
+      count: 1,
+    });
     vi.spyOn(API, "createWorkspace").mockResolvedValueOnce(MockWorkspace);
-    jest
-      .spyOn(API, "getTemplateVersionExternalAuth")
-      .mockResolvedValue([MockTemplateVersionExternalAuthGithub]);
+    vi.spyOn(API, "getTemplateVersionExternalAuth").mockResolvedValue([
+      MockTemplateVersionExternalAuthGithub,
+    ]);
 
     renderCreateWorkspacePage();
     await waitForLoaderToBeRemoved();
@@ -210,9 +208,9 @@ describe("CreateWorkspacePage", () => {
     const githubButton = await screen.findByText("Login with GitHub");
     await userEvent.click(githubButton);
 
-    jest
-      .spyOn(API, "getTemplateVersionExternalAuth")
-      .mockResolvedValue([MockTemplateVersionExternalAuthGithubAuthenticated]);
+    vi.spyOn(API, "getTemplateVersionExternalAuth").mockResolvedValue([
+      MockTemplateVersionExternalAuthGithubAuthenticated,
+    ]);
 
     await screen.findByText(
       "Authenticated with GitHub",
@@ -270,7 +268,7 @@ describe("CreateWorkspacePage", () => {
     const paramValue = "It works!";
     const createWorkspaceSpy = vi.spyOn(API, "createWorkspace");
 
-    const externalAuthSpy = jest
+    const externalAuthSpy = vi
       .spyOn(API, "getTemplateVersionExternalAuth")
       .mockResolvedValue([MockTemplateVersionExternalAuthGithub]);
 

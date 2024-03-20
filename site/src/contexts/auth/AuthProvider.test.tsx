@@ -1,7 +1,7 @@
 import { renderHook } from "@testing-library/react";
 import type { FC, PropsWithChildren } from "react";
 import { QueryClientProvider } from "react-query";
-import { vi , expect, describe, it } from "vitest"
+import { vi, expect, describe, it } from "vitest";
 import { createTestQueryClient } from "testHelpers/renderHelpers";
 import { AuthProvider, useAuthContext } from "./AuthProvider";
 
@@ -21,7 +21,7 @@ describe("useAuth", () => {
       renderHook(() => useAuthContext());
     }).toThrow("useAuth should be used inside of <AuthProvider />");
 
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
   });
 
   it("returns AuthContextValue when used inside of <AuthProvider />", () => {

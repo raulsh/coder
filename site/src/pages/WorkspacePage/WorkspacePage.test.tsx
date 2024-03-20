@@ -1,7 +1,16 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
-import { vi , beforeAll, afterAll, beforeEach, test, expect, describe, it } from "vitest"
+import {
+  vi,
+  beforeAll,
+  afterAll,
+  beforeEach,
+  test,
+  expect,
+  describe,
+  it,
+} from "vitest";
 import * as api from "api/api";
 import type { TemplateVersionParameter, Workspace } from "api/typesGenerated";
 import EventSourceMock from "eventsourcemock";
@@ -28,15 +37,13 @@ const renderWorkspacePage = async (workspace: Workspace) => {
   vi.spyOn(api, "getWorkspaceByOwnerAndName").mockResolvedValue(workspace);
   vi.spyOn(api, "getTemplate").mockResolvedValueOnce(MockTemplate);
   vi.spyOn(api, "getTemplateVersionRichParameters").mockResolvedValueOnce([]);
-  jest
-    .spyOn(api, "getDeploymentConfig")
-    .mockResolvedValueOnce(MockDeploymentConfig);
-  jest
-    .spyOn(api, "watchWorkspaceAgentLogs")
-    .mockImplementation((_, options) => {
-      options.onDone?.();
-      return new WebSocket("");
-    });
+  vi.spyOn(api, "getDeploymentConfig").mockResolvedValueOnce(
+    MockDeploymentConfig,
+  );
+  vi.spyOn(api, "watchWorkspaceAgentLogs").mockImplementation((_, options) => {
+    options.onDone?.();
+    return new WebSocket("");
+  });
 
   renderWithAuth(<WorkspacePage />, {
     route: `/@${workspace.owner_name}/${workspace.name}`,
@@ -57,7 +64,7 @@ const renderWorkspacePage = async (workspace: Workspace) => {
 const testButton = async (
   workspace: Workspace,
   name: string | RegExp,
-  actionMock: jest.SpyInstance,
+  actionMock: vi.SpyInstance,
 ) => {
   await renderWorkspacePage(workspace);
   const workspaceActions = screen.getByTestId("workspace-actions");
@@ -77,7 +84,7 @@ beforeAll(() => {
 });
 
 beforeEach(() => {
-  jest.resetAllMocks();
+  vi.resetAllMocks();
 });
 
 afterAll(() => {
@@ -87,7 +94,7 @@ afterAll(() => {
 describe("WorkspacePage", () => {
   it("requests a delete job when the user presses Delete and confirms", async () => {
     const user = userEvent.setup({ delay: 0 });
-    const deleteWorkspaceMock = jest
+    const deleteWorkspaceMock = vi
       .spyOn(api, "deleteWorkspace")
       .mockResolvedValueOnce(MockWorkspaceBuild);
     await renderWorkspacePage(MockWorkspace);
@@ -127,7 +134,7 @@ describe("WorkspacePage", () => {
       }),
     );
 
-    const deleteWorkspaceMock = jest
+    const deleteWorkspaceMock = vi
       .spyOn(api, "deleteWorkspace")
       .mockResolvedValueOnce(MockWorkspaceBuildDelete);
     await renderWorkspacePage(MockFailedWorkspace);
@@ -173,7 +180,7 @@ describe("WorkspacePage", () => {
       }),
     );
 
-    const startWorkspaceMock = jest
+    const startWorkspaceMock = vi
       .spyOn(api, "startWorkspace")
       .mockImplementation(() => Promise.resolve(MockWorkspaceBuild));
 
@@ -181,7 +188,7 @@ describe("WorkspacePage", () => {
   });
 
   it("requests a stop job when the user presses Stop", async () => {
-    const stopWorkspaceMock = jest
+    const stopWorkspaceMock = vi
       .spyOn(api, "stopWorkspace")
       .mockResolvedValueOnce(MockWorkspaceBuild);
 
@@ -189,7 +196,7 @@ describe("WorkspacePage", () => {
   });
 
   it("requests a stop when the user presses Restart", async () => {
-    const stopWorkspaceMock = jest
+    const stopWorkspaceMock = vi
       .spyOn(api, "stopWorkspace")
       .mockResolvedValueOnce(MockWorkspaceBuild);
 
@@ -215,7 +222,7 @@ describe("WorkspacePage", () => {
       }),
     );
 
-    const cancelWorkspaceMock = jest
+    const cancelWorkspaceMock = vi
       .spyOn(api, "cancelWorkspaceBuild")
       .mockImplementation(() => Promise.resolve({ message: "job canceled" }));
 
@@ -224,11 +231,11 @@ describe("WorkspacePage", () => {
 
   it("requests an update when the user presses Update", async () => {
     // Mocks
-    jest
-      .spyOn(api, "getWorkspaceByOwnerAndName")
-      .mockResolvedValueOnce(MockOutdatedWorkspace);
+    vi.spyOn(api, "getWorkspaceByOwnerAndName").mockResolvedValueOnce(
+      MockOutdatedWorkspace,
+    );
 
-    const updateWorkspaceMock = jest
+    const updateWorkspaceMock = vi
       .spyOn(api, "updateWorkspace")
       .mockResolvedValueOnce(MockWorkspaceBuild);
 
@@ -249,10 +256,10 @@ describe("WorkspacePage", () => {
 
   it("updates the parameters when they are missing during update", async () => {
     // Mocks
-    jest
-      .spyOn(api, "getWorkspaceByOwnerAndName")
-      .mockResolvedValueOnce(MockOutdatedWorkspace);
-    const updateWorkspaceSpy = jest
+    vi.spyOn(api, "getWorkspaceByOwnerAndName").mockResolvedValueOnce(
+      MockOutdatedWorkspace,
+    );
+    const updateWorkspaceSpy = vi
       .spyOn(api, "updateWorkspace")
       .mockRejectedValueOnce(
         new api.MissingBuildParameters(

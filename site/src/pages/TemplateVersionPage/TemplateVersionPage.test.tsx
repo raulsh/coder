@@ -1,5 +1,5 @@
 import { screen, within } from "@testing-library/react";
-import { beforeEach, expect, describe, it } from "vitest"
+import { beforeEach, expect, describe, it } from "vitest";
 import {
   renderWithAuth,
   waitForLoaderToBeRemoved,
@@ -18,13 +18,13 @@ const TEMPLATE_VERSION_FILES = {
 };
 
 const setup = async () => {
-  jest
-    .spyOn(templateVersionUtils, "getTemplateVersionFiles")
-    .mockResolvedValue(TEMPLATE_VERSION_FILES);
+  vi.spyOn(templateVersionUtils, "getTemplateVersionFiles").mockResolvedValue(
+    TEMPLATE_VERSION_FILES,
+  );
 
-  jest
-    .spyOn(CreateDayString, "createDayString")
-    .mockImplementation(() => "a minute ago");
+  vi.spyOn(CreateDayString, "createDayString").mockImplementation(
+    () => "a minute ago",
+  );
 
   renderWithAuth(<TemplateVersionPage />, {
     route: `/templates/${TEMPLATE_NAME}/versions/${VERSION_NAME}`,

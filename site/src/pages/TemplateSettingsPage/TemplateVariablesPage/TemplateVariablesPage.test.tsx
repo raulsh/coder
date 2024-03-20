@@ -1,6 +1,6 @@
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { vi , expect, describe, it } from "vitest"
+import { vi, expect, describe, it } from "vitest";
 import * as API from "api/api";
 import { Language as FooterFormLanguage } from "components/FormFooter/FormFooter";
 import {
@@ -34,15 +34,13 @@ const renderTemplateVariablesPage = async () => {
 describe("TemplateVariablesPage", () => {
   it("renders with variables", async () => {
     vi.spyOn(API, "getTemplateByName").mockResolvedValueOnce(MockTemplate);
-    jest
-      .spyOn(API, "getTemplateVersion")
-      .mockResolvedValueOnce(MockTemplateVersion);
-    jest
-      .spyOn(API, "getTemplateVersionVariables")
-      .mockResolvedValueOnce([
-        MockTemplateVersionVariable1,
-        MockTemplateVersionVariable2,
-      ]);
+    vi.spyOn(API, "getTemplateVersion").mockResolvedValueOnce(
+      MockTemplateVersion,
+    );
+    vi.spyOn(API, "getTemplateVersionVariables").mockResolvedValueOnce([
+      MockTemplateVersionVariable1,
+      MockTemplateVersionVariable2,
+    ]);
 
     await renderTemplateVariablesPage();
 
@@ -59,18 +57,14 @@ describe("TemplateVariablesPage", () => {
 
   it("user submits the form successfully", async () => {
     vi.spyOn(API, "getTemplateByName").mockResolvedValueOnce(MockTemplate);
-    jest
-      .spyOn(API, "getTemplateVersion")
-      .mockResolvedValue(MockTemplateVersion);
-    jest
-      .spyOn(API, "getTemplateVersionVariables")
-      .mockResolvedValueOnce([
-        MockTemplateVersionVariable1,
-        MockTemplateVersionVariable2,
-      ]);
-    jest
-      .spyOn(API, "createTemplateVersion")
-      .mockResolvedValueOnce(MockTemplateVersion2);
+    vi.spyOn(API, "getTemplateVersion").mockResolvedValue(MockTemplateVersion);
+    vi.spyOn(API, "getTemplateVersionVariables").mockResolvedValueOnce([
+      MockTemplateVersionVariable1,
+      MockTemplateVersionVariable2,
+    ]);
+    vi.spyOn(API, "createTemplateVersion").mockResolvedValueOnce(
+      MockTemplateVersion2,
+    );
     vi.spyOn(API, "updateActiveTemplateVersion").mockResolvedValueOnce({
       message: "done",
     });

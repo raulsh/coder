@@ -2,7 +2,7 @@ import { screen, renderHook } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
 import type { FC, PropsWithChildren } from "react";
 import { QueryClientProvider } from "react-query";
-import { vi , expect, describe, it } from "vitest"
+import { vi, expect, describe, it } from "vitest";
 import { MockPermissions, MockUser } from "testHelpers/entities";
 import {
   renderWithAuth,
@@ -75,7 +75,7 @@ describe("useAuthenticated", () => {
       });
     }).toThrow("User is not authenticated.");
 
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
   });
 
   it("throws an error if it is used outside of a context with permissions", () => {
@@ -87,7 +87,7 @@ describe("useAuthenticated", () => {
       });
     }).toThrow("Permissions are not available.");
 
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
   });
 
   it("returns auth context values for authenticated context", () => {

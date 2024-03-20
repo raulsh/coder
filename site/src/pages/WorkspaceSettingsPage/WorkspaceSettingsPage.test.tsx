@@ -1,6 +1,6 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { test, expect } from "vitest"
+import { test, expect } from "vitest";
 import * as api from "api/api";
 import { MockWorkspace } from "testHelpers/entities";
 import {
@@ -11,13 +11,11 @@ import WorkspaceSettingsPage from "./WorkspaceSettingsPage";
 
 test("Submit the workspace settings page successfully", async () => {
   // Mock the API calls that loads data
-  jest
-    .spyOn(api, "getWorkspaceByOwnerAndName")
-    .mockResolvedValueOnce({ ...MockWorkspace });
+  vi.spyOn(api, "getWorkspaceByOwnerAndName").mockResolvedValueOnce({
+    ...MockWorkspace,
+  });
   // Mock the API calls that submit data
-  const patchWorkspaceSpy = jest
-    .spyOn(api, "patchWorkspace")
-    .mockResolvedValue();
+  const patchWorkspaceSpy = vi.spyOn(api, "patchWorkspace").mockResolvedValue();
   // Setup event and rendering
   const user = userEvent.setup();
   renderWithWorkspaceSettingsLayout(<WorkspaceSettingsPage />, {
@@ -43,9 +41,10 @@ test("Submit the workspace settings page successfully", async () => {
 
 test("Name field is disabled if renames are disabled", async () => {
   // Mock the API calls that loads data
-  jest
-    .spyOn(api, "getWorkspaceByOwnerAndName")
-    .mockResolvedValueOnce({ ...MockWorkspace, allow_renames: false });
+  vi.spyOn(api, "getWorkspaceByOwnerAndName").mockResolvedValueOnce({
+    ...MockWorkspace,
+    allow_renames: false,
+  });
   renderWithWorkspaceSettingsLayout(<WorkspaceSettingsPage />, {
     route: "/@test-user/test-workspace/settings",
     path: "/:username/:workspace/settings",

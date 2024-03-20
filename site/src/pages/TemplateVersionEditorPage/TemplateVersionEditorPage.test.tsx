@@ -3,7 +3,7 @@ import userEvent, { type UserEvent } from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { QueryClient } from "react-query";
 import { RouterProvider, createMemoryRouter } from "react-router-dom";
-import { vi , test, expect, it } from "vitest"
+import { vi, test, expect, it } from "vitest";
 import * as api from "api/api";
 import { templateVersionVariablesKey } from "api/queries/templates";
 import type { TemplateVersion } from "api/typesGenerated";
@@ -79,19 +79,17 @@ const buildTemplateVersion = async (
       status: "running",
     },
   });
-  jest
-    .spyOn(api, "getTemplateVersionByName")
-    .mockResolvedValue(templateVersion);
-  jest
-    .spyOn(api, "watchBuildLogsByTemplateVersionId")
-    .mockImplementation((_, options) => {
+  vi.spyOn(api, "getTemplateVersionByName").mockResolvedValue(templateVersion);
+  vi.spyOn(api, "watchBuildLogsByTemplateVersionId").mockImplementation(
+    (_, options) => {
       options.onMessage(MockWorkspaceBuildLogs[0]);
       options.onDone?.();
       const wsMock = {
         close: vi.fn(),
       } as unknown;
       return wsMock as WebSocket;
-    });
+    },
+  );
   const buildButton = within(topbar).getByRole("button", {
     name: "Build",
   });
@@ -114,10 +112,10 @@ test("Use custom name, message and set it as active when publishing", async () =
   await buildTemplateVersion(newTemplateVersion, user, topbar);
 
   // Publish
-  const patchTemplateVersion = jest
+  const patchTemplateVersion = vi
     .spyOn(api, "patchTemplateVersion")
     .mockResolvedValue(newTemplateVersion);
-  const updateActiveTemplateVersion = jest
+  const updateActiveTemplateVersion = vi
     .spyOn(api, "updateActiveTemplateVersion")
     .mockResolvedValue({ message: "" });
   const publishButton = within(topbar).getByRole("button", {
@@ -160,10 +158,10 @@ test("Do not mark as active if promote is not checked", async () => {
   await buildTemplateVersion(newTemplateVersion, user, topbar);
 
   // Publish
-  const patchTemplateVersion = jest
+  const patchTemplateVersion = vi
     .spyOn(api, "patchTemplateVersion")
     .mockResolvedValue(newTemplateVersion);
-  const updateActiveTemplateVersion = jest
+  const updateActiveTemplateVersion = vi
     .spyOn(api, "updateActiveTemplateVersion")
     .mockResolvedValue({ message: "" });
   const publishButton = within(topbar).getByRole("button", {
@@ -205,7 +203,7 @@ test("Patch request is not send when there are no changes", async () => {
   await buildTemplateVersion(newTemplateVersion, user, topbar);
 
   // Publish
-  const patchTemplateVersion = jest
+  const patchTemplateVersion = vi
     .spyOn(api, "patchTemplateVersion")
     .mockResolvedValue(newTemplateVersion);
   const publishButton = within(topbar).getByRole("button", {
@@ -268,7 +266,7 @@ describe.each([
     askForVariables,
   }) => {
     it(testName, async () => {
-      jest.resetAllMocks();
+      vi.resetAllMocks();
       const queryClient = new QueryClient();
       queryClient.setQueryData(
         templateVersionVariablesKey(MockTemplateVersion.id),

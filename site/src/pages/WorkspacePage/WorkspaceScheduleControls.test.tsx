@@ -5,7 +5,7 @@ import { HttpResponse, http } from "msw";
 import type { FC } from "react";
 import { QueryClient, QueryClientProvider, useQuery } from "react-query";
 import { RouterProvider, createMemoryRouter } from "react-router-dom";
-import { vi , test, expect } from "vitest"
+import { vi, test, expect } from "vitest";
 import * as API from "api/api";
 import { workspaceByOwnerAndName } from "api/queries/workspaces";
 import { GlobalSnackbar } from "components/GlobalSnackbar/GlobalSnackbar";
@@ -62,7 +62,7 @@ const renderScheduleControls = async () => {
 
 test("add 3 hours to deadline", async () => {
   const user = userEvent.setup();
-  const updateDeadlineSpy = jest
+  const updateDeadlineSpy = vi
     .spyOn(API, "putWorkspaceExtension")
     .mockResolvedValue();
 
@@ -91,7 +91,7 @@ test("add 3 hours to deadline", async () => {
 
 test("remove 2 hours to deadline", async () => {
   const user = userEvent.setup();
-  const updateDeadlineSpy = jest
+  const updateDeadlineSpy = vi
     .spyOn(API, "putWorkspaceExtension")
     .mockResolvedValue();
 
@@ -139,7 +139,7 @@ test("rollback to previous deadline on error", async () => {
 
 test("request is only sent once when clicking multiple times", async () => {
   const user = userEvent.setup();
-  const updateDeadlineSpy = jest
+  const updateDeadlineSpy = vi
     .spyOn(API, "putWorkspaceExtension")
     .mockResolvedValue();
 

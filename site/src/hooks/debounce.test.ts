@@ -1,15 +1,15 @@
 import { renderHook, waitFor } from "@testing-library/react";
-import { vi , beforeAll, afterAll, expect, describe, it } from "vitest"
+import { vi, beforeAll, afterAll, expect, describe, it } from "vitest";
 import { useDebouncedFunction, useDebouncedValue } from "./debounce";
 
 beforeAll(() => {
-  jest.useFakeTimers();
+  vi.useFakeTimers();
   vi.spyOn(global, "setTimeout");
 });
 
 afterAll(() => {
-  jest.useRealTimers();
-  jest.clearAllMocks();
+  vi.useRealTimers();
+  vi.clearAllMocks();
 });
 
 describe(`${useDebouncedValue.name}`, () => {
@@ -44,7 +44,7 @@ describe(`${useDebouncedValue.name}`, () => {
       }, i * 100);
     }
 
-    await jest.advanceTimersByTimeAsync(time - 100);
+    await vi.advanceTimersByTimeAsync(time - 100);
     expect(result.current).toEqual(0);
   });
 
@@ -56,7 +56,7 @@ describe(`${useDebouncedValue.name}`, () => {
     expect(result.current).toEqual(false);
 
     rerender({ value: !initialValue, time });
-    await jest.runAllTimersAsync();
+    await vi.runAllTimersAsync();
     await waitFor(() => expect(result.current).toEqual(true));
   });
 });
@@ -100,7 +100,7 @@ describe(`${useDebouncedFunction.name}`, () => {
       result.current.debounced();
       rerender({ callback: mockCallback, time: time + 1 });
 
-      await jest.runAllTimersAsync();
+      await vi.runAllTimersAsync();
       expect(mockCallback).not.toBeCalled();
     });
   });
@@ -111,7 +111,7 @@ describe(`${useDebouncedFunction.name}`, () => {
       const { result } = renderDebouncedFunction(mockCallback, 100);
       result.current.debounced();
 
-      await jest.runOnlyPendingTimersAsync();
+      await vi.runOnlyPendingTimersAsync();
       expect(mockCallback).toBeCalledTimes(1);
     });
 
@@ -124,7 +124,7 @@ describe(`${useDebouncedFunction.name}`, () => {
       result.current.debounced();
       rerender({ callback: mockCallback2, time });
 
-      await jest.runAllTimersAsync();
+      await vi.runAllTimersAsync();
       expect(mockCallback1).not.toBeCalled();
       expect(mockCallback2).toBeCalledTimes(1);
     });
@@ -139,7 +139,7 @@ describe(`${useDebouncedFunction.name}`, () => {
         }, i * 100);
       }
 
-      await jest.runAllTimersAsync();
+      await vi.runAllTimersAsync();
       expect(mockCallback).toBeCalledTimes(1);
     });
   });
@@ -152,7 +152,7 @@ describe(`${useDebouncedFunction.name}`, () => {
       result.current.debounced();
       result.current.cancelDebounce();
 
-      await jest.runAllTimersAsync();
+      await vi.runAllTimersAsync();
       expect(mockCallback).not.toBeCalled();
     });
   });

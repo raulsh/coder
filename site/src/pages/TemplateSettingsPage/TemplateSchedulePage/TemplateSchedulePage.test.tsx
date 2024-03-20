@@ -1,6 +1,6 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { vi , beforeEach, test, expect, describe, it } from "vitest"
+import { vi, beforeEach, test, expect, describe, it } from "vitest";
 import * as API from "api/api";
 import { Language as FooterFormLanguage } from "components/FormFooter/FormFooter";
 import {
@@ -119,7 +119,7 @@ const fillAndSubmitForm = async ({
 function waitForWithCutoff(callback: () => void | Promise<void>) {
   return waitFor(callback, {
     // Defined to end 500ms before global cut-off time of 20s. Wanted to define
-    // this in terms of an exported constant from jest.config, but since Jest
+    // this in terms of an exported constant from vi.config, but since Jest
     // is CJS-based, that would've involved weird CJS-ESM interop issues
     timeout: 19_500,
   });
@@ -127,9 +127,9 @@ function waitForWithCutoff(callback: () => void | Promise<void>) {
 
 describe("TemplateSchedulePage", () => {
   beforeEach(() => {
-    jest
-      .spyOn(API, "getEntitlements")
-      .mockResolvedValue(MockEntitlementsWithScheduling);
+    vi.spyOn(API, "getEntitlements").mockResolvedValue(
+      MockEntitlementsWithScheduling,
+    );
   });
 
   it("Calls the API when user fills in and submits a form", async () => {

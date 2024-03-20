@@ -1,6 +1,6 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { vi , test, expect } from "vitest"
+import { vi, test, expect } from "vitest";
 import * as api from "api/api";
 import {
   MockWorkspace,
@@ -20,9 +20,9 @@ import WorkspaceParametersPage from "./WorkspaceParametersPage";
 
 test("Submit the workspace settings page successfully", async () => {
   // Mock the API calls that loads data
-  jest
-    .spyOn(api, "getWorkspaceByOwnerAndName")
-    .mockResolvedValueOnce(MockWorkspace);
+  vi.spyOn(api, "getWorkspaceByOwnerAndName").mockResolvedValueOnce(
+    MockWorkspace,
+  );
   vi.spyOn(api, "getTemplateVersionRichParameters").mockResolvedValueOnce([
     MockTemplateVersionParameter1,
     MockTemplateVersionParameter2,
@@ -36,7 +36,7 @@ test("Submit the workspace settings page successfully", async () => {
     MockWorkspaceBuildParameter4,
   ]);
   // Mock the API calls that submit data
-  const postWorkspaceBuildSpy = jest
+  const postWorkspaceBuildSpy = vi
     .spyOn(api, "postWorkspaceBuild")
     .mockResolvedValue(MockWorkspaceBuild);
   // Setup event and rendering

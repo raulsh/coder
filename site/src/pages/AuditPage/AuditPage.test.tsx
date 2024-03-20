@@ -1,7 +1,7 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
-import { vi , beforeEach, expect, describe, it } from "vitest"
+import { vi, beforeEach, expect, describe, it } from "vitest";
 import * as API from "api/api";
 import { DEFAULT_RECORDS_PER_PAGE } from "components/PaginationWidget/utils";
 import {
@@ -82,7 +82,7 @@ describe("AuditPage", () => {
 
   describe("Filtering", () => {
     it("filters by URL", async () => {
-      const getAuditLogsSpy = jest
+      const getAuditLogsSpy = vi
         .spyOn(API, "getAuditLogs")
         .mockResolvedValue({ audit_logs: [MockAuditLog], count: 1 });
 

@@ -1,6 +1,6 @@
-import "jest-canvas-mock";
+import "vi-canvas-mock";
 import { waitFor } from "@testing-library/react";
-import WS from "jest-websocket-mock";
+import WS from "vi-websocket-mock";
 import { HttpResponse, http } from "msw";
 import { vi, expect, describe, it } from "vitest";
 import * as API from "api/api";
@@ -60,7 +60,7 @@ const expectTerminalText = (container: HTMLElement, text: string) => {
 
 describe("TerminalPage", () => {
   it("loads the right workspace data", async () => {
-    const spy = jest
+    const spy = vi
       .spyOn(API, "getWorkspaceByOwnerAndName")
       .mockResolvedValue(MockWorkspace);
     const ws = new WS(

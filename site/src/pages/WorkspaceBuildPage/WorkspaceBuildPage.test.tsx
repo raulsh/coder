@@ -1,6 +1,6 @@
 import { screen, waitFor } from "@testing-library/react";
-import WS from "jest-websocket-mock";
-import { afterEach, test, expect, describe } from "vitest"
+import WS from "vi-websocket-mock";
+import { afterEach, test, expect, describe } from "vitest";
 import * as API from "api/api";
 import {
   MockWorkspace,
@@ -18,7 +18,7 @@ afterEach(() => {
 
 describe("WorkspaceBuildPage", () => {
   test("gets the right workspace build", async () => {
-    const getWorkspaceBuildSpy = jest
+    const getWorkspaceBuildSpy = vi
       .spyOn(API, "getWorkspaceBuildByNumber")
       .mockResolvedValue(MockWorkspaceBuild);
     renderWithAuth(<WorkspaceBuildPage />, {

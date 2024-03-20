@@ -1,5 +1,5 @@
 import { waitFor } from "@testing-library/react";
-import { vi , beforeAll, afterAll, test, expect, describe, it } from "vitest"
+import { vi, beforeAll, afterAll, test, expect, describe, it } from "vitest";
 import { renderHookWithAuth } from "testHelpers/hooks";
 import {
   type PaginatedData,
@@ -8,12 +8,12 @@ import {
 } from "./usePaginatedQuery";
 
 beforeAll(() => {
-  jest.useFakeTimers();
+  vi.useFakeTimers();
 });
 
 afterAll(() => {
-  jest.useRealTimers();
-  jest.clearAllMocks();
+  vi.useRealTimers();
+  vi.clearAllMocks();
 });
 
 function render<
@@ -147,7 +147,7 @@ describe.skip(usePaginatedQuery.name, () => {
           expect(mockQueryFn).not.toBeCalledWith(pageMatcher);
         }, 1000);
 
-        jest.runAllTimers();
+        vi.runAllTimers();
       }
     };
 
@@ -350,7 +350,7 @@ describe(`${usePaginatedQuery.name} - Returned properties`, () => {
       result.current.goToNextPage();
       expect(result.current.currentPage).toBe(1);
 
-      await jest.runAllTimersAsync();
+      await vi.runAllTimersAsync();
       await waitFor(() => expect(result.current.hasNextPage).toBe(true));
       result.current.goToNextPage();
       await waitFor(() => expect(result.current.currentPage).toBe(2));
@@ -369,7 +369,7 @@ describe(`${usePaginatedQuery.name} - Returned properties`, () => {
       result.current.goToPreviousPage();
       expect(result.current.currentPage).toBe(3);
 
-      await jest.runAllTimersAsync();
+      await vi.runAllTimersAsync();
       await waitFor(() => expect(result.current.hasPreviousPage).toBe(true));
       result.current.goToPreviousPage();
       await waitFor(() => expect(result.current.currentPage).toBe(2));
@@ -381,7 +381,7 @@ describe(`${usePaginatedQuery.name} - Returned properties`, () => {
         queryFn: mockQueryFn,
       });
 
-      await jest.runAllTimersAsync();
+      await vi.runAllTimersAsync();
       await waitFor(() => expect(result.current.isSuccess).toBe(true));
       result.current.onPageChange(2.5);
 
@@ -394,7 +394,7 @@ describe(`${usePaginatedQuery.name} - Returned properties`, () => {
         queryFn: mockQueryFn,
       });
 
-      await jest.runAllTimersAsync();
+      await vi.runAllTimersAsync();
       await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
       result.current.onPageChange(NaN);
@@ -405,7 +405,7 @@ describe(`${usePaginatedQuery.name} - Returned properties`, () => {
         expect(result.current.currentPage).toBe(1);
       }, 1000);
 
-      jest.runAllTimers();
+      vi.runAllTimers();
     });
   });
 });

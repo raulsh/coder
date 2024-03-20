@@ -1,4 +1,12 @@
-import { vi , beforeEach, afterEach, expect, describe, it } from "vitest"
+import {
+  beforeEach,
+  afterEach,
+  expect,
+  describe,
+  it,
+  type MockedFunction,
+  vi,
+} from "vitest";
 import {
   displayError,
   displaySuccess,
@@ -49,7 +57,7 @@ describe("Snackbar", () => {
 
   describe("displaySuccess", () => {
     const originalWindowDispatchEvent = window.dispatchEvent;
-    type TDispatchEventMock = jest.MockedFunction<
+    type TDispatchEventMock = MockedFunction<
       (msg: CustomEvent<NotificationMsg>) => boolean
     >;
     let dispatchEventMock: TDispatchEventMock;
@@ -115,13 +123,12 @@ describe("Snackbar", () => {
   });
 
   describe("displayError", () => {
-    it("shows the title and the message", (done) => {
+    it("shows the title and the message", () => {
       const message = "Some error happened";
 
       window.addEventListener(SnackbarEventType, (event) => {
         const notificationEvent = event as CustomEvent<NotificationMsg>;
         expect(notificationEvent.detail.msg).toEqual(message);
-        done();
       });
 
       displayError(message);

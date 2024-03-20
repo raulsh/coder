@@ -1,6 +1,6 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { vi , beforeEach, test, expect } from "vitest"
+import { vi, beforeEach, test, expect } from "vitest";
 import * as API from "api/api";
 import type { OAuthConversionResponse } from "api/typesGenerated";
 import { MockAuthMethodsAll, mockApiError } from "testHelpers/entities";
@@ -45,9 +45,9 @@ beforeEach(() => {
 });
 
 test("update password successfully", async () => {
-  jest
-    .spyOn(API, "updateUserPassword")
-    .mockImplementationOnce((_userId, _data) => Promise.resolve(undefined));
+  vi.spyOn(API, "updateUserPassword").mockImplementationOnce((_userId, _data) =>
+    Promise.resolve(undefined),
+  );
   const { user } = await renderPage();
   fillAndSubmitSecurityForm();
 
@@ -56,7 +56,7 @@ test("update password successfully", async () => {
   expect(API.updateUserPassword).toBeCalledTimes(1);
   expect(API.updateUserPassword).toBeCalledWith(user.id, newSecurityFormValues);
 
-  await waitFor(() => expect(window.location).toBeAt("/"));
+  await waitFor(() => expect(window.location.pathname).toBe("/"));
 });
 
 test("update password with incorrect old password", async () => {
@@ -112,14 +112,12 @@ test("update password when submit returns an unknown error", async () => {
 test("change login type to OIDC", async () => {
   const user = userEvent.setup();
   const { user: userData } = await renderPage();
-  const convertToOAUTHSpy = jest
-    .spyOn(API, "convertToOAUTH")
-    .mockResolvedValue({
-      state_string: "some-state-string",
-      expires_at: "2021-01-01T00:00:00Z",
-      to_type: "oidc",
-      user_id: userData.id,
-    } as OAuthConversionResponse);
+  const convertToOAUTHSpy = vi.spyOn(API, "convertToOAUTH").mockResolvedValue({
+    state_string: "some-state-string",
+    expires_at: "2021-01-01T00:00:00Z",
+    to_type: "oidc",
+    user_id: userData.id,
+  } as OAuthConversionResponse);
 
   vi.spyOn(SSO, "redirectToOIDCAuth").mockImplementation(() => {
     // Does a noop
