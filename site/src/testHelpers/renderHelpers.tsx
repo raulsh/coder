@@ -10,12 +10,13 @@ import {
   RouterProvider,
   type RouteObject,
 } from "react-router-dom";
-import { AppProviders } from "App";
+import { expect } from "vitest";
 import { RequireAuth } from "contexts/auth/RequireAuth";
 import { ThemeProvider } from "contexts/ThemeProvider";
 import { DashboardLayout } from "modules/dashboard/DashboardLayout";
 import { TemplateSettingsLayout } from "pages/TemplateSettingsPage/TemplateSettingsLayout";
 import { WorkspaceSettingsLayout } from "pages/WorkspaceSettingsPage/WorkspaceSettingsLayout";
+import { AppProviders } from "../App";
 import { MockUser } from "./entities";
 
 export function createTestQueryClient() {

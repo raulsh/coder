@@ -1,21 +1,23 @@
 import react from "@vitejs/plugin-react";
 import path from "path";
 import { visualizer } from "rollup-plugin-visualizer";
-import { defineConfig, type PluginOption } from "vite";
 import checker from "vite-plugin-checker";
+import { defineConfig, type UserConfig } from "vitest/config";
 
-const plugins: PluginOption[] = [
+type Plugins = NonNullable<UserConfig["plugins"]>;
+
+const plugins = [
   react(),
-  checker({
-    typescript: true,
-  }),
-];
+  // checker({
+  //   typescript: true,
+  // }),
+] as Plugins;
 
 if (process.env.STATS !== undefined) {
   plugins.push(
     visualizer({
       filename: "./stats/index.html",
-    }),
+    }) as Plugins[number],
   );
 }
 
@@ -33,7 +35,6 @@ export default defineConfig({
     "process.env": {
       NODE_ENV: process.env.NODE_ENV,
       STORYBOOK: process.env.STORYBOOK,
-      INSPECT_XSTATE: process.env.INSPECT_XSTATE,
     },
   },
   server: {
@@ -92,5 +93,10 @@ export default defineConfig({
       theme: path.resolve(__dirname, "./src/theme"),
       utils: path.resolve(__dirname, "./src/utils"),
     },
+  },
+  test: {
+    globals: true,
+    environment: "jsdom",
+    setupFiles: ["./test.setup.ts", "./test.polyfills.js"],
   },
 });

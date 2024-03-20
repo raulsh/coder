@@ -20,5 +20,5 @@
   },
   "include": ["**/*.ts", "**/*.tsx"],
   "exclude": ["node_modules/", "_jest"],
-  "types": ["@emotion/react", "@testing-library/jest-dom", "jest", "node"]
+  "types": ["@emotion/react", "@testing-library/jest-dom", "node"]
 }

@@ -66,8 +66,7 @@ if (token !== null && token.getAttribute("content") !== null) {
       token.getAttribute("content") ?? "";
   }
 } else {
-  // Do not write error logs if we are in a FE unit test.
-  if (process.env.JEST_WORKER_ID === undefined) {
+  if (process.env.NODE_ENV === "production") {
     console.error("CSRF token not found");
   }
 }
