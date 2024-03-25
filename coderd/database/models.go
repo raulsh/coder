@@ -1859,6 +1859,21 @@ type GroupMember struct {
 	GroupID uuid.UUID `db:"group_id" json:"group_id"`
 }
 
+type InsightInvocation struct {
+	ID            uuid.UUID    `db:"id" json:"id"`
+	UserID        uuid.UUID    `db:"user_id" json:"user_id"`
+	BinaryHash    string       `db:"binary_hash" json:"binary_hash"`
+	BinaryPath    string       `db:"binary_path" json:"binary_path"`
+	BinaryArgs    string       `db:"binary_args" json:"binary_args"`
+	BinaryVersion string       `db:"binary_version" json:"binary_version"`
+	Version       string       `db:"version" json:"version"`
+	StartedAt     time.Time    `db:"started_at" json:"started_at"`
+	EndedAt       sql.NullTime `db:"ended_at" json:"ended_at"`
+}
+
+type InsightPathExecutable struct {
+}
+
 type JfrogXrayScan struct {
 	AgentID     uuid.UUID `db:"agent_id" json:"agent_id"`
 	WorkspaceID uuid.UUID `db:"workspace_id" json:"workspace_id"`

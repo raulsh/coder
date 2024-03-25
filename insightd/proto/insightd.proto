@@ -1,0 +1,33 @@
+
+syntax = "proto3";
+option go_package = "github.com/coder/coder/v2/insightd/proto";
+
+package insightd;
+
+message Empty {}
+
+message Executable {
+	string hash = 1;
+	string basename = 2;
+	// Version is a per-tool extracted version string.
+	// e.g. go1.26.4
+	string version = 3;
+}
+
+// Invocation is a message that represents a single invocation of an executable.
+message Invocation {
+	Executable executable = 1;
+	repeated string arguments = 2;
+	int64 started_at = 3;
+	int64 finished_at = 4;
+	int32 exit_code = 5;
+}
+
+message ReportPathRequest {
+	repeated Executable executables = 1;
+}
+
+service InsightDaemon {
+	rpc RecordInvocation(Invocation) returns (Empty);
+	rpc ReportPath(ReportPathRequest) returns (Empty);
+}

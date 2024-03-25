@@ -565,6 +565,14 @@ coderd/database/pubsub/psmock/psmock.go: coderd/database/pubsub/pubsub.go
 tailnet/tailnettest/coordinatormock.go tailnet/tailnettest/multiagentmock.go tailnet/tailnettest/coordinateemock.go: tailnet/coordinator.go tailnet/multiagent.go
 	go generate ./tailnet/tailnettest/
 
+insightd/proto/insightd.pb.go: insightd/proto/insightd.proto
+	protoc \
+		--go_out=. \
+		--go_opt=paths=source_relative \
+		--go-drpc_out=. \
+		--go-drpc_opt=paths=source_relative \
+		./insightd/proto/insightd.proto
+
 tailnet/proto/tailnet.pb.go: tailnet/proto/tailnet.proto
 	protoc \
 		--go_out=. \

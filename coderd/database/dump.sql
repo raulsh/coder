@@ -495,6 +495,21 @@ COMMENT ON COLUMN groups.display_name IS 'Display name is a custom, human-friend
 
 COMMENT ON COLUMN groups.source IS 'Source indicates how the group was created. It can be created by a user manually, or through some system process like OIDC group sync.';
 
+CREATE TABLE insight_invocations (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    user_id uuid NOT NULL,
+    binary_hash text NOT NULL,
+    binary_path text NOT NULL,
+    binary_args text NOT NULL,
+    binary_version text NOT NULL,
+    version text NOT NULL,
+    started_at timestamp with time zone DEFAULT now() NOT NULL,
+    ended_at timestamp with time zone
+);
+
+CREATE TABLE insight_path_executables (
+);
+
 CREATE TABLE jfrog_xray_scans (
     agent_id uuid NOT NULL,
     workspace_id uuid NOT NULL,
@@ -1451,6 +1466,9 @@ ALTER TABLE ONLY groups
 
 ALTER TABLE ONLY groups
     ADD CONSTRAINT groups_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY insight_invocations
+    ADD CONSTRAINT insight_invocations_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY jfrog_xray_scans
     ADD CONSTRAINT jfrog_xray_scans_pkey PRIMARY KEY (agent_id, workspace_id);
