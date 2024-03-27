@@ -21,7 +21,7 @@ export const Navbar: FC = () => {
   const canViewAllUsers = Boolean(permissions.readAllUsers);
   const proxyContextValue = useProxy();
   const canViewHealth = canViewDeployment;
-
+  const canViewInsights = canViewDeployment;
   return (
     <NavbarView
       user={me}
@@ -33,6 +33,7 @@ export const Navbar: FC = () => {
       canViewDeployment={canViewDeployment}
       canViewAllUsers={canViewAllUsers}
       canViewHealth={canViewHealth}
+      canViewInsights={canViewInsights}
       proxyContextValue={proxyContextValue}
     />
   );

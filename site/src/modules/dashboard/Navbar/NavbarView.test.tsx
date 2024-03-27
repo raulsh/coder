@@ -31,6 +31,7 @@ describe("NavbarView", () => {
         canViewDeployment
         canViewAllUsers
         canViewHealth
+        canViewInsights
       />,
     );
     const workspacesLink = await screen.findByText(navLanguage.workspaces);
@@ -47,6 +48,7 @@ describe("NavbarView", () => {
         canViewDeployment
         canViewAllUsers
         canViewHealth
+        canViewInsights
       />,
     );
     const templatesLink = await screen.findByText(navLanguage.templates);
@@ -63,6 +65,7 @@ describe("NavbarView", () => {
         canViewDeployment
         canViewAllUsers
         canViewHealth
+        canViewInsights
       />,
     );
     const userLink = await screen.findByText(navLanguage.users);
@@ -79,6 +82,7 @@ describe("NavbarView", () => {
         canViewDeployment
         canViewAllUsers
         canViewHealth
+        canViewInsights
       />,
     );
     const auditLink = await screen.findByText(navLanguage.audit);
@@ -95,6 +99,7 @@ describe("NavbarView", () => {
         canViewDeployment
         canViewAllUsers
         canViewHealth
+        canViewInsights
       />,
     );
     const auditLink = await screen.findByText(navLanguage.deployment);

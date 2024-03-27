@@ -36,6 +36,7 @@ export interface NavbarViewProps {
   canViewDeployment: boolean;
   canViewAllUsers: boolean;
   canViewHealth: boolean;
+  canViewInsights: boolean;
   proxyContextValue?: ProxyContextValue;
 }
 
@@ -54,6 +55,7 @@ interface NavItemsProps {
   canViewDeployment: boolean;
   canViewAllUsers: boolean;
   canViewHealth: boolean;
+  canViewInsights: boolean;
 }
 
 const NavItems: FC<NavItemsProps> = ({
@@ -62,6 +64,7 @@ const NavItems: FC<NavItemsProps> = ({
   canViewDeployment,
   canViewAllUsers,
   canViewHealth,
+  canViewInsights,
 }) => {
   const location = useLocation();
   const theme = useTheme();
@@ -83,6 +86,11 @@ const NavItems: FC<NavItemsProps> = ({
       <NavLink css={styles.link} to="/templates">
         {Language.templates}
       </NavLink>
+      {canViewInsights && (
+        <NavLink css={styles.link} to="/insights">
+          Insights
+        </NavLink>
+      )}
       {canViewAllUsers && (
         <NavLink css={styles.link} to={USERS_LINK}>
           {Language.users}
@@ -117,6 +125,7 @@ export const NavbarView: FC<NavbarViewProps> = ({
   canViewDeployment,
   canViewAllUsers,
   canViewHealth,
+  canViewInsights,
   proxyContextValue,
 }) => {
   const theme = useTheme();
@@ -162,6 +171,7 @@ export const NavbarView: FC<NavbarViewProps> = ({
               canViewDeployment={canViewDeployment}
               canViewAllUsers={canViewAllUsers}
               canViewHealth={canViewHealth}
+              canViewInsights={canViewInsights}
             />
           </div>
         </Drawer>
@@ -180,7 +190,8 @@ export const NavbarView: FC<NavbarViewProps> = ({
           canViewDeployment={canViewDeployment}
           canViewAllUsers={canViewAllUsers}
           canViewHealth={canViewHealth}
-        />
+          canViewInsights={canViewInsights}
+          />
 
         <div css={styles.navMenus}>
           {proxyContextValue && (

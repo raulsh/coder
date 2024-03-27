@@ -24,7 +24,6 @@ CREATE TABLE insight_invocations (
 	working_directory TEXT NOT NULL,
 	-- `git config --get remote.origin.url`
 	git_remote_url TEXT NOT NULL,
-	version TEXT NOT NULL,
 	started_at TIMESTAMPTZ NOT NULL DEFAULT now(),
 	ended_at TIMESTAMPTZ
 );
