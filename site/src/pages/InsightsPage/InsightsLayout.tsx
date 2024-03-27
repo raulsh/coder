@@ -1,8 +1,8 @@
+import type { FC, PropsWithChildren } from "react";
+import { Outlet, useLocation } from "react-router-dom";
 import { Margins } from "components/Margins/Margins";
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
 import { TabLink, Tabs, TabsList } from "components/Tabs/Tabs";
-import { FC, PropsWithChildren } from "react";
-import { Outlet, useLocation } from "react-router-dom";
 
 const InsightsLayout: FC<PropsWithChildren> = ({ children = <Outlet /> }) => {
   const location = useLocation();
