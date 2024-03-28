@@ -145,7 +145,7 @@ describe("TemplateSettingsPage", () => {
           });
         }),
       );
-      const updateTemplateMetaSpy = jest.spyOn(API, "updateTemplateMeta");
+      const updateTemplateMetaSpy = vi.spyOn(API, "updateTemplateMeta");
       const deprecationMessage = "This template is deprecated";
 
       await renderTemplateSettingsPage();
@@ -170,7 +170,7 @@ describe("TemplateSettingsPage", () => {
           });
         }),
       );
-      const updateTemplateMetaSpy = jest.spyOn(API, "updateTemplateMeta");
+      const updateTemplateMetaSpy = vi.spyOn(API, "updateTemplateMeta");
 
       await renderTemplateSettingsPage();
       await deprecateTemplate(

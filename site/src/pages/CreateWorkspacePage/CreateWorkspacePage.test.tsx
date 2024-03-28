@@ -233,18 +233,17 @@ describe("CreateWorkspacePage", () => {
   });
 
   it("optional external auth is optional", async () => {
-    jest
-      .spyOn(API, "getWorkspaceQuota")
-      .mockResolvedValueOnce(MockWorkspaceQuota);
-    jest
-      .spyOn(API, "getUsers")
-      .mockResolvedValueOnce({ users: [MockUser], count: 1 });
-    jest.spyOn(API, "createWorkspace").mockResolvedValueOnce(MockWorkspace);
-    jest
-      .spyOn(API, "getTemplateVersionExternalAuth")
-      .mockResolvedValue([
-        { ...MockTemplateVersionExternalAuthGithub, optional: true },
-      ]);
+    vi.spyOn(API, "getWorkspaceQuota").mockResolvedValueOnce(
+      MockWorkspaceQuota,
+    );
+    vi.spyOn(API, "getUsers").mockResolvedValueOnce({
+      users: [MockUser],
+      count: 1,
+    });
+    vi.spyOn(API, "createWorkspace").mockResolvedValueOnce(MockWorkspace);
+    vi.spyOn(API, "getTemplateVersionExternalAuth").mockResolvedValue([
+      { ...MockTemplateVersionExternalAuthGithub, optional: true },
+    ]);
 
     renderCreateWorkspacePage();
     await waitForLoaderToBeRemoved();
