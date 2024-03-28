@@ -33,6 +33,7 @@ ChartJS.register(
 );
 
 export interface InsightsChartProps {
+  className?: string
   lines: Array<{
     label: string
     pointBackgroundColor: string
@@ -44,6 +45,7 @@ export interface InsightsChartProps {
 }
 
 const InsightsChart: FC<InsightsChartProps> = ({
+  className,
   lines,
   interval,
 }) => {
@@ -56,7 +58,7 @@ const InsightsChart: FC<InsightsChartProps> = ({
   defaults.color = theme.palette.text.secondary;
 
   const options: ChartOptions<"line"> = {
-    responsive: false,
+    responsive: true,
     animation: false,
     plugins: {
       legend: {
@@ -78,6 +80,10 @@ const InsightsChart: FC<InsightsChartProps> = ({
         suggestedMin: 0,
         ticks: {
           precision: 0,
+          format: {
+            style: "percent",
+          },
+          // format: (n) => `hi${}`
         },
       },
 
@@ -97,6 +103,7 @@ const InsightsChart: FC<InsightsChartProps> = ({
 
   return (
     <Line
+      className={className}
       data-chromatic="ignore"
       data={{
         labels: labels,

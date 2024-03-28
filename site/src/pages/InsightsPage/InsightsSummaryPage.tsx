@@ -1,87 +1,107 @@
-import { useTheme } from "@emotion/react";
+import { css, useTheme } from "@emotion/react";
 import type { FC, HTMLAttributes } from "react";
-import InsightsChart from "./InsightsChart";
+import InsightsChart, { type InsightsChartProps } from "./InsightsChart";
 
 const InsightsSummaryPage = () => {
   return (
-    <div>
-      <Panel>
+    <div css={css`
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr 1fr 1fr;
+      gap: 16px;
+      padding: 16px;
+    `}>
+      <Panel css={css`
+        grid-column: span 3;
+      `}>
         <PanelHeader>
-          <PanelTitle>
+          <PanelTitle
+            css={css`
+              font-size: 20px;
+
+              span {
+                font-size: 14px;
+                font-weight: 400;
+                color: #666;
+                margin-left: 16px;
+                font-style: italic;
+              }
+            `}
+          >
             Development Environment Consistency
+            <span>
+              Higher is Better
+            </span>
           </PanelTitle>
         </PanelHeader>
         <PanelContent>
-          Your Coder environments are becoming more consistent. Your local environments are becoming less consistent.
-          <InsightsChart lines={[{
-            label: "Coder",
-            pointBackgroundColor: "#FFA726",
-            pointBorderColor: "#FFA726",
-            borderColor: "#FFA726",
-            data: [{
-              date: "2024-03-24",
-              amount: 10,
-            }, {
-              date: "2024-03-25",
-              amount: 20,
-            }, {
-              date: "2024-03-26",
-              amount: 30,
-            }]
-          }, {
-            label: "Local",
-            pointBackgroundColor: "#26ff72",
-            pointBorderColor: "#26ff5c",
-            borderColor: "#6b26ff",
-            data: [{
-              date: "2024-03-24",
-              amount: 30,
-            }, {
-              date: "2024-03-25",
-              amount: 20,
-            }, {
-              date: "2024-03-26",
-              amount: 10,
-            }]
-          }]}  interval="day" />
+          <p css={css`
+          margin-top: 0px;
+          margin-bottom: 16px;`}>
+          Your developers are using <b>97%</b> of the same toolchain in Coder workspaces.
+          </p>
+          <InsightsChart css={css`
+            max-height: 400px;
+            height: 100%;
+          `} lines={fakeConsistencyData} interval="day" />
         </PanelContent>
       </Panel>
 
-      <Panel>
+      <Panel css={css`
+        grid-column: span 2;
+      `}>
         <PanelHeader>
-          <PanelTitle>
+        <PanelTitle
+            css={css`
+              font-size: 20px;
+
+              span {
+                font-size: 14px;
+                font-weight: 400;
+                color: #666;
+                margin-left: 16px;
+                font-style: italic;
+              }
+            `}
+          >
             Time Between Commits
+            <span>
+              Lower is Better
+            </span>
           </PanelTitle>
         </PanelHeader>
         <PanelContent>
-          In the Coder environments, the time between commits is decreasing. In the local environments, the time between commits is increasing.
+
+          <p css={css`
+          margin-top: 0px;
+          margin-bottom: 16px;`}>
+          In Coder environments, your engineers commit 40% more.
+          </p>
+          <InsightsChart css={css`
+            max-height: 400px;
+            height: 100%;
+          `} lines={fakeTimeCommitsData} interval="day" />
         </PanelContent>
       </Panel>
 
       <Panel>
         <PanelHeader>
-          <PanelTitle>
-            Longest Commands
-          </PanelTitle>
+          <PanelTitle>Longest Commands</PanelTitle>
         </PanelHeader>
         <PanelContent>
-          Looks like `make lint` is taking a lot longer this week than it was last week.
+          Looks like `make lint` is taking a lot longer this week than it was
+          last week.
         </PanelContent>
       </Panel>
 
       <Panel>
         <PanelHeader>
-          <PanelTitle>
-            Editor Actions
-          </PanelTitle>
+          <PanelTitle>Editor Actions</PanelTitle>
         </PanelHeader>
-        <PanelContent>
-          Something
-        </PanelContent>
+        <PanelContent>Something</PanelContent>
       </Panel>
     </div>
   );
-}
+};
 
 interface PanelProps extends HTMLAttributes<HTMLDivElement> {}
 
@@ -103,6 +123,114 @@ const Panel: FC<PanelProps> = ({ children, ...attrs }) => {
     </div>
   );
 };
+
+const fakeTimeCommitsData: InsightsChartProps["lines"] = [
+  {
+    label: "Coder",
+    data: [
+      // 10
+      12, 16, 17.7, 14, 15, 11, 13, 10, 11, 9,
+      // 10
+      9, 6, 7, 12, 11, 14, 12, 10, 8, 7,
+      // 10
+      95, 96, 97.7, 99, 95, 94, 93, 94, 96, 97,
+    ].map((n, i) => ({
+      date: `2024-03-${i}`,
+      amount: n / 100,
+    })),
+    borderColor: "#60ff26",
+    pointBackgroundColor: "#60ff26",
+    pointBorderColor: "#60ff26",
+  },
+  {
+    label: "Local Machines",
+    pointBackgroundColor: "#ff5050",
+    pointBorderColor: "#ff5050",
+    borderColor: "#ff5050",
+    data: [
+      // 10
+      20, 25, 19, 16, 19, 22, 26, 24, 22, 19,
+      // 10
+      20, 25, 19, 8, 19, 22, 26, 24, 22, 19,
+      // 10
+      20, 25, 19, 16, 19, 36, 26, 24, 22, 19,
+    ].map((n, i) => ({
+      date: `2024-03-${i}`,
+      amount: n / 100,
+    })),
+  },
+  {
+    label: "VDI",
+    pointBackgroundColor: "#5082ff",
+    pointBorderColor: "#5082ff",
+    borderColor: "#5082ff",
+    data: [
+      // 10
+      36, 42, 39, 26, 29, 33, 34, 34, 28, 29,
+      // 10
+      40, 35, 36, 38, 39, 33, 30, 26, 28, 34,
+      // 10
+      36, 30, 29, 26, 29, 36, 46, 54, 42, 39,
+    ].map((n, i) => ({
+      date: `2024-03-${i}`,
+      amount: n / 100,
+    })),
+  },
+];
+
+const fakeConsistencyData: InsightsChartProps["lines"] = [
+  {
+    label: "Coder",
+    data: [
+      // 10
+      95, 96, 97.7, 99, 95, 94, 93, 94, 96, 97,
+      // 10
+      95, 96, 97.7, 99, 95, 94, 93, 94, 96, 97,
+      // 10
+      95, 96, 97.7, 99, 95, 94, 93, 94, 96, 97,
+    ].map((n, i) => ({
+      date: `2024-03-${i}`,
+      amount: n / 100,
+    })),
+    borderColor: "#60ff26",
+    pointBackgroundColor: "#60ff26",
+    pointBorderColor: "#60ff26",
+  },
+  {
+    label: "Local Machines",
+    pointBackgroundColor: "#ff5050",
+    pointBorderColor: "#ff5050",
+    borderColor: "#ff5050",
+    data: [
+      // 10
+      20, 25, 19, 16, 19, 22, 26, 24, 22, 19,
+      // 10
+      20, 25, 19, 8, 19, 22, 26, 24, 22, 19,
+      // 10
+      20, 25, 19, 16, 19, 36, 26, 24, 22, 19,
+    ].map((n, i) => ({
+      date: `2024-03-${i}`,
+      amount: n / 100,
+    })),
+  },
+  {
+    label: "VDI",
+    pointBackgroundColor: "#5082ff",
+    pointBorderColor: "#5082ff",
+    borderColor: "#5082ff",
+    data: [
+      // 10
+      36, 42, 39, 26, 29, 33, 34, 34, 28, 29,
+      // 10
+      40, 35, 36, 38, 39, 33, 30, 26, 28, 34,
+      // 10
+      36, 30, 29, 26, 29, 36, 46, 54, 42, 39,
+    ].map((n, i) => ({
+      date: `2024-03-${i}`,
+      amount: n / 100,
+    })),
+  },
+];
 
 const PanelHeader: FC<HTMLAttributes<HTMLDivElement>> = ({
   children,
@@ -137,4 +265,4 @@ const PanelContent: FC<HTMLAttributes<HTMLDivElement>> = ({
   );
 };
 
-export default InsightsSummaryPage
+export default InsightsSummaryPage;

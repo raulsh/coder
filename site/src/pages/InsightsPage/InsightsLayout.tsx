@@ -3,6 +3,8 @@ import { Outlet, useLocation } from "react-router-dom";
 import { Margins } from "components/Margins/Margins";
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
 import { TabLink, Tabs, TabsList } from "components/Tabs/Tabs";
+import { Helmet } from "react-helmet-async";
+import { pageTitle } from "utils/page";
 
 const InsightsLayout: FC<PropsWithChildren> = ({ children = <Outlet /> }) => {
   const location = useLocation();
@@ -11,6 +13,9 @@ const InsightsLayout: FC<PropsWithChildren> = ({ children = <Outlet /> }) => {
 
   return (
     <Margins>
+      <Helmet>
+        <title>{pageTitle("Insights")}</title>
+      </Helmet>
       <PageHeader>
         <PageHeaderTitle>Insights</PageHeaderTitle>
       </PageHeader>
@@ -30,9 +35,7 @@ const InsightsLayout: FC<PropsWithChildren> = ({ children = <Outlet /> }) => {
           </TabLink>
         </TabsList>
       </Tabs>
-      <Margins>
         {children}
-      </Margins>
     </Margins>
   );
 };
