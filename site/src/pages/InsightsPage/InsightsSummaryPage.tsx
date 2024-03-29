@@ -133,7 +133,7 @@ const fakeTimeCommitsData: InsightsChartProps["lines"] = [
       // 10
       9, 6, 7, 12, 11, 14, 12, 10, 8, 7,
       // 10
-      95, 96, 97.7, 99, 95, 94, 93, 94, 96, 97,
+      9, 9.6, 7.7, 9, 5, 4, 3, 4, 6, 7,
     ].map((n, i) => ({
       date: `2024-03-${i}`,
       amount: n / 100,
@@ -154,7 +154,7 @@ const fakeTimeCommitsData: InsightsChartProps["lines"] = [
       20, 25, 19, 8, 19, 22, 26, 24, 22, 19,
       // 10
       20, 25, 19, 16, 19, 36, 26, 24, 22, 19,
-    ].map((n, i) => ({
+    ].reverse().map((n, i) => ({
       date: `2024-03-${i}`,
       amount: n / 100,
     })),
@@ -171,9 +171,9 @@ const fakeTimeCommitsData: InsightsChartProps["lines"] = [
       40, 35, 36, 38, 39, 33, 30, 26, 28, 34,
       // 10
       36, 30, 29, 26, 29, 36, 46, 54, 42, 39,
-    ].map((n, i) => ({
+    ].reverse().map((n, i) => ({
       date: `2024-03-${i}`,
-      amount: n / 100,
+      amount: (n * 1.4) / 100,
     })),
   },
 ];

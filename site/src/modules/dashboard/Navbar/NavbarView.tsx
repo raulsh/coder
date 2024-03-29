@@ -87,8 +87,8 @@ const NavItems: FC<NavItemsProps> = ({
         {Language.templates}
       </NavLink>
       {canViewInsights && (
-        <NavLink css={styles.link} to="/insights">
-          Insights
+        <NavLink css={styles.link} to="/intel">
+          Intel
         </NavLink>
       )}
       {canViewAllUsers && (

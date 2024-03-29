@@ -310,7 +310,7 @@ export const router = createBrowserRouter(
             </Route>
           </Route>
 
-          <Route path="/insights" element={<InsightsLayout />}>
+          <Route path="/intel" element={<InsightsLayout />}>
             <Route index element={<InsightsSummaryPage />} />
             <Route path="tools" element={<InsightsToolsPage />} />
             <Route path="commands" element={<InsightsCommandsPage />} />

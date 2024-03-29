@@ -14,23 +14,23 @@ const InsightsLayout: FC<PropsWithChildren> = ({ children = <Outlet /> }) => {
   return (
     <Margins>
       <Helmet>
-        <title>{pageTitle("Insights")}</title>
+        <title>{pageTitle("Intel")}</title>
       </Helmet>
       <PageHeader>
-        <PageHeaderTitle>Insights</PageHeaderTitle>
+        <PageHeaderTitle>Intel</PageHeaderTitle>
       </PageHeader>
       <Tabs active={activeTab}>
         <TabsList>
-          <TabLink to="/insights" value="summary">
+          <TabLink to="/intel" value="summary">
             Summary
           </TabLink>
-          <TabLink to="/insights/tools" value="tools">
-            Tools
+          <TabLink to="/intel/tools" value="tools">
+            Consistency
           </TabLink>
-          <TabLink to="/insights/commands" value="commands">
+          <TabLink to="/intel/commands" value="commands">
             Commands
           </TabLink>
-          <TabLink to="/insights/editors" value="editors">
+          <TabLink to="/intel/editors" value="editors">
             Editors
           </TabLink>
         </TabsList>
