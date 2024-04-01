@@ -11,6 +11,7 @@
  */
 const { TextDecoder, TextEncoder } = require("node:util");
 const { ReadableStream } = require("node:stream/web");
+const { vi } = require("vitest")
 
 Object.defineProperties(globalThis, {
   TextDecoder: { value: TextDecoder },
@@ -29,4 +30,16 @@ Object.defineProperties(globalThis, {
   FormData: { value: FormData },
   Request: { value: Request },
   Response: { value: Response },
+  matchMedia: {
+    value: (query) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }),
+  },
 });

@@ -69,7 +69,7 @@ beforeAll(() =>
 // so they don't affect other tests.
 afterEach(() => {
   server.resetHandlers();
-  vi.clearAllMocks();
+  vi.resetAllMocks();
 });
 
 // Clean up after the tests are finished.
