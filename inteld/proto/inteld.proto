@@ -1,8 +1,8 @@
 
 syntax = "proto3";
-option go_package = "github.com/coder/coder/v2/insightd/proto";
+option go_package = "github.com/coder/coder/v2/inteld/proto";
 
-package insightd;
+package inteld;
 
 message Empty {}
 
@@ -59,7 +59,7 @@ message TrackExecutables {
 	repeated string binary_name = 1;
 }
 
-service InsightDaemon {
+service IntelDaemon {
 	// Register must be sent before any other message.
 	// If the system is not registered, all other messages will
 	// fail with errors.

@@ -1,4 +1,4 @@
-package insightd_test
+package inteld_test
 
 import (
 	"context"
@@ -11,11 +11,11 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/v2/insightd"
-	"github.com/coder/coder/v2/insightd/proto"
+	"github.com/coder/coder/v2/inteld"
+	"github.com/coder/coder/v2/inteld/proto"
 )
 
-func TestInsightd(t *testing.T) {
+func TestInteld(t *testing.T) {
 	t.Parallel()
 	t.Run("InstantClose", func(t *testing.T) {
 		t.Parallel()
@@ -23,9 +23,9 @@ func TestInsightd(t *testing.T) {
 		t.Cleanup(func() {
 			close(done)
 		})
-		daemon := insightd.New(insightd.Options{
-			Dialer: func(ctx context.Context) (proto.DRPCInsightDaemonClient, error) {
-				return createInsightDaemonClient(t, done, insightdServer{}), nil
+		daemon := inteld.New(inteld.Options{
+			Dialer: func(ctx context.Context) (proto.DRPCIntelDaemonClient, error) {
+				return createIntelDaemonClient(t, done, inteldServer{}), nil
 			},
 		})
 		require.NoError(t, daemon.Close())
@@ -37,10 +37,10 @@ func TestInsightd(t *testing.T) {
 			close(done)
 		})
 		registered := make(chan struct{})
-		daemon := insightd.New(insightd.Options{
-			Dialer: func(ctx context.Context) (proto.DRPCInsightDaemonClient, error) {
-				return createInsightDaemonClient(t, done, insightdServer{
-					register: func(req *proto.RegisterRequest, _ proto.DRPCInsightDaemon_RegisterStream) error {
+		daemon := inteld.New(inteld.Options{
+			Dialer: func(ctx context.Context) (proto.DRPCIntelDaemonClient, error) {
+				return createIntelDaemonClient(t, done, inteldServer{
+					register: func(req *proto.RegisterRequest, _ proto.DRPCIntelDaemon_RegisterStream) error {
 						close(registered)
 						return nil
 					},
@@ -56,34 +56,34 @@ func TestInsightd(t *testing.T) {
 	})
 }
 
-type insightdServer struct {
-	register         func(req *proto.RegisterRequest, stream proto.DRPCInsightDaemon_RegisterStream) error
+type inteldServer struct {
+	register         func(req *proto.RegisterRequest, stream proto.DRPCIntelDaemon_RegisterStream) error
 	recordInvocation func(context.Context, *proto.ReportInvocationRequest) (*proto.Empty, error)
 	reportPath       func(context.Context, *proto.ReportPathRequest) (*proto.Empty, error)
 }
 
-func (i *insightdServer) Register(req *proto.RegisterRequest, stream proto.DRPCInsightDaemon_RegisterStream) error {
+func (i *inteldServer) Register(req *proto.RegisterRequest, stream proto.DRPCIntelDaemon_RegisterStream) error {
 	if i.register == nil {
 		return nil
 	}
 	return i.register(req, stream)
 }
 
-func (i *insightdServer) RecordInvocation(ctx context.Context, inv *proto.ReportInvocationRequest) (*proto.Empty, error) {
+func (i *inteldServer) RecordInvocation(ctx context.Context, inv *proto.ReportInvocationRequest) (*proto.Empty, error) {
 	if i.recordInvocation == nil {
 		return &proto.Empty{}, nil
 	}
 	return i.recordInvocation(ctx, inv)
 }
 
-func (i *insightdServer) ReportPath(ctx context.Context, req *proto.ReportPathRequest) (*proto.Empty, error) {
+func (i *inteldServer) ReportPath(ctx context.Context, req *proto.ReportPathRequest) (*proto.Empty, error) {
 	if i.reportPath == nil {
 		return &proto.Empty{}, nil
 	}
 	return i.reportPath(ctx, req)
 }
 
-func createInsightDaemonClient(t *testing.T, done <-chan struct{}, server insightdServer) proto.DRPCInsightDaemonClient {
+func createIntelDaemonClient(t *testing.T, done <-chan struct{}, server inteldServer) proto.DRPCIntelDaemonClient {
 	t.Helper()
 	clientPipe, serverPipe := drpc.MemTransportPipe()
 	t.Cleanup(func() {
@@ -91,7 +91,7 @@ func createInsightDaemonClient(t *testing.T, done <-chan struct{}, server insigh
 		_ = serverPipe.Close()
 	})
 	mux := drpcmux.New()
-	err := proto.DRPCRegisterInsightDaemon(mux, &server)
+	err := proto.DRPCRegisterIntelDaemon(mux, &server)
 	require.NoError(t, err)
 	srv := drpcserver.New(mux)
 	ctx, cancelFunc := context.WithCancel(context.Background())
@@ -105,14 +105,14 @@ func createInsightDaemonClient(t *testing.T, done <-chan struct{}, server insigh
 		<-closed
 		select {
 		case <-done:
-			t.Error("createInsightDaemonClient cleanup after test was done!")
+			t.Error("createIntelDaemonClient cleanup after test was done!")
 		default:
 		}
 	})
 	select {
 	case <-done:
-		t.Error("called createInsightDaemonClient after test was done!")
+		t.Error("called createIntelDaemonClient after test was done!")
 	default:
 	}
-	return proto.NewDRPCInsightDaemonClient(clientPipe)
+	return proto.NewDRPCIntelDaemonClient(clientPipe)
 }

@@ -1,17 +1,17 @@
-package insightdserver
+package inteldserver
 
 import (
 	"context"
 
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/insightd/proto"
+	"github.com/coder/coder/v2/inteld/proto"
 )
 
 type Options struct {
 	Database database.Store
 }
 
-func New(ctx context.Context, opts Options) (proto.DRPCInsightDaemonServer, error) {
+func New(ctx context.Context, opts Options) (proto.DRPCIntelDaemonServer, error) {
 	return nil, nil
 }
 

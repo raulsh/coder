@@ -1,4 +1,4 @@
-package insightd
+package inteld
 
 import (
 	"context"
@@ -17,11 +17,11 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/insightd/proto"
+	"github.com/coder/coder/v2/inteld/proto"
 	"github.com/coder/retry"
 )
 
-type Dialer func(ctx context.Context) (proto.DRPCInsightDaemonClient, error)
+type Dialer func(ctx context.Context) (proto.DRPCIntelDaemonClient, error)
 
 type Options struct {
 	// Dialer connects the daemon to a client.
@@ -44,7 +44,7 @@ func New(opts Options) *API {
 	closeContext, closeCancel := context.WithCancel(context.Background())
 	api := &API{
 		clientDialer: opts.Dialer,
-		clientChan:   make(chan proto.DRPCInsightDaemonClient),
+		clientChan:   make(chan proto.DRPCIntelDaemonClient),
 		closeContext: closeContext,
 		closeCancel:  closeCancel,
 		filesystem:   opts.Filesystem,
@@ -62,7 +62,7 @@ type API struct {
 	invokeDirectory string
 
 	clientDialer   Dialer
-	clientChan     chan proto.DRPCInsightDaemonClient
+	clientChan     chan proto.DRPCIntelDaemonClient
 	closeContext   context.Context
 	closeCancel    context.CancelFunc
 	closed         bool
@@ -122,7 +122,7 @@ func (a *API) fetchFromGitConfig(property string) (string, error) {
 	return strings.TrimSpace(string(output)), nil
 }
 
-func (a *API) systemLoop(client proto.DRPCInsightDaemon_RegisterClient) {
+func (a *API) systemLoop(client proto.DRPCIntelDaemon_RegisterClient) {
 	ctx := a.closeContext
 	for {
 		resp, err := client.Recv()
@@ -217,7 +217,7 @@ connectLoop:
 }
 
 // client returns the current client or nil if the API is closed
-func (a *API) client() (proto.DRPCInsightDaemonClient, bool) {
+func (a *API) client() (proto.DRPCIntelDaemonClient, bool) {
 	select {
 	case <-a.closeContext.Done():
 		return nil, false
