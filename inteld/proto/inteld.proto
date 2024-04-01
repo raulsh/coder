@@ -39,10 +39,13 @@ message RegisterRequest {
 	string hostname = 2;
 	// GOOS
 	string operating_system = 3;
+	string operating_system_version = 4;
+	uint32 cpu_cores = 5;
+	uint64 memory_total = 6;
 	// GOARCH
-	string architecture = 4;
-	string git_config_email = 5;
-	string git_config_name = 6;
+	string architecture = 7;
+	string git_config_email = 8;
+	string git_config_name = 9;
 }
 
 // SystemResponse is a message that the client streams to

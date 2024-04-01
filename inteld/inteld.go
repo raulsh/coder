@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
@@ -11,12 +12,14 @@ import (
 	"sync"
 	"time"
 
+	"github.com/elastic/go-sysinfo"
 	"github.com/hashicorp/yamux"
 	"github.com/spf13/afero"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/inteld/pathman"
 	"github.com/coder/coder/v2/inteld/proto"
 	"github.com/coder/retry"
 )
@@ -43,12 +46,14 @@ type Options struct {
 func New(opts Options) *API {
 	closeContext, closeCancel := context.WithCancel(context.Background())
 	api := &API{
-		clientDialer: opts.Dialer,
-		clientChan:   make(chan proto.DRPCIntelDaemonClient),
-		closeContext: closeContext,
-		closeCancel:  closeCancel,
-		filesystem:   opts.Filesystem,
-		logger:       opts.Logger,
+		clientDialer:    opts.Dialer,
+		clientChan:      make(chan proto.DRPCIntelDaemonClient),
+		closeContext:    closeContext,
+		closeCancel:     closeCancel,
+		filesystem:      opts.Filesystem,
+		logger:          opts.Logger,
+		invokeDirectory: opts.InvokeDirectory,
+		invokeBinary:    opts.InvokeBinary,
 	}
 	api.closeWaitGroup.Add(2)
 	go api.connectLoop()
@@ -80,21 +85,48 @@ func (a *API) registerLoop() {
 			a.logger.Debug(a.closeContext, "shut down before client (re) connected")
 			return
 		}
-		userEmail, err := a.fetchFromGitConfig("user.email")
+		err := pathman.Prepend(a.closeContext, a.filesystem, a.invokeDirectory)
+		if err != nil {
+			a.logger.Error(a.closeContext, "unable to prepend invoke directory to PATH", slog.Error(err))
+		}
+		userEmail, err := fetchFromGitConfig("user.email")
 		if err != nil {
 			a.logger.Warn(a.closeContext, "unable to fetch user.email from git config", slog.Error(err))
 		}
-		userName, err := a.fetchFromGitConfig("user.name")
+		userName, err := fetchFromGitConfig("user.name")
 		if err != nil {
 			a.logger.Warn(a.closeContext, "unable to fetch user.name from git config", slog.Error(err))
 		}
+		var (
+			machineID   string
+			hostname    string
+			osVersion   string
+			memoryTotal uint64
+		)
+		sysInfoHost, err := sysinfo.Host()
+		if err == nil {
+			info := sysInfoHost.Info()
+			machineID = info.UniqueID
+			osVersion = info.OS.Version
+			hostname = info.Hostname
+			mem, err := sysInfoHost.Memory()
+			if err == nil {
+				memoryTotal = mem.Total
+			}
+		} else {
+			a.logger.Warn(a.closeContext, "unable to fetch machine information", slog.Error(err))
+		}
 		system, err := client.Register(a.closeContext, &proto.RegisterRequest{
-			MachineId:       "my-machine-id",
-			Hostname:        "my-hostname",
+			MachineId:       machineID,
+			Hostname:        hostname,
 			OperatingSystem: runtime.GOOS,
 			Architecture:    runtime.GOARCH,
-			GitConfigEmail:  userEmail,
-			GitConfigName:   userName,
+			// TODO: This could be nil
+			OperatingSystemVersion: osVersion,
+			CpuCores:               uint32(runtime.NumCPU()),
+			MemoryTotal:            memoryTotal,
+			GitConfigEmail:         userEmail,
+			GitConfigName:          userName,
 		})
 		if err != nil {
 			if errors.Is(err, context.Canceled) ||
@@ -104,22 +136,6 @@ func (a *API) registerLoop() {
 		}
 		a.systemLoop(system)
 	}
-}
-
-// fetchFromGitConfig returns the value of a property from the git config.
-// If the property is not found, it returns an empty string.
-// If git is not installed, it returns an empty string.
-func (a *API) fetchFromGitConfig(property string) (string, error) {
-	gitPath, err := exec.LookPath("git")
-	if err != nil {
-		return "", nil
-	}
-	cmd := exec.Command(gitPath, "config", "--get", property)
-	output, err := cmd.Output()
-	if err != nil {
-		return "", nil
-	}
-	return strings.TrimSpace(string(output)), nil
 }
 
 func (a *API) systemLoop(client proto.DRPCIntelDaemon_RegisterClient) {
@@ -143,6 +159,7 @@ func (a *API) systemLoop(client proto.DRPCIntelDaemon_RegisterClient) {
 				// TODO: send an error back to the server
 				a.logger.Warn(ctx, "unable to track executables", slog.Error(err))
 			}
+			a.logger.Info(ctx, "tracked executables", slog.F("binary_names", m.TrackExecutables.BinaryName))
 		}
 	}
 }
@@ -152,9 +169,24 @@ func (a *API) systemLoop(client proto.DRPCIntelDaemon_RegisterClient) {
 func (a *API) trackExecutables(binaryNames []string) error {
 	// Clear out any existing symlinks so we're only tracking the
 	// executables we're told to track.
-	err := a.filesystem.RemoveAll(a.invokeDirectory)
+	files, err := afero.ReadDir(a.filesystem, a.invokeDirectory)
+	if errors.Is(err, os.ErrNotExist) {
+		err = a.filesystem.MkdirAll(a.invokeDirectory, 0755)
+		if err != nil {
+			return err
+		}
+	}
 	if err != nil {
 		return err
+	}
+	for _, file := range files {
+		// Clear out the directory to remove old filenames.
+		// Don't do this for the global dir because it makes
+		// debugging harder.
+		err = a.filesystem.Remove(filepath.Join(a.invokeDirectory, file.Name()))
+		if err != nil {
+			return err
+		}
 	}
 	err = a.filesystem.MkdirAll(a.invokeDirectory, 0755)
 	if err != nil {
@@ -246,4 +278,20 @@ func (a *API) Close() error {
 	a.closeCancel()
 	a.closeWaitGroup.Wait()
 	return nil
+}
+
+// fetchFromGitConfig returns the value of a property from the git config.
+// If the property is not found, it returns an empty string.
+// If git is not installed, it returns an empty string.
+func fetchFromGitConfig(property string) (string, error) {
+	gitPath, err := exec.LookPath("git")
+	if err != nil {
+		return "", nil
+	}
+	cmd := exec.Command(gitPath, "config", "--get", property)
+	output, err := cmd.Output()
+	if err != nil {
+		return "", nil
+	}
+	return strings.TrimSpace(string(output)), nil
 }

@@ -837,6 +837,9 @@ func New(options *Options) *API {
 						r.Post("/workspaces", api.postWorkspacesByOrganization)
 					})
 				})
+				r.Route("/intel", func(r chi.Router) {
+					r.Get("/serve", api.intelDaemonServe)
+				})
 			})
 		})
 		r.Route("/templates/{template}", func(r chi.Router) {
