@@ -39,7 +39,7 @@ type DRPCIntelDaemonClient interface {
 	DRPCConn() drpc.Conn
 
 	Register(ctx context.Context, in *RegisterRequest) (DRPCIntelDaemon_RegisterClient, error)
-	RecordInvocation(ctx context.Context, in *ReportInvocationRequest) (*Empty, error)
+	RecordInvocation(ctx context.Context, in *RecordInvocationRequest) (*Empty, error)
 	ReportPath(ctx context.Context, in *ReportPathRequest) (*Empty, error)
 }
 
@@ -93,7 +93,7 @@ func (x *drpcIntelDaemon_RegisterClient) RecvMsg(m *SystemResponse) error {
 	return x.MsgRecv(m, drpcEncoding_File_inteld_proto_inteld_proto{})
 }
 
-func (c *drpcIntelDaemonClient) RecordInvocation(ctx context.Context, in *ReportInvocationRequest) (*Empty, error) {
+func (c *drpcIntelDaemonClient) RecordInvocation(ctx context.Context, in *RecordInvocationRequest) (*Empty, error) {
 	out := new(Empty)
 	err := c.cc.Invoke(ctx, "/inteld.IntelDaemon/RecordInvocation", drpcEncoding_File_inteld_proto_inteld_proto{}, in, out)
 	if err != nil {
@@ -113,7 +113,7 @@ func (c *drpcIntelDaemonClient) ReportPath(ctx context.Context, in *ReportPathRe
 
 type DRPCIntelDaemonServer interface {
 	Register(*RegisterRequest, DRPCIntelDaemon_RegisterStream) error
-	RecordInvocation(context.Context, *ReportInvocationRequest) (*Empty, error)
+	RecordInvocation(context.Context, *RecordInvocationRequest) (*Empty, error)
 	ReportPath(context.Context, *ReportPathRequest) (*Empty, error)
 }
 
@@ -123,7 +123,7 @@ func (s *DRPCIntelDaemonUnimplementedServer) Register(*RegisterRequest, DRPCInte
 	return drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
 }
 
-func (s *DRPCIntelDaemonUnimplementedServer) RecordInvocation(context.Context, *ReportInvocationRequest) (*Empty, error) {
+func (s *DRPCIntelDaemonUnimplementedServer) RecordInvocation(context.Context, *RecordInvocationRequest) (*Empty, error) {
 	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
 }
 
@@ -152,7 +152,7 @@ func (DRPCIntelDaemonDescription) Method(n int) (string, drpc.Encoding, drpc.Rec
 				return srv.(DRPCIntelDaemonServer).
 					RecordInvocation(
 						ctx,
-						in1.(*ReportInvocationRequest),
+						in1.(*RecordInvocationRequest),
 					)
 			}, DRPCIntelDaemonServer.RecordInvocation, true
 	case 2:
@@ -212,6 +212,81 @@ type drpcIntelDaemon_ReportPathStream struct {
 }
 
 func (x *drpcIntelDaemon_ReportPathStream) SendAndClose(m *Empty) error {
+	if err := x.MsgSend(m, drpcEncoding_File_inteld_proto_inteld_proto{}); err != nil {
+		return err
+	}
+	return x.CloseSend()
+}
+
+type DRPCIntelClientClient interface {
+	DRPCConn() drpc.Conn
+
+	ReportInvocation(ctx context.Context, in *ReportInvocationRequest) (*Empty, error)
+}
+
+type drpcIntelClientClient struct {
+	cc drpc.Conn
+}
+
+func NewDRPCIntelClientClient(cc drpc.Conn) DRPCIntelClientClient {
+	return &drpcIntelClientClient{cc}
+}
+
+func (c *drpcIntelClientClient) DRPCConn() drpc.Conn { return c.cc }
+
+func (c *drpcIntelClientClient) ReportInvocation(ctx context.Context, in *ReportInvocationRequest) (*Empty, error) {
+	out := new(Empty)
+	err := c.cc.Invoke(ctx, "/inteld.IntelClient/ReportInvocation", drpcEncoding_File_inteld_proto_inteld_proto{}, in, out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+type DRPCIntelClientServer interface {
+	ReportInvocation(context.Context, *ReportInvocationRequest) (*Empty, error)
+}
+
+type DRPCIntelClientUnimplementedServer struct{}
+
+func (s *DRPCIntelClientUnimplementedServer) ReportInvocation(context.Context, *ReportInvocationRequest) (*Empty, error) {
+	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
+}
+
+type DRPCIntelClientDescription struct{}
+
+func (DRPCIntelClientDescription) NumMethods() int { return 1 }
+
+func (DRPCIntelClientDescription) Method(n int) (string, drpc.Encoding, drpc.Receiver, interface{}, bool) {
+	switch n {
+	case 0:
+		return "/inteld.IntelClient/ReportInvocation", drpcEncoding_File_inteld_proto_inteld_proto{},
+			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
+				return srv.(DRPCIntelClientServer).
+					ReportInvocation(
+						ctx,
+						in1.(*ReportInvocationRequest),
+					)
+			}, DRPCIntelClientServer.ReportInvocation, true
+	default:
+		return "", nil, nil, nil, false
+	}
+}
+
+func DRPCRegisterIntelClient(mux drpc.Mux, impl DRPCIntelClientServer) error {
+	return mux.Register(impl, DRPCIntelClientDescription{})
+}
+
+type DRPCIntelClient_ReportInvocationStream interface {
+	drpc.Stream
+	SendAndClose(*Empty) error
+}
+
+type drpcIntelClient_ReportInvocationStream struct {
+	drpc.Stream
+}
+
+func (x *drpcIntelClient_ReportInvocationStream) SendAndClose(m *Empty) error {
 	if err := x.MsgSend(m, drpcEncoding_File_inteld_proto_inteld_proto{}); err != nil {
 		return err
 	}

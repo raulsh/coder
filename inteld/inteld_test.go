@@ -33,15 +33,16 @@ func TestInteld(t *testing.T) {
 	t.Run("InstantlyRegisters", func(t *testing.T) {
 		t.Parallel()
 		done := make(chan struct{})
+		registered := make(chan struct{})
 		t.Cleanup(func() {
 			close(done)
 		})
-		registered := make(chan struct{})
 		daemon := inteld.New(inteld.Options{
 			Dialer: func(ctx context.Context) (proto.DRPCIntelDaemonClient, error) {
 				return createIntelDaemonClient(t, done, inteldServer{
-					register: func(req *proto.RegisterRequest, _ proto.DRPCIntelDaemon_RegisterStream) error {
-						close(registered)
+					register: func(_ *proto.RegisterRequest, stream proto.DRPCIntelDaemon_RegisterStream) error {
+						registered <- struct{}{}
+						<-ctx.Done()
 						return nil
 					},
 				}), nil
@@ -58,7 +59,7 @@ func TestInteld(t *testing.T) {
 
 type inteldServer struct {
 	register         func(req *proto.RegisterRequest, stream proto.DRPCIntelDaemon_RegisterStream) error
-	recordInvocation func(context.Context, *proto.ReportInvocationRequest) (*proto.Empty, error)
+	recordInvocation func(context.Context, *proto.RecordInvocationRequest) (*proto.Empty, error)
 	reportPath       func(context.Context, *proto.ReportPathRequest) (*proto.Empty, error)
 }
 
@@ -69,7 +70,7 @@ func (i *inteldServer) Register(req *proto.RegisterRequest, stream proto.DRPCInt
 	return i.register(req, stream)
 }
 
-func (i *inteldServer) RecordInvocation(ctx context.Context, inv *proto.ReportInvocationRequest) (*proto.Empty, error) {
+func (i *inteldServer) RecordInvocation(ctx context.Context, inv *proto.RecordInvocationRequest) (*proto.Empty, error) {
 	if i.recordInvocation == nil {
 		return &proto.Empty{}, nil
 	}

@@ -3,6 +3,7 @@ package inteld
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"os"
 	"os/exec"
@@ -12,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ammario/tlru"
 	"github.com/elastic/go-sysinfo"
 	"github.com/hashicorp/yamux"
 	"github.com/spf13/afero"
@@ -22,6 +24,8 @@ import (
 	"github.com/coder/coder/v2/inteld/pathman"
 	"github.com/coder/coder/v2/inteld/proto"
 	"github.com/coder/retry"
+
+	"github.com/kalafut/imohash"
 )
 
 type Dialer func(ctx context.Context) (proto.DRPCIntelDaemonClient, error)
@@ -40,11 +44,25 @@ type Options struct {
 	// to and overridden in the $PATH so they can be man-in-the-middled.
 	InvokeDirectory string
 
+	// InvocationFlushInterval is the interval at which invocations
+	// are flushed to the server.
+	InvocationFlushInterval time.Duration
+
 	Logger slog.Logger
 }
 
 func New(opts Options) *API {
+	if opts.Dialer == nil {
+		panic("Dialer is required")
+	}
+	if opts.InvocationFlushInterval == 0 {
+		opts.InvocationFlushInterval = 5 * time.Second
+	}
+	if opts.Filesystem == nil {
+		opts.Filesystem = afero.NewOsFs()
+	}
 	closeContext, closeCancel := context.WithCancel(context.Background())
+	invocationQueue := newInvocationQueue(opts.InvocationFlushInterval)
 	api := &API{
 		clientDialer:    opts.Dialer,
 		clientChan:      make(chan proto.DRPCIntelDaemonClient),
@@ -54,17 +72,21 @@ func New(opts Options) *API {
 		logger:          opts.Logger,
 		invokeDirectory: opts.InvokeDirectory,
 		invokeBinary:    opts.InvokeBinary,
+		invocationQueue: invocationQueue,
 	}
-	api.closeWaitGroup.Add(2)
+	api.closeWaitGroup.Add(3)
+	go api.invocationQueueLoop()
 	go api.connectLoop()
 	go api.registerLoop()
 	return api
 }
 
+// API serves an instance of the intel daemon.
 type API struct {
 	filesystem      afero.Fs
 	invokeBinary    string
 	invokeDirectory string
+	invocationQueue *invocationQueue
 
 	clientDialer   Dialer
 	clientChan     chan proto.DRPCIntelDaemonClient
@@ -76,6 +98,33 @@ type API struct {
 	logger         slog.Logger
 }
 
+// invocationQueueLoop ensures that invocations are sent to the server
+// at a regular interval.
+func (a *API) invocationQueueLoop() {
+	defer a.logger.Debug(a.closeContext, "invocation queue loop exited")
+	defer a.closeWaitGroup.Done()
+	for {
+		err := a.invocationQueue.startSendLoop(a.closeContext, func(i []*proto.Invocation) error {
+			client, ok := a.client()
+			if !ok {
+				return xerrors.New("no client available")
+			}
+			_, err := client.RecordInvocation(a.closeContext, &proto.RecordInvocationRequest{
+				Invocations: i,
+			})
+			return err
+		})
+		if err != nil {
+			if errors.Is(err, context.Canceled) ||
+				errors.Is(err, yamux.ErrSessionShutdown) {
+				return
+			}
+			a.logger.Warn(a.closeContext, "unable to receive a message", slog.Error(err))
+		}
+	}
+}
+
+// registerLoop starts a loop that registers the system with the server.
 func (a *API) registerLoop() {
 	defer a.logger.Debug(a.closeContext, "system loop exited")
 	defer a.closeWaitGroup.Done()
@@ -98,7 +147,6 @@ func (a *API) registerLoop() {
 			a.logger.Warn(a.closeContext, "unable to fetch user.name from git config", slog.Error(err))
 		}
 		var (
-			machineID   string
 			hostname    string
 			osVersion   string
 			memoryTotal uint64
@@ -106,7 +154,6 @@ func (a *API) registerLoop() {
 		sysInfoHost, err := sysinfo.Host()
 		if err == nil {
 			info := sysInfoHost.Info()
-			machineID = info.UniqueID
 			osVersion = info.OS.Version
 			hostname = info.Hostname
 			mem, err := sysInfoHost.Memory()
@@ -117,7 +164,6 @@ func (a *API) registerLoop() {
 			a.logger.Warn(a.closeContext, "unable to fetch machine information", slog.Error(err))
 		}
 		system, err := client.Register(a.closeContext, &proto.RegisterRequest{
-			MachineId:       machineID,
 			Hostname:        hostname,
 			OperatingSystem: runtime.GOOS,
 			Architecture:    runtime.GOARCH,
@@ -127,6 +173,9 @@ func (a *API) registerLoop() {
 			MemoryTotal:            memoryTotal,
 			GitConfigEmail:         userEmail,
 			GitConfigName:          userName,
+			InstalledSoftware:      &proto.InstalledSoftware{
+				// TODO: Make this valid!
+			},
 		})
 		if err != nil {
 			if errors.Is(err, context.Canceled) ||
@@ -134,11 +183,11 @@ func (a *API) registerLoop() {
 				continue
 			}
 		}
-		a.systemLoop(system)
+		a.systemRecvLoop(system)
 	}
 }
 
-func (a *API) systemLoop(client proto.DRPCIntelDaemon_RegisterClient) {
+func (a *API) systemRecvLoop(client proto.DRPCIntelDaemon_RegisterClient) {
 	ctx := a.closeContext
 	for {
 		resp, err := client.Recv()
@@ -294,4 +343,150 @@ func fetchFromGitConfig(property string) (string, error) {
 		return "", nil
 	}
 	return strings.TrimSpace(string(output)), nil
+}
+
+var _ proto.DRPCIntelClientServer = (*API)(nil)
+
+// ReportInvocation is called by the client to report an invocation.
+func (a *API) ReportInvocation(_ context.Context, req *proto.ReportInvocationRequest) (*proto.Empty, error) {
+	a.invocationQueue.enqueue(req)
+	return &proto.Empty{}, nil
+}
+
+func newInvocationQueue(flushInterval time.Duration) *invocationQueue {
+	return &invocationQueue{
+		Cond:           sync.NewCond(&sync.Mutex{}),
+		flushInterval:  flushInterval,
+		binaryCache:    tlru.New[string, *proto.Executable](tlru.ConstantCost, 1000),
+		gitRemoteCache: tlru.New[string, string](tlru.ConstantCost, 1000),
+	}
+}
+
+type invocationQueue struct {
+	*sync.Cond
+	flushInterval  time.Duration
+	queue          []*proto.Invocation
+	flushRequested bool
+	lastFlush      time.Time
+	binaryCache    *tlru.Cache[string, *proto.Executable]
+	gitRemoteCache *tlru.Cache[string, string]
+	logger         slog.Logger
+}
+
+func (i *invocationQueue) enqueue(req *proto.ReportInvocationRequest) {
+	inv := &proto.Invocation{
+		Arguments:        req.Arguments,
+		StartedAt:        req.StartedAt,
+		FinishedAt:       req.FinishedAt,
+		ExitCode:         req.ExitCode,
+		WorkingDirectory: req.WorkingDirectory,
+	}
+
+	var err error
+	// We check if this is non-empty purely for testing. It's
+	// expected in production that this is always set.
+	if req.ExecutablePath != "" {
+		inv.Executable, err = i.binaryCache.Do(req.ExecutablePath, func() (*proto.Executable, error) {
+			rawHash, err := imohash.SumFile(req.ExecutablePath)
+			if err != nil {
+				return nil, err
+			}
+			hash := fmt.Sprintf("%X", rawHash)
+
+			return &proto.Executable{
+				Hash:     hash,
+				Basename: filepath.Base(req.ExecutablePath),
+				Path:     req.ExecutablePath,
+			}, nil
+		}, 24*time.Hour)
+		if err != nil {
+			i.logger.Error(context.Background(), "failed to inspect executable", slog.Error(err))
+			return
+		}
+	}
+
+	// We check if this is non-empty purely for testing. It's
+	// expected in production that this is always set.
+	if req.WorkingDirectory != "" {
+		inv.GitRemoteUrl, err = i.gitRemoteCache.Do(req.WorkingDirectory, func() (string, error) {
+			cmd := exec.Command("git", "remote", "get-url", "origin")
+			cmd.Dir = req.WorkingDirectory
+			out, err := cmd.Output()
+			if err != nil {
+				return "", err
+			}
+			return strings.TrimSpace(string(out)), nil
+		}, time.Hour)
+		if err != nil {
+			// This isn't worth failing the execution on, but is an issue
+			// that is worth reporting!
+			i.logger.Error(context.Background(), "failed to inspect git remote", slog.Error(err))
+		}
+	}
+
+	i.L.Lock()
+	defer i.L.Unlock()
+	i.queue = append(i.queue, inv)
+	i.Broadcast()
+}
+
+func (i *invocationQueue) startSendLoop(ctx context.Context, flush func([]*proto.Invocation) error) error {
+	i.L.Lock()
+	defer i.L.Unlock()
+
+	ctxDone := false
+
+	// wake 4 times per Flush interval to check if anything needs to be flushed
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	go func() {
+		tkr := time.NewTicker(i.flushInterval / 4)
+		defer tkr.Stop()
+		for {
+			select {
+			// also monitor the context here, so we notice immediately, rather
+			// than waiting for the next tick or logs
+			case <-ctx.Done():
+				i.L.Lock()
+				ctxDone = true
+				i.L.Unlock()
+				i.Broadcast()
+				return
+			case <-tkr.C:
+				i.Broadcast()
+			}
+		}
+	}()
+
+	for {
+		for !ctxDone && !i.hasPendingWorkLocked() {
+			i.Wait()
+		}
+		if ctxDone {
+			return ctx.Err()
+		}
+		queue := i.queue[:]
+		i.flushRequested = false
+		i.L.Unlock()
+		err := flush(queue)
+		i.L.Lock()
+		if err != nil {
+			return xerrors.Errorf("failed to flush invocations: %w", err)
+		}
+		i.queue = i.queue[len(queue):]
+		i.lastFlush = time.Now()
+	}
+}
+
+func (i *invocationQueue) hasPendingWorkLocked() bool {
+	if len(i.queue) == 0 {
+		return false
+	}
+	if time.Since(i.lastFlush) > i.flushInterval {
+		return true
+	}
+	if i.flushRequested {
+		return true
+	}
+	return false
 }

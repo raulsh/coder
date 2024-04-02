@@ -30,22 +30,31 @@ message ReportPathRequest {
 	repeated Executable executables = 1;
 }
 
-message ReportInvocationRequest {
+message RecordInvocationRequest {
 	repeated Invocation invocations = 1;
 }
 
+message InstalledSoftware {
+	bool docker_desktop = 1;
+	bool docker_desktop_enterprise = 2;
+	bool vscode = 3;
+	bool vscode_insiders = 4;
+	bool jetbrains_intellij = 5;
+	bool jetbrains_gateway = 6;
+}
+
 message RegisterRequest {
-	string machine_id = 1;
-	string hostname = 2;
+	string hostname = 1;
 	// GOOS
-	string operating_system = 3;
-	string operating_system_version = 4;
-	uint32 cpu_cores = 5;
-	uint64 memory_total = 6;
+	string operating_system = 2;
+	string operating_system_version = 3;
+	uint32 cpu_cores = 4;
+	uint64 memory_total = 5;
 	// GOARCH
-	string architecture = 7;
-	string git_config_email = 8;
-	string git_config_name = 9;
+	string architecture = 6;
+	string git_config_email = 7;
+	string git_config_name = 8;
+	InstalledSoftware installed_software = 9;
 }
 
 // SystemResponse is a message that the client streams to
@@ -62,12 +71,33 @@ message TrackExecutables {
 	repeated string binary_name = 1;
 }
 
+// IntelDaemon is the daemon interface that communicates
+// with coderd.
 service IntelDaemon {
 	// Register must be sent before any other message.
 	// If the system is not registered, all other messages will
 	// fail with errors.
 	rpc Register(RegisterRequest) returns (stream SystemResponse);
 
-	rpc RecordInvocation(ReportInvocationRequest) returns (Empty);
+	rpc RecordInvocation(RecordInvocationRequest) returns (Empty);
 	rpc ReportPath(ReportPathRequest) returns (Empty);
+}
+
+// Client messages!
+
+message ReportInvocationRequest {
+	string executable_path = 1;
+	repeated string arguments = 2;
+	int64 started_at = 3;
+	int64 finished_at = 4;
+	int32 exit_code = 5;
+	string working_directory = 6;
+}
+
+// IntelClient is provided by inteld to clients that want
+// to report insights. Clients report through the daemon
+// to ensure that the insights are stored and processed
+// in a consistent and timely manner.
+service IntelClient {
+	rpc ReportInvocation(ReportInvocationRequest) returns (Empty);
 }
