@@ -1,6 +1,6 @@
 import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { vi , expect, describe, it } from "vitest"
+import { vi, describe, it } from "vitest";
 import * as API from "api/api";
 import {
   renderWithAuth,
@@ -27,7 +27,6 @@ describe("TokenPage", () => {
       within(form).getByRole("button", { name: /create token/i }),
     );
 
-    // Then
-    expect(screen.getByText("abcd")).toBeInTheDocument();
+    await screen.findByText("abcd");
   });
 });

@@ -1,3 +1,5 @@
+import { vi } from "vitest"
+
 /**
  * Necessary for MSW
  *
@@ -11,7 +13,6 @@
  */
 const { TextDecoder, TextEncoder } = require("node:util");
 const { ReadableStream } = require("node:stream/web");
-const { vi } = require("vitest")
 
 Object.defineProperties(globalThis, {
   TextDecoder: { value: TextDecoder },

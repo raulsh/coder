@@ -5,11 +5,11 @@ import {
   vi,
   beforeAll,
   afterAll,
-  beforeEach,
   test,
   expect,
   describe,
   it,
+  type MockInstance,
 } from "vitest";
 import * as api from "api/api";
 import type { TemplateVersionParameter, Workspace } from "api/typesGenerated";
@@ -64,7 +64,7 @@ const renderWorkspacePage = async (workspace: Workspace) => {
 const testButton = async (
   workspace: Workspace,
   name: string | RegExp,
-  actionMock: vi.SpyInstance,
+  actionMock: MockInstance,
 ) => {
   await renderWorkspacePage(workspace);
   const workspaceActions = screen.getByTestId("workspace-actions");
@@ -72,7 +72,9 @@ const testButton = async (
 
   const user = userEvent.setup();
   await user.click(button);
-  expect(actionMock).toBeCalled();
+  await waitFor(() => {
+    expect(actionMock).toBeCalled();
+  });
 };
 
 let originalEventSource: typeof window.EventSource;
@@ -81,10 +83,6 @@ beforeAll(() => {
   originalEventSource = window.EventSource;
   // mocking out EventSource for SSE
   window.EventSource = EventSourceMock;
-});
-
-beforeEach(() => {
-  vi.resetAllMocks();
 });
 
 afterAll(() => {
