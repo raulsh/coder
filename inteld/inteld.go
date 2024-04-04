@@ -164,10 +164,9 @@ func (a *API) registerLoop() {
 			a.logger.Warn(a.closeContext, "unable to fetch machine information", slog.Error(err))
 		}
 		system, err := client.Register(a.closeContext, &proto.RegisterRequest{
-			Hostname:        hostname,
-			OperatingSystem: runtime.GOOS,
-			Architecture:    runtime.GOARCH,
-			// TODO: This could be nil
+			Hostname:               hostname,
+			OperatingSystem:        runtime.GOOS,
+			Architecture:           runtime.GOARCH,
 			OperatingSystemVersion: osVersion,
 			CpuCores:               uint32(runtime.NumCPU()),
 			MemoryTotal:            memoryTotal,
@@ -376,8 +375,7 @@ type invocationQueue struct {
 func (i *invocationQueue) enqueue(req *proto.ReportInvocationRequest) {
 	inv := &proto.Invocation{
 		Arguments:        req.Arguments,
-		StartedAt:        req.StartedAt,
-		FinishedAt:       req.FinishedAt,
+		DurationMs:       req.DurationMs,
 		ExitCode:         req.ExitCode,
 		WorkingDirectory: req.WorkingDirectory,
 	}
