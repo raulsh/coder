@@ -402,77 +402,33 @@ jobs:
             -b "This automatic PR was triggered by the release of Coder v$coder_version"
 
   publish-winget:
-    name: Publish to winget-pkgs
+    name: Publish to Winget
     runs-on: windows-latest
     needs: release
     if: ${{ !inputs.dry_run }}
-
+    permissions:
+      contents: read
     steps:
-      - name: Sync fork
-        run: gh repo sync cdrci/winget-pkgs -b master
-        env:
-          GH_TOKEN: ${{ secrets.CDRCI_GITHUB_TOKEN }}
-
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: Get version
+        id: get-version
+        run: |
+          $VERSION="${{ needs.release.outputs.version }}".Trim('v')
+          "version=$VERSION" >> $env:GITHUB_OUTPUT
+        shell: pwsh
+        
+      - name: Publish
+        uses: vedantmgoyal2009/winget-releaser@v2
         with:
-          fetch-depth: 0
-
-      # If the event that triggered the build was an annotated tag (which our
-      # tags are supposed to be), actions/checkout has a bug where the tag in
-      # question is only a lightweight tag and not a full annotated tag. This
-      # command seems to fix it.
-      # https://github.com/actions/checkout/issues/290
-      - name: Fetch git tags
-        run: git fetch --tags --force
-
-      - name: Install wingetcreate
-        run: |
-          Invoke-WebRequest https://aka.ms/wingetcreate/latest -OutFile wingetcreate.exe
-
-      - name: Submit updated manifest to winget-pkgs
-        run: |
-          # The package version is the same as the tag minus the leading "v".
-          # The version in this output already has the leading "v" removed but
-          # we do it again to be safe.
-          $version = "${{ needs.release.outputs.version }}".Trim('v')
-
-          $release_assets = gh release view --repo coder/coder "v${version}" --json assets | `
-            ConvertFrom-Json
-          # Get the installer URLs from the release assets.
-          $amd64_installer_url = $release_assets.assets | `
-            Where-Object name -Match ".*_windows_amd64_installer.exe$" | `
-            Select -ExpandProperty url
-          $amd64_zip_url = $release_assets.assets | `
-            Where-Object name -Match ".*_windows_amd64.zip$" | `
-            Select -ExpandProperty url
-          $arm64_zip_url = $release_assets.assets | `
-            Where-Object name -Match ".*_windows_arm64.zip$" | `
-            Select -ExpandProperty url
-
-          echo "amd64 Installer URL: ${amd64_installer_url}"
-          echo "amd64 zip URL: ${amd64_zip_url}"
-          echo "arm64 zip URL: ${arm64_zip_url}"
-          echo "Package version: ${version}"
-
-          .\wingetcreate.exe update Coder.Coder `
-            --submit `
-            --version "${version}" `
-            --urls "${amd64_installer_url}" "${amd64_zip_url}" "${arm64_zip_url}" `
-            --token "$env:WINGET_GH_TOKEN"
-
-        env:
-          # For gh CLI:
-          GH_TOKEN: ${{ github.token }}
-          # For wingetcreate. We need a real token since we're pushing a commit
-          # to GitHub and then making a PR in a different repo.
-          WINGET_GH_TOKEN: ${{ secrets.CDRCI_GITHUB_TOKEN }}
+          identifier: Coder.Coder
+          release-tag: ${{ env.version }}
+          installers-regex: 'windows.*\.(exe|zip)$'
+          token: ${{ secrets.CDRCI_GITHUB_TOKEN }}
 
       - name: Comment on PR
         run: |
           # wait 30 seconds
           Start-Sleep -Seconds 30.0
-          # Find the PR that wingetcreate just made.
+          # Find the PR
           $version = "${{ needs.release.outputs.version }}".Trim('v')
           $pr_list = gh pr list --repo microsoft/winget-pkgs --search "author:cdrci Coder.Coder version ${version}" --limit 1 --json number | `
             ConvertFrom-Json
