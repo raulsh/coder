@@ -53,6 +53,7 @@ func (s *server) Register(req *proto.RegisterRequest, stream proto.DRPCIntelDaem
 }
 
 func (s *server) RecordInvocation(ctx context.Context, req *proto.RecordInvocationRequest) (*proto.Empty, error) {
+	s.invocationQueue.enqueue(req)
 	return &proto.Empty{}, nil
 }
 
@@ -76,6 +77,10 @@ type invocationQueue struct {
 func (i *invocationQueue) enqueue(req *proto.RecordInvocationRequest) {
 	i.L.Lock()
 	defer i.L.Unlock()
+	if len(i.queue) > 1000 {
+		i.logger.Warn("invocation queue is full, dropping invocations")
+		return
+	}
 	i.queue = append(i.queue, req.Invocations...)
 	i.Broadcast()
 }
