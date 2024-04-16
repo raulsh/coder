@@ -27,7 +27,7 @@ If you want the template to clone a specific git repo:
 
 ```hcl
 # Require git authentication to use this template
-data "coder_git_auth" "github" {
+data "coder_external_auth" "github" {
     id = "primary-github"
 }
 
@@ -57,7 +57,7 @@ If you want the template to support any repository via
 
 ```hcl
 # Require git authentication to use this template
-data "coder_git_auth" "github" {
+data "coder_external_auth" "github" {
     id = "primary-github"
 }
 
