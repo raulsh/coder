@@ -1,7 +1,7 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
-import * as api from "api/api";
+import { api } from "api/api";
 import type { TemplateVersionParameter, Workspace } from "api/typesGenerated";
 import EventSourceMock from "eventsourcemock";
 import {

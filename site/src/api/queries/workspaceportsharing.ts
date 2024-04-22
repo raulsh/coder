@@ -1,8 +1,4 @@
-import {
-  deleteWorkspaceAgentSharedPort,
-  getWorkspaceAgentSharedPorts,
-  upsertWorkspaceAgentSharedPort,
-} from "api/api";
+import { api } from "api/api";
 import type {
   DeleteWorkspaceAgentPortShareRequest,
   UpsertWorkspaceAgentPortShareRequest,
@@ -11,14 +7,14 @@ import type {
 export const workspacePortShares = (workspaceId: string) => {
   return {
     queryKey: ["sharedPorts", workspaceId],
-    queryFn: () => getWorkspaceAgentSharedPorts(workspaceId),
+    queryFn: () => api.getWorkspaceAgentSharedPorts(workspaceId),
   };
 };
 
 export const upsertWorkspacePortShare = (workspaceId: string) => {
   return {
     mutationFn: async (options: UpsertWorkspaceAgentPortShareRequest) => {
-      await upsertWorkspaceAgentSharedPort(workspaceId, options);
+      await api.upsertWorkspaceAgentSharedPort(workspaceId, options);
     },
   };
 };
@@ -26,7 +22,7 @@ export const upsertWorkspacePortShare = (workspaceId: string) => {
 export const deleteWorkspacePortShare = (workspaceId: string) => {
   return {
     mutationFn: async (options: DeleteWorkspaceAgentPortShareRequest) => {
-      await deleteWorkspaceAgentSharedPort(workspaceId, options);
+      await api.deleteWorkspaceAgentSharedPort(workspaceId, options);
     },
   };
 };

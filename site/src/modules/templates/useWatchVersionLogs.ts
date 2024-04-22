@@ -23,7 +23,8 @@ export const useWatchVersionLogs = (
       return;
     }
 
-    const socket = watchBuildLogsByTemplateVersionId(templateVersionId, {
+    const socket = watchBuildLogsByTemplateVersionId({
+      versionId: templateVersionId,
       onMessage: (log) => {
         setLogs((logs) => (logs ? [...logs, log] : [log]));
       },

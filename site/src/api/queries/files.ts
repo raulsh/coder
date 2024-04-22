@@ -1,14 +1,14 @@
-import * as API from "api/api";
+import { api } from "api/api";
 
 export const uploadFile = () => {
   return {
-    mutationFn: API.uploadFile,
+    mutationFn: api.uploadFile,
   };
 };
 
 export const file = (fileId: string) => {
   return {
     queryKey: ["files", fileId],
-    queryFn: () => API.getFile(fileId),
+    queryFn: () => api.getFile(fileId),
   };
 };

@@ -1,5 +1,5 @@
 import type { QueryClient, UseQueryOptions } from "react-query";
-import * as API from "api/api";
+import { api } from "api/api";
 import type { AppearanceConfig } from "api/typesGenerated";
 import { getMetadataAsJSON } from "utils/metadata";
 
@@ -10,13 +10,13 @@ export const appearance = (): UseQueryOptions<AppearanceConfig> => {
   return {
     queryKey: ["appearance"],
     initialData: initialAppearanceData,
-    queryFn: () => API.getAppearance(),
+    queryFn: () => api.getAppearance(),
   };
 };
 
 export const updateAppearance = (queryClient: QueryClient) => {
   return {
-    mutationFn: API.updateAppearance,
+    mutationFn: api.updateAppearance,
     onSuccess: (newConfig: AppearanceConfig) => {
       queryClient.setQueryData(appearanceConfigKey, newConfig);
     },
