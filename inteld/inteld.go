@@ -119,7 +119,7 @@ func (a *API) invocationQueueLoop() {
 				errors.Is(err, yamux.ErrSessionShutdown) {
 				return
 			}
-			a.logger.Warn(a.closeContext, "unable to receive a message", slog.Error(err))
+			a.logger.Warn(a.closeContext, "failed to send invocations", slog.Error(err))
 		}
 	}
 }

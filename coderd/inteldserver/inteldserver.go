@@ -2,11 +2,15 @@ package inteldserver
 
 import (
 	"context"
-	"log/slog"
+	"errors"
 	"sync"
 	"time"
 
 	"golang.org/x/xerrors"
+
+	"cdr.dev/slog"
+
+	"github.com/hashicorp/yamux"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
@@ -15,17 +19,70 @@ import (
 
 type Options struct {
 	Database database.Store
+
+	Pubsub pubsub.Pubsub
+
+	Logger slog.Logger
+
+	// InvocationFlushInterval is the interval at which invocations
+	// are flushed to the database.
+	InvocationFlushInterval time.Duration
+
+	// InvocationQueueLimit is the maximum number of invocations that
+	// can be queued before they are dropped.
+	InvocationQueueLimit int
 }
 
 func New(ctx context.Context, opts Options) (proto.DRPCIntelDaemonServer, error) {
-	return &server{}, nil
+	srv := &server{
+		Database: opts.Database,
+		Pubsub:   opts.Pubsub,
+
+		invocationQueue: &invocationQueue{
+			Cond:          sync.NewCond(&sync.Mutex{}),
+			flushInterval: opts.InvocationFlushInterval,
+			queue:         make([]*proto.Invocation, 0, opts.InvocationQueueLimit),
+			queueLimit:    opts.InvocationQueueLimit,
+			logger:        opts.Logger.Named("invocation_queue"),
+		},
+	}
+
+	srv.closeWaitGroup.Add(1)
+	go srv.invocationQueueLoop()
+
+	return srv, nil
 }
 
 type server struct {
 	Database database.Store
 	Pubsub   pubsub.Pubsub
+	Logger   slog.Logger
 
+	closeContext    context.Context
+	closeCancel     context.CancelFunc
+	closed          bool
+	closeMutex      sync.Mutex
+	closeWaitGroup  sync.WaitGroup
 	invocationQueue *invocationQueue
+}
+
+func (s *server) invocationQueueLoop() {
+	defer s.Logger.Debug(s.closeContext, "invocation queue loop exited")
+	defer s.closeWaitGroup.Done()
+	for {
+		err := s.invocationQueue.startFlushLoop(s.closeContext, func(i []*proto.Invocation) error {
+			s.Logger.Info(s.closeContext, "invocations flushed", slog.F("count", len(i)))
+			return nil
+		})
+		if err != nil {
+			if errors.Is(err, context.Canceled) ||
+				errors.Is(err, yamux.ErrSessionShutdown) {
+				return
+			}
+			s.Logger.Warn(s.closeContext, "failed to write invocations", slog.Error(err))
+			return
+		}
+	}
 }
 
 func (s *server) Register(req *proto.RegisterRequest, stream proto.DRPCIntelDaemon_RegisterStream) error {
@@ -52,7 +109,9 @@ func (s *server) Register(req *proto.RegisterRequest, stream proto.DRPCIntelDaem
 
 }
 
-func (s *server) RecordInvocation(ctx context.Context, req *proto.RecordInvocationRequest) (*proto.Empty, error) {
+func (s *server) RecordInvocation(_ context.Context, req *proto.RecordInvocationRequest) (*proto.Empty, error) {
+	// inteld will continue sending invocations if they fail, so we
+	// don't want to return an error here even if the queue is full.
 	s.invocationQueue.enqueue(req)
 	return &proto.Empty{}, nil
 }
@@ -62,6 +121,14 @@ func (s *server) ReportPath(_ context.Context, _ *proto.ReportPathRequest) (*pro
 }
 
 func (s *server) Close() error {
+	s.closeMutex.Lock()
+	defer s.closeMutex.Unlock()
+	if s.closed {
+		return nil
+	}
+	s.closed = true
+	s.closeCancel()
+	s.closeWaitGroup.Wait()
 	return nil
 }
 
@@ -69,6 +136,7 @@ type invocationQueue struct {
 	*sync.Cond
 	flushInterval  time.Duration
 	queue          []*proto.Invocation
+	queueLimit     int
 	flushRequested bool
 	lastFlush      time.Time
 	logger         slog.Logger
@@ -77,8 +145,8 @@ type invocationQueue struct {
 func (i *invocationQueue) enqueue(req *proto.RecordInvocationRequest) {
 	i.L.Lock()
 	defer i.L.Unlock()
-	if len(i.queue) > 1000 {
-		i.logger.Warn("invocation queue is full, dropping invocations")
+	if len(i.queue) > i.queueLimit {
+		i.logger.Warn(context.Background(), "invocation queue is full, dropping invocations")
 		return
 	}
 	i.queue = append(i.queue, req.Invocations...)
