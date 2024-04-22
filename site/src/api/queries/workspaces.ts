@@ -4,7 +4,7 @@ import type {
   QueryOptions,
   UseMutationOptions,
 } from "react-query";
-import { api } from "api/api";
+import { type DeleteWorkspaceOptions, api } from "api/api";
 import type {
   CreateWorkspaceRequest,
   ProvisionerLogLevel,
@@ -110,7 +110,7 @@ export const updateDeadline = (
 ): UseMutationOptions<void, unknown, Dayjs> => {
   return {
     mutationFn: (deadline: Dayjs) => {
-      return putWorkspaceExtension(workspace.id, deadline);
+      return api.putWorkspaceExtension(workspace.id, deadline);
     },
   };
 };
@@ -154,7 +154,7 @@ export const deleteWorkspace = (
   queryClient: QueryClient,
 ) => {
   return {
-    mutationFn: (options: api.DeleteWorkspaceOptions) => {
+    mutationFn: (options: DeleteWorkspaceOptions) => {
       return api.deleteWorkspace(workspace.id, options);
     },
     onSuccess: async (build: WorkspaceBuild) => {

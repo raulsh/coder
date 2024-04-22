@@ -1,4 +1,4 @@
-import * as API from "api/api";
+import { api } from "api/api";
 
 export const terminalWebsocketUrl = async (
   baseUrl: string | undefined,
@@ -30,7 +30,7 @@ export const terminalWebsocketUrl = async (
   }
 
   // Do ticket issuance and set the query parameter.
-  const tokenRes = await API.issueReconnectingPTYSignedToken({
+  const tokenRes = await api.issueReconnectingPTYSignedToken({
     url: url.toString(),
     agentID: agentId,
   });

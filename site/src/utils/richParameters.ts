@@ -13,8 +13,8 @@ export type AutofillBuildParameter = {
 } & WorkspaceBuildParameter;
 
 export const getInitialRichParameterValues = (
-  templateParams: TemplateVersionParameter[],
-  autofillParams?: AutofillBuildParameter[],
+  templateParams: readonly TemplateVersionParameter[],
+  autofillParams?: readonly AutofillBuildParameter[],
 ): WorkspaceBuildParameter[] => {
   return templateParams.map((parameter) => {
     // Short-circuit for ephemeral parameters, which are always reset to

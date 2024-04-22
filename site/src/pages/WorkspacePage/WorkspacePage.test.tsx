@@ -1,7 +1,7 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
-import { api } from "api/api";
+import { MissingBuildParameters, api } from "api/api";
 import type { TemplateVersionParameter, Workspace } from "api/typesGenerated";
 import EventSourceMock from "eventsourcemock";
 import {
@@ -254,7 +254,7 @@ describe("WorkspacePage", () => {
     const updateWorkspaceSpy = jest
       .spyOn(api, "updateWorkspace")
       .mockRejectedValueOnce(
-        new api.MissingBuildParameters(
+        new MissingBuildParameters(
           [MockTemplateVersionParameter1, MockTemplateVersionParameter2],
           MockOutdatedWorkspace.template_active_version_id,
         ),

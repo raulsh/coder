@@ -25,7 +25,7 @@ import userAgentParser from "ua-parser-js";
 import { delay } from "../utils/delay";
 import * as TypesGen from "./typesGenerated";
 
-export const provisioners: TypesGen.ProvisionerDaemon[] = [
+export const provisioners: readonly TypesGen.ProvisionerDaemon[] = [
   {
     id: "terraform",
     name: "Terraform",
@@ -49,6 +49,92 @@ export const provisioners: TypesGen.ProvisionerDaemon[] = [
 const CONTENT_TYPE_JSON = {
   "Content-Type": "application/json",
 } as const satisfies RequestInit["headers"];
+
+type WatchWorkspaceAgentLogsOptions = {
+  agentId: string;
+  after: number;
+  onMessage: (logs: readonly TypesGen.WorkspaceAgentLog[]) => void;
+  onDone?: () => void;
+  onError: (error: Error) => void;
+};
+
+export const watchWorkspaceAgentLogs = ({
+  agentId,
+  after,
+  onMessage,
+  onDone,
+  onError,
+}: WatchWorkspaceAgentLogsOptions) => {
+  // WebSocket compression in Safari (confirmed in 16.5) is broken when
+  // the server sends large messages. The following error is seen:
+  //
+  //   WebSocket connection to 'wss://.../logs?follow&after=0' failed: The operation couldn’t be completed. Protocol error
+  //
+  const noCompression =
+    userAgentParser(navigator.userAgent).browser.name === "Safari"
+      ? "&no_compression"
+      : "";
+
+  const proto = location.protocol === "https:" ? "wss:" : "ws:";
+  const socket = new WebSocket(
+    `${proto}//${location.host}/api/v2/workspaceagents/${agentId}/logs?follow&after=${after}${noCompression}`,
+  );
+  socket.binaryType = "blob";
+  socket.addEventListener("message", (event) => {
+    const logs = JSON.parse(
+      event.data,
+    ) as readonly TypesGen.WorkspaceAgentLog[];
+    onMessage(logs);
+  });
+  socket.addEventListener("error", () => {
+    onError(new Error("socket errored"));
+  });
+  socket.addEventListener("close", () => {
+    onDone && onDone();
+  });
+
+  return socket;
+};
+
+type WatchBuildLogsByBuildIdOptions = {
+  buildId: string;
+  after?: number;
+  onMessage: (log: TypesGen.ProvisionerJobLog) => void;
+  onDone?: () => void;
+  onError?: (error: Error) => void;
+};
+
+export const watchBuildLogsByBuildId = ({
+  buildId,
+  onMessage,
+  onDone,
+  onError,
+  after,
+}: WatchBuildLogsByBuildIdOptions) => {
+  const searchParams = new URLSearchParams({ follow: "true" });
+  if (after !== undefined) {
+    searchParams.append("after", after.toString());
+  }
+  const proto = location.protocol === "https:" ? "wss:" : "ws:";
+  const socket = new WebSocket(
+    `${proto}//${
+      location.host
+    }/api/v2/workspacebuilds/${buildId}/logs?${searchParams.toString()}`,
+  );
+  socket.binaryType = "blob";
+  socket.addEventListener("message", (event) =>
+    onMessage(JSON.parse(event.data) as TypesGen.ProvisionerJobLog),
+  );
+  socket.addEventListener("error", () => {
+    onError && onError(new Error("Connection for logs failed."));
+    socket.close();
+  });
+  socket.addEventListener("close", () => {
+    // When the socket closes, logs have finished streaming!
+    onDone && onDone();
+  });
+  return socket;
+};
 
 type WatchBuildLogsByTemplateVersionIdOptions = {
   versionId: string;
@@ -152,9 +238,9 @@ export const getURLWithSearchParams = (
 };
 
 const getMissingParameters = (
-  oldBuildParameters: TypesGen.WorkspaceBuildParameter[],
-  newBuildParameters: TypesGen.WorkspaceBuildParameter[],
-  templateParameters: TypesGen.TemplateVersionParameter[],
+  oldBuildParameters: readonly TypesGen.WorkspaceBuildParameter[],
+  newBuildParameters: readonly TypesGen.WorkspaceBuildParameter[],
+  templateParameters: readonly TypesGen.TemplateVersionParameter[],
 ) => {
   const missingParameters: TypesGen.TemplateVersionParameter[] = [];
   const requiredParameters: TypesGen.TemplateVersionParameter[] = [];
@@ -246,7 +332,7 @@ interface SearchParamOptions extends TypesGen.Pagination {
 
 export type DeploymentConfig = {
   readonly config: TypesGen.DeploymentValues;
-  readonly options: TypesGen.SerpentOption[];
+  readonly options: readonly TypesGen.SerpentOption[];
 };
 
 export type DeleteWorkspaceOptions = Pick<
@@ -268,12 +354,27 @@ export type GetLicensesResponse = Omit<TypesGen.License, "claims"> & {
   }>;
 };
 
+export type InsightsParams = {
+  start_time: string;
+  end_time: string;
+  template_ids: string;
+};
+
+export type InsightsTemplateParams = InsightsParams & {
+  interval: "day" | "week";
+};
+
+export type GetJFrogXRayScanParams = {
+  workspaceId: string;
+  agentId: string;
+};
+
 export class MissingBuildParameters extends Error {
-  parameters: TypesGen.TemplateVersionParameter[] = [];
+  parameters: readonly TypesGen.TemplateVersionParameter[] = [];
   versionId: string;
 
   constructor(
-    parameters: TypesGen.TemplateVersionParameter[],
+    parameters: readonly TypesGen.TemplateVersionParameter[],
     versionId: string,
   ) {
     super("Missing build parameters.");
@@ -369,7 +470,7 @@ export class CoderApi {
   };
 
   getUserParameters = async (templateID: string) => {
-    const response = await axiosInstance.get<TypesGen.UserParameter[]>(
+    const response = await axiosInstance.get<readonly TypesGen.UserParameter[]>(
       "/api/v2/users/me/autofill-parameters?template_id=" + templateID,
     );
     return response.data;
@@ -408,11 +509,10 @@ export class CoderApi {
 
   getTokens = async (
     params: TypesGen.TokensFilter,
-  ): Promise<TypesGen.APIKeyWithOwner[]> => {
-    const response = await axiosInstance.get<TypesGen.APIKeyWithOwner[]>(
-      `/api/v2/users/me/keys/tokens`,
-      { params },
-    );
+  ): Promise<readonly TypesGen.APIKeyWithOwner[]> => {
+    const response = await axiosInstance.get<
+      readonly TypesGen.APIKeyWithOwner[]
+    >(`/api/v2/users/me/keys/tokens`, { params });
     return response.data;
   };
 
@@ -459,8 +559,8 @@ export class CoderApi {
     return response.data;
   };
 
-  getOrganizations = async (): Promise<TypesGen.Organization[]> => {
-    const response = await axiosInstance.get<TypesGen.Organization[]>(
+  getOrganizations = async (): Promise<readonly TypesGen.Organization[]> => {
+    const response = await axiosInstance.get<readonly TypesGen.Organization[]>(
       "/api/v2/users/me/organizations",
     );
     return response.data;
@@ -476,7 +576,7 @@ export class CoderApi {
   getTemplates = async (
     organizationId: string,
     options?: TemplateOptions,
-  ): Promise<TypesGen.Template[]> => {
+  ): Promise<readonly TypesGen.Template[]> => {
     const params = {} as Record<string, string>;
     if (options && options.deprecated !== undefined) {
       // Just want to check if it isn't undefined. If it has
@@ -485,7 +585,7 @@ export class CoderApi {
       params["deprecated"] = String(options.deprecated);
     }
 
-    const response = await axiosInstance.get<TypesGen.Template[]>(
+    const response = await axiosInstance.get<readonly TypesGen.Template[]>(
       `/api/v2/organizations/${organizationId}/templates`,
       { params },
     );
@@ -514,28 +614,28 @@ export class CoderApi {
 
   getTemplateVersionResources = async (
     versionId: string,
-  ): Promise<TypesGen.WorkspaceResource[]> => {
-    const response = await axiosInstance.get<TypesGen.WorkspaceResource[]>(
-      `/api/v2/templateversions/${versionId}/resources`,
-    );
+  ): Promise<readonly TypesGen.WorkspaceResource[]> => {
+    const response = await axiosInstance.get<
+      readonly TypesGen.WorkspaceResource[]
+    >(`/api/v2/templateversions/${versionId}/resources`);
     return response.data;
   };
 
   getTemplateVersionVariables = async (
     versionId: string,
-  ): Promise<TypesGen.TemplateVersionVariable[]> => {
+  ): Promise<readonly TypesGen.TemplateVersionVariable[]> => {
     const response = await axiosInstance.get<
-      TypesGen.TemplateVersionVariable[]
+      readonly TypesGen.TemplateVersionVariable[]
     >(`/api/v2/templateversions/${versionId}/variables`);
     return response.data;
   };
 
   getTemplateVersions = async (
     templateId: string,
-  ): Promise<TypesGen.TemplateVersion[]> => {
-    const response = await axiosInstance.get<TypesGen.TemplateVersion[]>(
-      `/api/v2/templates/${templateId}/versions`,
-    );
+  ): Promise<readonly TypesGen.TemplateVersion[]> => {
+    const response = await axiosInstance.get<
+      readonly TypesGen.TemplateVersion[]
+    >(`/api/v2/templates/${templateId}/versions`);
     return response.data;
   };
 
@@ -588,7 +688,7 @@ export class CoderApi {
 
   getTemplateVersionExternalAuth = async (
     versionId: string,
-  ): Promise<TypesGen.TemplateVersionExternalAuth[]> => {
+  ): Promise<readonly TypesGen.TemplateVersionExternalAuth[]> => {
     const response = await axiosInstance.get(
       `/api/v2/templateversions/${versionId}/external-auth`,
     );
@@ -597,7 +697,7 @@ export class CoderApi {
 
   getTemplateVersionRichParameters = async (
     versionId: string,
-  ): Promise<TypesGen.TemplateVersionParameter[]> => {
+  ): Promise<readonly TypesGen.TemplateVersionParameter[]> => {
     const response = await axiosInstance.get(
       `/api/v2/templateversions/${versionId}/rich-parameters`,
     );
@@ -752,7 +852,7 @@ export class CoderApi {
     workspaceId: string,
     templateVersionId: string,
     logLevel?: TypesGen.ProvisionerLogLevel,
-    buildParameters?: TypesGen.WorkspaceBuildParameter[],
+    buildParameters?: readonly TypesGen.WorkspaceBuildParameter[],
   ): Promise<TypesGen.WorkspaceBuild> => {
     return this.postWorkspaceBuild(workspaceId, {
       transition: "start",
@@ -823,7 +923,7 @@ export class CoderApi {
     buildParameters,
   }: {
     workspace: TypesGen.Workspace;
-    buildParameters?: TypesGen.WorkspaceBuildParameter[];
+    buildParameters?: readonly TypesGen.WorkspaceBuildParameter[];
   }) => {
     const stopBuild = await this.stopWorkspace(workspace.id);
     const awaitedStopBuild = await this.waitForBuild(stopBuild);
@@ -1054,9 +1154,9 @@ export class CoderApi {
     workspaceId: string,
     req?: TypesGen.WorkspaceBuildsRequest,
   ) => {
-    const response = await axiosInstance.get<TypesGen.WorkspaceBuild[]>(
-      getURLWithSearchParams(`/api/v2/workspaces/${workspaceId}/builds`, req),
-    );
+    const response = await axiosInstance.get<
+      readonly TypesGen.WorkspaceBuild[]
+    >(getURLWithSearchParams(`/api/v2/workspaces/${workspaceId}/builds`, req));
     return response.data;
   };
 
@@ -1074,19 +1174,19 @@ export class CoderApi {
   getWorkspaceBuildLogs = async (
     buildId: string,
     before: Date,
-  ): Promise<TypesGen.ProvisionerJobLog[]> => {
-    const response = await axiosInstance.get<TypesGen.ProvisionerJobLog[]>(
-      `/api/v2/workspacebuilds/${buildId}/logs?before=${before.getTime()}`,
-    );
+  ): Promise<readonly TypesGen.ProvisionerJobLog[]> => {
+    const response = await axiosInstance.get<
+      readonly TypesGen.ProvisionerJobLog[]
+    >(`/api/v2/workspacebuilds/${buildId}/logs?before=${before.getTime()}`);
     return response.data;
   };
 
   getWorkspaceAgentLogs = async (
     agentID: string,
-  ): Promise<TypesGen.WorkspaceAgentLog[]> => {
-    const response = await axiosInstance.get<TypesGen.WorkspaceAgentLog[]>(
-      `/api/v2/workspaceagents/${agentID}/logs`,
-    );
+  ): Promise<readonly TypesGen.WorkspaceAgentLog[]> => {
+    const response = await axiosInstance.get<
+      readonly TypesGen.WorkspaceAgentLog[]
+    >(`/api/v2/workspaceagents/${agentID}/logs`);
     return response.data;
   };
 
@@ -1123,7 +1223,7 @@ export class CoderApi {
     }
   };
 
-  getExperiments = async (): Promise<TypesGen.Experiment[]> => {
+  getExperiments = async (): Promise<readonly TypesGen.Experiment[]> => {
     try {
       const response = await axiosInstance.get("/api/v2/experiments");
       return response.data;
@@ -1331,7 +1431,9 @@ export class CoderApi {
     return response.data;
   };
 
-  getGroups = async (organizationId: string): Promise<TypesGen.Group[]> => {
+  getGroups = async (
+    organizationId: string,
+  ): Promise<readonly TypesGen.Group[]> => {
     const response = await axiosInstance.get(
       `/api/v2/organizations/${organizationId}/groups`,
     );
@@ -1453,7 +1555,7 @@ export class CoderApi {
     return response.data;
   };
 
-  getReplicas = async (): Promise<TypesGen.Replica[]> => {
+  getReplicas = async (): Promise<readonly TypesGen.Replica[]> => {
     const response = await axiosInstance.get(`/api/v2/replicas`);
     return response.data;
   };
@@ -1520,7 +1622,7 @@ export class CoderApi {
 
   getTemplateExamples = async (
     organizationId: string,
-  ): Promise<TypesGen.TemplateExample[]> => {
+  ): Promise<readonly TypesGen.TemplateExample[]> => {
     const response = await axiosInstance.get(
       `/api/v2/organizations/${organizationId}/templates/examples`,
     );
@@ -1538,10 +1640,10 @@ export class CoderApi {
 
   getTemplateVersionLogs = async (
     versionId: string,
-  ): Promise<TypesGen.ProvisionerJobLog[]> => {
-    const response = await axiosInstance.get<TypesGen.ProvisionerJobLog[]>(
-      `/api/v2/templateversions/${versionId}/logs`,
-    );
+  ): Promise<readonly TypesGen.ProvisionerJobLog[]> => {
+    const response = await axiosInstance.get<
+      readonly TypesGen.ProvisionerJobLog[]
+    >(`/api/v2/templateversions/${versionId}/logs`);
     return response.data;
   };
 
@@ -1554,9 +1656,9 @@ export class CoderApi {
 
   getWorkspaceBuildParameters = async (
     workspaceBuildId: TypesGen.WorkspaceBuild["id"],
-  ): Promise<TypesGen.WorkspaceBuildParameter[]> => {
+  ): Promise<readonly TypesGen.WorkspaceBuildParameter[]> => {
     const response = await axiosInstance.get<
-      TypesGen.WorkspaceBuildParameter[]
+      readonly TypesGen.WorkspaceBuildParameter[]
     >(`/api/v2/workspacebuilds/${workspaceBuildId}/parameters`);
 
     return response.data;
@@ -1589,7 +1691,7 @@ export class CoderApi {
   changeWorkspaceVersion = async (
     workspace: TypesGen.Workspace,
     templateVersionId: string,
-    newBuildParameters: TypesGen.WorkspaceBuildParameter[] = [],
+    newBuildParameters: readonly TypesGen.WorkspaceBuildParameter[] = [],
   ): Promise<TypesGen.WorkspaceBuild> => {
     const [currentBuildParameters, templateParameters] = await Promise.all([
       this.getWorkspaceBuildParameters(workspace.latest_build.id),
@@ -1624,7 +1726,7 @@ export class CoderApi {
    */
   updateWorkspace = async (
     workspace: TypesGen.Workspace,
-    newBuildParameters: TypesGen.WorkspaceBuildParameter[] = [],
+    newBuildParameters: readonly TypesGen.WorkspaceBuildParameter[] = [],
   ): Promise<TypesGen.WorkspaceBuild> => {
     const [template, oldBuildParameters] = await Promise.all([
       this.getTemplate(workspace.template_id),
@@ -1659,208 +1761,110 @@ export class CoderApi {
     return response.data;
   };
 
-  //////////////////////////////////////////////////////////////////////////////
-  //////////////////////////////////////////////////////////////////////////////
-  //////////////////////////////////////////////////////////////////////////////
-  //////////////////////////////////////////////////////////////////////////////
-  //////////////////////////////////////////////////////////////////////////////
-  //////////////////////////////////////////////////////////////////////////////
+  issueReconnectingPTYSignedToken = async (
+    params: TypesGen.IssueReconnectingPTYSignedTokenRequest,
+  ): Promise<TypesGen.IssueReconnectingPTYSignedTokenResponse> => {
+    const response = await axiosInstance.post(
+      "/api/v2/applications/reconnecting-pty-signed-token",
+      params,
+    );
+    return response.data;
+  };
+
+  getWorkspaceParameters = async (workspace: TypesGen.Workspace) => {
+    const latestBuild = workspace.latest_build;
+    const [templateVersionRichParameters, buildParameters] = await Promise.all([
+      this.getTemplateVersionRichParameters(latestBuild.template_version_id),
+      this.getWorkspaceBuildParameters(latestBuild.id),
+    ]);
+
+    return {
+      templateVersionRichParameters,
+      buildParameters,
+    };
+  };
+
+  getInsightsUserLatency = async (
+    filters: InsightsParams,
+  ): Promise<TypesGen.UserLatencyInsightsResponse> => {
+    const params = new URLSearchParams(filters);
+    const response = await axiosInstance.get(
+      `/api/v2/insights/user-latency?${params}`,
+    );
+    return response.data;
+  };
+
+  getInsightsUserActivity = async (
+    filters: InsightsParams,
+  ): Promise<TypesGen.UserActivityInsightsResponse> => {
+    const params = new URLSearchParams(filters);
+    const response = await axiosInstance.get(
+      `/api/v2/insights/user-activity?${params}`,
+    );
+    return response.data;
+  };
+
+  getInsightsTemplate = async (
+    params: InsightsTemplateParams,
+  ): Promise<TypesGen.TemplateInsightsResponse> => {
+    const searchParams = new URLSearchParams(params);
+    const response = await axiosInstance.get(
+      `/api/v2/insights/templates?${searchParams}`,
+    );
+    return response.data;
+  };
+
+  getHealth = async (force: boolean = false) => {
+    const params = new URLSearchParams({ force: force.toString() });
+    const response = await axiosInstance.get<TypesGen.HealthcheckReport>(
+      `/api/v2/debug/health?${params}`,
+    );
+    return response.data;
+  };
+
+  getHealthSettings = async () => {
+    return (
+      await axiosInstance.get<TypesGen.HealthSettings>(
+        `/api/v2/debug/health/settings`,
+      )
+    ).data;
+  };
+
+  updateHealthSettings = async (data: TypesGen.UpdateHealthSettings) => {
+    const response = await axiosInstance.put<TypesGen.HealthSettings>(
+      `/api/v2/debug/health/settings`,
+      data,
+    );
+    return response.data;
+  };
+
+  putFavoriteWorkspace = async (workspaceID: string) => {
+    await axiosInstance.put(`/api/v2/workspaces/${workspaceID}/favorite`);
+  };
+
+  deleteFavoriteWorkspace = async (workspaceID: string) => {
+    await axiosInstance.delete(`/api/v2/workspaces/${workspaceID}/favorite`);
+  };
+
+  getJFrogXRayScan = async (options: GetJFrogXRayScanParams) => {
+    const searchParams = new URLSearchParams({
+      workspace_id: options.workspaceId,
+      agent_id: options.agentId,
+    });
+
+    try {
+      const res = await axiosInstance.get<TypesGen.JFrogXrayScan>(
+        `/api/v2/integrations/jfrog/xray-scan?${searchParams}`,
+      );
+      return res.data;
+    } catch (error) {
+      if (isAxiosError(error) && error.response?.status === 404) {
+        // react-query library does not allow undefined to be returned as a query result
+        return null;
+      }
+    }
+  };
 }
 
 export const api = new CoderApi();
 export const axiosInstance = globalAxios.create();
-
-type WatchWorkspaceAgentLogsOptions = {
-  after: number;
-  onMessage: (logs: TypesGen.WorkspaceAgentLog[]) => void;
-  onDone?: () => void;
-  onError: (error: Error) => void;
-};
-
-export const watchWorkspaceAgentLogs = (
-  agentId: string,
-  { after, onMessage, onDone, onError }: WatchWorkspaceAgentLogsOptions,
-) => {
-  // WebSocket compression in Safari (confirmed in 16.5) is broken when
-  // the server sends large messages. The following error is seen:
-  //
-  //   WebSocket connection to 'wss://.../logs?follow&after=0' failed: The operation couldn’t be completed. Protocol error
-  //
-  const noCompression =
-    userAgentParser(navigator.userAgent).browser.name === "Safari"
-      ? "&no_compression"
-      : "";
-
-  const proto = location.protocol === "https:" ? "wss:" : "ws:";
-  const socket = new WebSocket(
-    `${proto}//${location.host}/api/v2/workspaceagents/${agentId}/logs?follow&after=${after}${noCompression}`,
-  );
-  socket.binaryType = "blob";
-  socket.addEventListener("message", (event) => {
-    const logs = JSON.parse(event.data) as TypesGen.WorkspaceAgentLog[];
-    onMessage(logs);
-  });
-  socket.addEventListener("error", () => {
-    onError(new Error("socket errored"));
-  });
-  socket.addEventListener("close", () => {
-    onDone && onDone();
-  });
-
-  return socket;
-};
-
-type WatchBuildLogsByBuildIdOptions = {
-  after?: number;
-  onMessage: (log: TypesGen.ProvisionerJobLog) => void;
-  onDone?: () => void;
-  onError?: (error: Error) => void;
-};
-export const watchBuildLogsByBuildId = (
-  buildId: string,
-  { onMessage, onDone, onError, after }: WatchBuildLogsByBuildIdOptions,
-) => {
-  const searchParams = new URLSearchParams({ follow: "true" });
-  if (after !== undefined) {
-    searchParams.append("after", after.toString());
-  }
-  const proto = location.protocol === "https:" ? "wss:" : "ws:";
-  const socket = new WebSocket(
-    `${proto}//${
-      location.host
-    }/api/v2/workspacebuilds/${buildId}/logs?${searchParams.toString()}`,
-  );
-  socket.binaryType = "blob";
-  socket.addEventListener("message", (event) =>
-    onMessage(JSON.parse(event.data) as TypesGen.ProvisionerJobLog),
-  );
-  socket.addEventListener("error", () => {
-    onError && onError(new Error("Connection for logs failed."));
-    socket.close();
-  });
-  socket.addEventListener("close", () => {
-    // When the socket closes, logs have finished streaming!
-    onDone && onDone();
-  });
-  return socket;
-};
-
-export const issueReconnectingPTYSignedToken = async (
-  params: TypesGen.IssueReconnectingPTYSignedTokenRequest,
-): Promise<TypesGen.IssueReconnectingPTYSignedTokenResponse> => {
-  const response = await axiosInstance.post(
-    "/api/v2/applications/reconnecting-pty-signed-token",
-    params,
-  );
-  return response.data;
-};
-
-export const getWorkspaceParameters = async (workspace: TypesGen.Workspace) => {
-  const latestBuild = workspace.latest_build;
-  const [templateVersionRichParameters, buildParameters] = await Promise.all([
-    getTemplateVersionRichParameters(latestBuild.template_version_id),
-    getWorkspaceBuildParameters(latestBuild.id),
-  ]);
-  return {
-    templateVersionRichParameters,
-    buildParameters,
-  };
-};
-
-export type InsightsParams = {
-  start_time: string;
-  end_time: string;
-  template_ids: string;
-};
-
-export const getInsightsUserLatency = async (
-  filters: InsightsParams,
-): Promise<TypesGen.UserLatencyInsightsResponse> => {
-  const params = new URLSearchParams(filters);
-  const response = await axiosInstance.get(
-    `/api/v2/insights/user-latency?${params}`,
-  );
-  return response.data;
-};
-
-export const getInsightsUserActivity = async (
-  filters: InsightsParams,
-): Promise<TypesGen.UserActivityInsightsResponse> => {
-  const params = new URLSearchParams(filters);
-  const response = await axiosInstance.get(
-    `/api/v2/insights/user-activity?${params}`,
-  );
-  return response.data;
-};
-
-export type InsightsTemplateParams = InsightsParams & {
-  interval: "day" | "week";
-};
-
-export const getInsightsTemplate = async (
-  params: InsightsTemplateParams,
-): Promise<TypesGen.TemplateInsightsResponse> => {
-  const searchParams = new URLSearchParams(params);
-  const response = await axiosInstance.get(
-    `/api/v2/insights/templates?${searchParams}`,
-  );
-  return response.data;
-};
-
-export const getHealth = async (force: boolean = false) => {
-  const params = new URLSearchParams({ force: force.toString() });
-  const response = await axiosInstance.get<TypesGen.HealthcheckReport>(
-    `/api/v2/debug/health?${params}`,
-  );
-  return response.data;
-};
-
-export const getHealthSettings = async () => {
-  return (
-    await axiosInstance.get<TypesGen.HealthSettings>(
-      `/api/v2/debug/health/settings`,
-    )
-  ).data;
-};
-
-export const updateHealthSettings = async (
-  data: TypesGen.UpdateHealthSettings,
-) => {
-  const response = await axiosInstance.put<TypesGen.HealthSettings>(
-    `/api/v2/debug/health/settings`,
-    data,
-  );
-  return response.data;
-};
-
-export const putFavoriteWorkspace = async (workspaceID: string) => {
-  await axiosInstance.put(`/api/v2/workspaces/${workspaceID}/favorite`);
-};
-
-export const deleteFavoriteWorkspace = async (workspaceID: string) => {
-  await axiosInstance.delete(`/api/v2/workspaces/${workspaceID}/favorite`);
-};
-
-export type GetJFrogXRayScanParams = {
-  workspaceId: string;
-  agentId: string;
-};
-
-export const getJFrogXRayScan = async (options: GetJFrogXRayScanParams) => {
-  const searchParams = new URLSearchParams({
-    workspace_id: options.workspaceId,
-    agent_id: options.agentId,
-  });
-
-  try {
-    const res = await axiosInstance.get<TypesGen.JFrogXrayScan>(
-      `/api/v2/integrations/jfrog/xray-scan?${searchParams}`,
-    );
-    return res.data;
-  } catch (error) {
-    if (isAxiosError(error) && error.response?.status === 404) {
-      // react-query library does not allow undefined to be returned as a query result
-      return null;
-    }
-  }
-};

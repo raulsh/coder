@@ -5,7 +5,7 @@ import visuallyHidden from "@mui/utils/visuallyHidden";
 import { useFormik } from "formik";
 import type { FC } from "react";
 import { useQuery } from "react-query";
-import { getWorkspaceParameters } from "api/api";
+import { api } from "api/api";
 import type {
   TemplateVersionParameter,
   Workspace,
@@ -37,7 +37,7 @@ import {
 interface BuildParametersPopoverProps {
   workspace: Workspace;
   disabled?: boolean;
-  onSubmit: (buildParameters: WorkspaceBuildParameter[]) => void;
+  onSubmit: (buildParameters: readonly WorkspaceBuildParameter[]) => void;
   label: string;
 }
 
@@ -49,7 +49,7 @@ export const BuildParametersPopover: FC<BuildParametersPopoverProps> = ({
 }) => {
   const { data: parameters } = useQuery({
     queryKey: ["workspace", workspace.id, "parameters"],
-    queryFn: () => getWorkspaceParameters(workspace),
+    queryFn: () => api.getWorkspaceParameters(workspace),
   });
   const ephemeralParameters = parameters
     ? parameters.templateVersionRichParameters.filter((p) => p.ephemeral)
@@ -83,9 +83,9 @@ export const BuildParametersPopover: FC<BuildParametersPopoverProps> = ({
 };
 
 interface BuildParametersPopoverContentProps {
-  ephemeralParameters?: TemplateVersionParameter[];
-  buildParameters?: WorkspaceBuildParameter[];
-  onSubmit: (buildParameters: WorkspaceBuildParameter[]) => void;
+  ephemeralParameters?: readonly TemplateVersionParameter[];
+  buildParameters?: readonly WorkspaceBuildParameter[];
+  onSubmit: (buildParameters: readonly WorkspaceBuildParameter[]) => void;
 }
 
 const BuildParametersPopoverContent: FC<BuildParametersPopoverContentProps> = ({
@@ -158,9 +158,9 @@ const BuildParametersPopoverContent: FC<BuildParametersPopoverContentProps> = ({
 };
 
 interface FormProps {
-  ephemeralParameters: TemplateVersionParameter[];
-  buildParameters: AutofillBuildParameter[];
-  onSubmit: (buildParameters: WorkspaceBuildParameter[]) => void;
+  ephemeralParameters: readonly TemplateVersionParameter[];
+  buildParameters: readonly AutofillBuildParameter[];
+  onSubmit: (buildParameters: readonly WorkspaceBuildParameter[]) => void;
 }
 
 const Form: FC<FormProps> = ({

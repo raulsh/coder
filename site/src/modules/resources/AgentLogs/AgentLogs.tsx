@@ -193,9 +193,9 @@ export const useAgentLogs = (
       return;
     }
 
-    const socket = API.watchWorkspaceAgentLogs(agentId, {
-      // Get all logs
-      after: 0,
+    const socket = API.watchWorkspaceAgentLogs({
+      agentId,
+      after: 0, // Get all logs
       onMessage: (logs) => {
         // Prevent new logs getting added when a connection is not open
         if (socket.readyState !== WebSocket.OPEN) {

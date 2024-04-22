@@ -6,7 +6,7 @@ import {
   MockWorkspaceBuild,
   MockWorkspaceBuildParameter1,
 } from "testHelpers/entities";
-import { api, getURLWithSearchParams } from "./api";
+import { MissingBuildParameters, api, getURLWithSearchParams } from "./api";
 import type * as TypesGen from "./typesGenerated";
 
 describe("api.ts", () => {
@@ -202,9 +202,9 @@ describe("api.ts", () => {
         error = e as Error;
       }
 
-      expect(error).toBeInstanceOf(api.MissingBuildParameters);
+      expect(error).toBeInstanceOf(MissingBuildParameters);
       // Verify if the correct missing parameters are being passed
-      expect((error as api.MissingBuildParameters).parameters).toEqual([
+      expect((error as MissingBuildParameters).parameters).toEqual([
         MockTemplateVersionParameter1,
         { ...MockTemplateVersionParameter2, mutable: false },
       ]);

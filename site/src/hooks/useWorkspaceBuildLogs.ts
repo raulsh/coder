@@ -20,15 +20,16 @@ export const useWorkspaceBuildLogs = (
     // Every time this hook is called reset the values
     setLogs(undefined);
 
-    socket.current = watchBuildLogsByBuildId(buildId, {
-      // Retrieve all the logs
-      after: -1,
+    socket.current = watchBuildLogsByBuildId({
+      buildId,
+      after: -1, // Retrieve all the logs
       onMessage: (log) => {
-        setLogs((previousLogs) => {
-          if (!previousLogs) {
+        setLogs((current) => {
+          if (!current) {
             return [log];
           }
-          return [...previousLogs, log];
+
+          return [...current, log];
         });
       },
       onError: () => {
