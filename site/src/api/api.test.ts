@@ -6,8 +6,7 @@ import {
   MockWorkspaceBuild,
   MockWorkspaceBuildParameter1,
 } from "testHelpers/entities";
-import * as api from "./api";
-import { axiosInstance } from "./api";
+import { api } from "./api";
 import type * as TypesGen from "./typesGenerated";
 
 describe("api.ts", () => {
@@ -19,14 +18,14 @@ describe("api.ts", () => {
       };
 
       jest
-        .spyOn(axiosInstance, "post")
+        .spyOn(api.axios, "post")
         .mockResolvedValueOnce({ data: loginResponse });
 
       // when
       const result = await api.login("test", "123");
 
       // then
-      expect(axiosInstance.post).toHaveBeenCalled();
+      expect(api.axios.post).toHaveBeenCalled();
       expect(result).toStrictEqual(loginResponse);
     });
 
@@ -41,7 +40,7 @@ describe("api.ts", () => {
       const axiosMockPost = jest.fn().mockImplementationOnce(() => {
         return Promise.reject(expectedError);
       });
-      axiosInstance.post = axiosMockPost;
+      api.axios.post = axiosMockPost;
 
       try {
         await api.login("test", "123");
@@ -57,7 +56,7 @@ describe("api.ts", () => {
       const axiosMockPost = jest.fn().mockImplementationOnce(() => {
         return Promise.resolve();
       });
-      axiosInstance.post = axiosMockPost;
+      api.axios.post = axiosMockPost;
 
       // when
       await api.logout();
@@ -77,7 +76,7 @@ describe("api.ts", () => {
         return Promise.reject(expectedError);
       });
 
-      axiosInstance.post = axiosMockPost;
+      api.axios.post = axiosMockPost;
 
       try {
         await api.logout();
@@ -97,7 +96,7 @@ describe("api.ts", () => {
         return Promise.resolve({ data: apiKeyResponse });
       });
 
-      axiosInstance.post = axiosMockPost;
+      api.axios.post = axiosMockPost;
 
       // when
       const result = await api.getApiKey();
@@ -118,7 +117,7 @@ describe("api.ts", () => {
         return Promise.reject(expectedError);
       });
 
-      axiosInstance.post = axiosMockPost;
+      api.axios.post = axiosMockPost;
 
       try {
         await api.getApiKey();

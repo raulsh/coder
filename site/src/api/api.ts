@@ -19,87 +19,11 @@
  *
  * For example, `utils/delay` must be imported using `../utils/delay` instead.
  */
-import globalAxios, { isAxiosError } from "axios";
+import globalAxios, { type AxiosInstance, isAxiosError } from "axios";
 import type dayjs from "dayjs";
 import userAgentParser from "ua-parser-js";
 import { delay } from "../utils/delay";
 import * as TypesGen from "./typesGenerated";
-
-export const axiosInstance = globalAxios.create();
-
-// Adds 304 for the default axios validateStatus function
-// https://github.com/axios/axios#handling-errors Check status here
-// https://httpstatusdogs.com/
-axiosInstance.defaults.validateStatus = (status) => {
-  return (status >= 200 && status < 300) || status === 304;
-};
-
-export const hardCodedCSRFCookie = (): string => {
-  // This is a hard coded CSRF token/cookie pair for local development. In prod,
-  // the GoLang webserver generates a random cookie with a new token for each
-  // document request. For local development, we don't use the Go webserver for
-  // static files, so this is the 'hack' to make local development work with
-  // remote apis. The CSRF cookie for this token is
-  // "JXm9hOUdZctWt0ZZGAy9xiS/gxMKYOThdxjjMnMUyn4="
-  const csrfToken =
-    "KNKvagCBEHZK7ihe2t7fj6VeJ0UyTDco1yVUJE8N06oNqxLu5Zx1vRxZbgfC0mJJgeGkVjgs08mgPbcWPBkZ1A==";
-  axiosInstance.defaults.headers.common["X-CSRF-TOKEN"] = csrfToken;
-  return csrfToken;
-};
-
-// withDefaultFeatures sets all unspecified features to not_entitled and
-// disabled.
-export const withDefaultFeatures = (
-  fs: Partial<TypesGen.Entitlements["features"]>,
-): TypesGen.Entitlements["features"] => {
-  for (const feature of TypesGen.FeatureNames) {
-    // Skip fields that are already filled.
-    if (fs[feature] !== undefined) {
-      continue;
-    }
-    fs[feature] = {
-      enabled: false,
-      entitlement: "not_entitled",
-    };
-  }
-  return fs as TypesGen.Entitlements["features"];
-};
-
-// Always attach CSRF token to all requests. In puppeteer the document is
-// undefined. In those cases, just do nothing.
-const token =
-  typeof document !== "undefined"
-    ? document.head.querySelector('meta[property="csrf-token"]')
-    : null;
-
-if (token !== null && token.getAttribute("content") !== null) {
-  if (process.env.NODE_ENV === "development") {
-    // Development mode uses a hard-coded CSRF token
-    axiosInstance.defaults.headers.common["X-CSRF-TOKEN"] =
-      hardCodedCSRFCookie();
-    token.setAttribute("content", hardCodedCSRFCookie());
-  } else {
-    axiosInstance.defaults.headers.common["X-CSRF-TOKEN"] =
-      token.getAttribute("content") ?? "";
-  }
-} else {
-  // Do not write error logs if we are in a FE unit test.
-  if (process.env.JEST_WORKER_ID === undefined) {
-    console.error("CSRF token not found");
-  }
-}
-
-export const setSessionToken = (token: string) => {
-  axiosInstance.defaults.headers.common["Coder-Session-Token"] = token;
-};
-
-export const setHost = (host?: string) => {
-  axiosInstance.defaults.baseURL = host;
-};
-
-const CONTENT_TYPE_JSON = {
-  "Content-Type": "application/json",
-};
 
 export const provisioners: TypesGen.ProvisionerDaemon[] = [
   {
@@ -122,325 +46,408 @@ export const provisioners: TypesGen.ProvisionerDaemon[] = [
   },
 ];
 
-export const login = async (
-  email: string,
-  password: string,
-): Promise<TypesGen.LoginWithPasswordResponse> => {
-  const payload = JSON.stringify({
-    email,
-    password,
-  });
+const CONTENT_TYPE_JSON = {
+  "Content-Type": "application/json",
+} as const satisfies RequestInit["headers"];
 
-  const response = await axiosInstance.post<TypesGen.LoginWithPasswordResponse>(
-    "/api/v2/users/login",
-    payload,
-    {
-      headers: { ...CONTENT_TYPE_JSON },
-    },
-  );
+// withDefaultFeatures sets all unspecified features to not_entitled and
+// disabled.
+export const withDefaultFeatures = (
+  fs: Partial<TypesGen.Entitlements["features"]>,
+): TypesGen.Entitlements["features"] => {
+  for (const feature of TypesGen.FeatureNames) {
+    // Skip fields that are already filled.
+    if (fs[feature] !== undefined) {
+      continue;
+    }
 
-  return response.data;
+    fs[feature] = { enabled: false, entitlement: "not_entitled" };
+  }
+
+  return fs as TypesGen.Entitlements["features"];
 };
 
-export const convertToOAUTH = async (request: TypesGen.ConvertLoginRequest) => {
-  const response = await axiosInstance.post<TypesGen.OAuthConversionResponse>(
-    "/api/v2/users/me/convert-login",
-    request,
-  );
-  return response.data;
-};
-
-export const logout = async (): Promise<void> => {
-  await axiosInstance.post("/api/v2/users/logout");
-};
-
-export const getAuthenticatedUser = async () => {
-  const response = await axiosInstance.get<TypesGen.User>("/api/v2/users/me");
-  return response.data;
-};
-
-export const getUserParameters = async (templateID: string) => {
-  const response = await axiosInstance.get<TypesGen.UserParameter[]>(
-    "/api/v2/users/me/autofill-parameters?template_id=" + templateID,
-  );
-  return response.data;
-};
-
-export const getAuthMethods = async (): Promise<TypesGen.AuthMethods> => {
-  const response = await axiosInstance.get<TypesGen.AuthMethods>(
-    "/api/v2/users/authmethods",
-  );
-  return response.data;
-};
-
-export const getUserLoginType = async (): Promise<TypesGen.UserLoginType> => {
-  const response = await axiosInstance.get<TypesGen.UserLoginType>(
-    "/api/v2/users/me/login-type",
-  );
-  return response.data;
-};
-
-export const checkAuthorization = async (
-  params: TypesGen.AuthorizationRequest,
-): Promise<TypesGen.AuthorizationResponse> => {
-  const response = await axiosInstance.post<TypesGen.AuthorizationResponse>(
-    `/api/v2/authcheck`,
-    params,
-  );
-  return response.data;
-};
-
-export const getApiKey = async (): Promise<TypesGen.GenerateAPIKeyResponse> => {
-  const response = await axiosInstance.post<TypesGen.GenerateAPIKeyResponse>(
-    "/api/v2/users/me/keys",
-  );
-  return response.data;
-};
-
-export const getTokens = async (
-  params: TypesGen.TokensFilter,
-): Promise<TypesGen.APIKeyWithOwner[]> => {
-  const response = await axiosInstance.get<TypesGen.APIKeyWithOwner[]>(
-    `/api/v2/users/me/keys/tokens`,
-    {
-      params,
-    },
-  );
-  return response.data;
-};
-
-export const deleteToken = async (keyId: string): Promise<void> => {
-  await axiosInstance.delete("/api/v2/users/me/keys/" + keyId);
-};
-
-export const createToken = async (
-  params: TypesGen.CreateTokenRequest,
-): Promise<TypesGen.GenerateAPIKeyResponse> => {
-  const response = await axiosInstance.post(
-    `/api/v2/users/me/keys/tokens`,
-    params,
-  );
-  return response.data;
-};
-
-export const getTokenConfig = async (): Promise<TypesGen.TokenConfig> => {
-  const response = await axiosInstance.get(
-    "/api/v2/users/me/keys/tokens/tokenconfig",
-  );
-  return response.data;
-};
-
-export const getUsers = async (
-  options: TypesGen.UsersRequest,
-  signal?: AbortSignal,
-): Promise<TypesGen.GetUsersResponse> => {
-  const url = getURLWithSearchParams("/api/v2/users", options);
-  const response = await axiosInstance.get<TypesGen.GetUsersResponse>(
-    url.toString(),
-    {
-      signal,
-    },
-  );
-  return response.data;
-};
-
-export const getOrganization = async (
-  organizationId: string,
-): Promise<TypesGen.Organization> => {
-  const response = await axiosInstance.get<TypesGen.Organization>(
-    `/api/v2/organizations/${organizationId}`,
-  );
-  return response.data;
-};
-
-export const getOrganizations = async (): Promise<TypesGen.Organization[]> => {
-  const response = await axiosInstance.get<TypesGen.Organization[]>(
-    "/api/v2/users/me/organizations",
-  );
-  return response.data;
-};
-
-export const getTemplate = async (
-  templateId: string,
-): Promise<TypesGen.Template> => {
-  const response = await axiosInstance.get<TypesGen.Template>(
-    `/api/v2/templates/${templateId}`,
-  );
-  return response.data;
-};
+// Always attach CSRF token to all requests. In puppeteer the document is
+// undefined. In external libraries, the document is either undefined or does
+// not have the metadata tag. In either case, just do nothing.
+const tokenElement =
+  typeof document !== "undefined"
+    ? document.head.querySelector('meta[property="csrf-token"]')
+    : null;
 
 export interface TemplateOptions {
   readonly deprecated?: boolean;
 }
 
-export const getTemplates = async (
-  organizationId: string,
-  options?: TemplateOptions,
-): Promise<TypesGen.Template[]> => {
-  const params = {} as Record<string, string>;
-  if (options && options.deprecated !== undefined) {
-    // Just want to check if it isn't undefined. If it has
-    // a boolean value, convert it to a string and include
-    // it as a param.
-    params["deprecated"] = String(options.deprecated);
-  }
-
-  const response = await axiosInstance.get<TypesGen.Template[]>(
-    `/api/v2/organizations/${organizationId}/templates`,
-    {
-      params,
-    },
-  );
-  return response.data;
-};
-
-export const getTemplateByName = async (
-  organizationId: string,
-  name: string,
-): Promise<TypesGen.Template> => {
-  const response = await axiosInstance.get<TypesGen.Template>(
-    `/api/v2/organizations/${organizationId}/templates/${name}`,
-  );
-  return response.data;
-};
-
-export const getTemplateVersion = async (
-  versionId: string,
-): Promise<TypesGen.TemplateVersion> => {
-  const response = await axiosInstance.get<TypesGen.TemplateVersion>(
-    `/api/v2/templateversions/${versionId}`,
-  );
-  return response.data;
-};
-
-export const getTemplateVersionResources = async (
-  versionId: string,
-): Promise<TypesGen.WorkspaceResource[]> => {
-  const response = await axiosInstance.get<TypesGen.WorkspaceResource[]>(
-    `/api/v2/templateversions/${versionId}/resources`,
-  );
-  return response.data;
-};
-
-export const getTemplateVersionVariables = async (
-  versionId: string,
-): Promise<TypesGen.TemplateVersionVariable[]> => {
-  const response = await axiosInstance.get<TypesGen.TemplateVersionVariable[]>(
-    `/api/v2/templateversions/${versionId}/variables`,
-  );
-  return response.data;
-};
-
-export const getTemplateVersions = async (
-  templateId: string,
-): Promise<TypesGen.TemplateVersion[]> => {
-  const response = await axiosInstance.get<TypesGen.TemplateVersion[]>(
-    `/api/v2/templates/${templateId}/versions`,
-  );
-  return response.data;
-};
-
-export const getTemplateVersionByName = async (
-  organizationId: string,
-  templateName: string,
-  versionName: string,
-): Promise<TypesGen.TemplateVersion> => {
-  const response = await axiosInstance.get<TypesGen.TemplateVersion>(
-    `/api/v2/organizations/${organizationId}/templates/${templateName}/versions/${versionName}`,
-  );
-  return response.data;
-};
-
 export type GetPreviousTemplateVersionByNameResponse =
   | TypesGen.TemplateVersion
   | undefined;
 
-export const getPreviousTemplateVersionByName = async (
-  organizationId: string,
-  templateName: string,
-  versionName: string,
-) => {
-  try {
-    const response = await axiosInstance.get<TypesGen.TemplateVersion>(
-      `/api/v2/organizations/${organizationId}/templates/${templateName}/versions/${versionName}/previous`,
+export class CoderApi {
+  readonly axios: AxiosInstance;
+
+  constructor() {
+    this.axios = globalAxios.create();
+
+    // Adds 304 for the default axios validateStatus function
+    // https://github.com/axios/axios#handling-errors Check status here
+    // https://httpstatusdogs.com/
+    this.axios.defaults.validateStatus = (status) => {
+      return (status >= 200 && status < 300) || status === 304;
+    };
+
+    const metadataIsAvailable =
+      tokenElement !== null && tokenElement.getAttribute("content") !== null;
+    if (metadataIsAvailable) {
+      if (process.env.NODE_ENV === "development") {
+        // Development mode uses a hard-coded CSRF token
+        const token = this.getHardCodedCSRFCookie();
+        this.axios.defaults.headers.common["X-CSRF-TOKEN"] = token;
+        tokenElement.setAttribute("content", token);
+      } else {
+        const content = tokenElement.getAttribute("content") ?? "";
+        this.axios.defaults.headers.common["X-CSRF-TOKEN"] = content;
+      }
+    } else {
+      // Do not write error logs if we are in a FE unit test.
+      if (process.env.JEST_WORKER_ID === undefined) {
+        console.error("CSRF token not found");
+      }
+    }
+  }
+
+  private getHardCodedCSRFCookie = (): string => {
+    // This is a hard coded CSRF token/cookie pair for local development. In
+    // prod, the GoLang webserver generates a random cookie with a new token for
+    // each document request. For local development, we don't use the Go
+    // webserver for static files, so this is the 'hack' to make local
+    // development work with remote apis. The CSRF cookie for this token is
+    // "JXm9hOUdZctWt0ZZGAy9xiS/gxMKYOThdxjjMnMUyn4="
+    const csrfToken =
+      "KNKvagCBEHZK7ihe2t7fj6VeJ0UyTDco1yVUJE8N06oNqxLu5Zx1vRxZbgfC0mJJgeGkVjgs08mgPbcWPBkZ1A==";
+
+    this.axios.defaults.headers.common["X-CSRF-TOKEN"] = csrfToken;
+    return csrfToken;
+  };
+
+  setSessionToken = (token: string) => {
+    this.axios.defaults.headers.common["Coder-Session-Token"] = token;
+  };
+
+  setHost = (host?: string) => {
+    this.axios.defaults.baseURL = host;
+  };
+
+  login = async (
+    email: string,
+    password: string,
+  ): Promise<TypesGen.LoginWithPasswordResponse> => {
+    const payload = JSON.stringify({ email, password });
+    const response = await this.axios.post<TypesGen.LoginWithPasswordResponse>(
+      "/api/v2/users/login",
+      payload,
+      { headers: { ...CONTENT_TYPE_JSON } },
+    );
+
+    return response.data;
+  };
+
+  convertToOAUTH = async (request: TypesGen.ConvertLoginRequest) => {
+    const response = await axiosInstance.post<TypesGen.OAuthConversionResponse>(
+      "/api/v2/users/me/convert-login",
+      request,
     );
     return response.data;
-  } catch (error) {
-    // When there is no previous version, like the first version of a template,
-    // the API returns 404 so in this case we can safely return undefined
-    if (
-      isAxiosError(error) &&
-      error.response &&
-      error.response.status === 404
-    ) {
-      return undefined;
+  };
+
+  logout = async (): Promise<void> => {
+    await axiosInstance.post("/api/v2/users/logout");
+  };
+
+  getAuthenticatedUser = async () => {
+    const response = await axiosInstance.get<TypesGen.User>("/api/v2/users/me");
+    return response.data;
+  };
+
+  getUserParameters = async (templateID: string) => {
+    const response = await axiosInstance.get<TypesGen.UserParameter[]>(
+      "/api/v2/users/me/autofill-parameters?template_id=" + templateID,
+    );
+    return response.data;
+  };
+
+  getAuthMethods = async (): Promise<TypesGen.AuthMethods> => {
+    const response = await axiosInstance.get<TypesGen.AuthMethods>(
+      "/api/v2/users/authmethods",
+    );
+    return response.data;
+  };
+
+  getUserLoginType = async (): Promise<TypesGen.UserLoginType> => {
+    const response = await axiosInstance.get<TypesGen.UserLoginType>(
+      "/api/v2/users/me/login-type",
+    );
+    return response.data;
+  };
+
+  checkAuthorization = async (
+    params: TypesGen.AuthorizationRequest,
+  ): Promise<TypesGen.AuthorizationResponse> => {
+    const response = await axiosInstance.post<TypesGen.AuthorizationResponse>(
+      `/api/v2/authcheck`,
+      params,
+    );
+    return response.data;
+  };
+
+  getApiKey = async (): Promise<TypesGen.GenerateAPIKeyResponse> => {
+    const response = await axiosInstance.post<TypesGen.GenerateAPIKeyResponse>(
+      "/api/v2/users/me/keys",
+    );
+    return response.data;
+  };
+
+  getTokens = async (
+    params: TypesGen.TokensFilter,
+  ): Promise<TypesGen.APIKeyWithOwner[]> => {
+    const response = await axiosInstance.get<TypesGen.APIKeyWithOwner[]>(
+      `/api/v2/users/me/keys/tokens`,
+      { params },
+    );
+    return response.data;
+  };
+
+  deleteToken = async (keyId: string): Promise<void> => {
+    await axiosInstance.delete("/api/v2/users/me/keys/" + keyId);
+  };
+
+  createToken = async (
+    params: TypesGen.CreateTokenRequest,
+  ): Promise<TypesGen.GenerateAPIKeyResponse> => {
+    const response = await axiosInstance.post(
+      `/api/v2/users/me/keys/tokens`,
+      params,
+    );
+    return response.data;
+  };
+
+  getTokenConfig = async (): Promise<TypesGen.TokenConfig> => {
+    const response = await axiosInstance.get(
+      "/api/v2/users/me/keys/tokens/tokenconfig",
+    );
+    return response.data;
+  };
+
+  getUsers = async (
+    options: TypesGen.UsersRequest,
+    signal?: AbortSignal,
+  ): Promise<TypesGen.GetUsersResponse> => {
+    const url = getURLWithSearchParams("/api/v2/users", options);
+    const response = await axiosInstance.get<TypesGen.GetUsersResponse>(
+      url.toString(),
+      { signal },
+    );
+
+    return response.data;
+  };
+
+  getOrganization = async (
+    organizationId: string,
+  ): Promise<TypesGen.Organization> => {
+    const response = await axiosInstance.get<TypesGen.Organization>(
+      `/api/v2/organizations/${organizationId}`,
+    );
+    return response.data;
+  };
+
+  getOrganizations = async (): Promise<TypesGen.Organization[]> => {
+    const response = await axiosInstance.get<TypesGen.Organization[]>(
+      "/api/v2/users/me/organizations",
+    );
+    return response.data;
+  };
+
+  getTemplate = async (templateId: string): Promise<TypesGen.Template> => {
+    const response = await axiosInstance.get<TypesGen.Template>(
+      `/api/v2/templates/${templateId}`,
+    );
+    return response.data;
+  };
+
+  getTemplates = async (
+    organizationId: string,
+    options?: TemplateOptions,
+  ): Promise<TypesGen.Template[]> => {
+    const params = {} as Record<string, string>;
+    if (options && options.deprecated !== undefined) {
+      // Just want to check if it isn't undefined. If it has
+      // a boolean value, convert it to a string and include
+      // it as a param.
+      params["deprecated"] = String(options.deprecated);
     }
 
-    throw error;
-  }
-};
+    const response = await axiosInstance.get<TypesGen.Template[]>(
+      `/api/v2/organizations/${organizationId}/templates`,
+      { params },
+    );
 
-export const createTemplateVersion = async (
-  organizationId: string,
-  data: TypesGen.CreateTemplateVersionRequest,
-): Promise<TypesGen.TemplateVersion> => {
-  const response = await axiosInstance.post<TypesGen.TemplateVersion>(
-    `/api/v2/organizations/${organizationId}/templateversions`,
-    data,
-  );
-  return response.data;
-};
+    return response.data;
+  };
 
-export const getTemplateVersionExternalAuth = async (
-  versionId: string,
-): Promise<TypesGen.TemplateVersionExternalAuth[]> => {
-  const response = await axiosInstance.get(
-    `/api/v2/templateversions/${versionId}/external-auth`,
-  );
-  return response.data;
-};
+  getTemplateByName = async (
+    organizationId: string,
+    name: string,
+  ): Promise<TypesGen.Template> => {
+    const response = await axiosInstance.get<TypesGen.Template>(
+      `/api/v2/organizations/${organizationId}/templates/${name}`,
+    );
+    return response.data;
+  };
 
-export const getTemplateVersionRichParameters = async (
-  versionId: string,
-): Promise<TypesGen.TemplateVersionParameter[]> => {
-  const response = await axiosInstance.get(
-    `/api/v2/templateversions/${versionId}/rich-parameters`,
-  );
-  return response.data;
-};
+  getTemplateVersion = async (
+    versionId: string,
+  ): Promise<TypesGen.TemplateVersion> => {
+    const response = await axiosInstance.get<TypesGen.TemplateVersion>(
+      `/api/v2/templateversions/${versionId}`,
+    );
+    return response.data;
+  };
 
-export const createTemplate = async (
-  organizationId: string,
-  data: TypesGen.CreateTemplateRequest,
-): Promise<TypesGen.Template> => {
-  const response = await axiosInstance.post(
-    `/api/v2/organizations/${organizationId}/templates`,
-    data,
-  );
-  return response.data;
-};
+  getTemplateVersionResources = async (
+    versionId: string,
+  ): Promise<TypesGen.WorkspaceResource[]> => {
+    const response = await axiosInstance.get<TypesGen.WorkspaceResource[]>(
+      `/api/v2/templateversions/${versionId}/resources`,
+    );
+    return response.data;
+  };
 
-export const updateActiveTemplateVersion = async (
-  templateId: string,
-  data: TypesGen.UpdateActiveTemplateVersion,
-) => {
-  const response = await axiosInstance.patch<TypesGen.Response>(
-    `/api/v2/templates/${templateId}/versions`,
-    data,
-  );
-  return response.data;
-};
+  getTemplateVersionVariables = async (
+    versionId: string,
+  ): Promise<TypesGen.TemplateVersionVariable[]> => {
+    const response = await axiosInstance.get<
+      TypesGen.TemplateVersionVariable[]
+    >(`/api/v2/templateversions/${versionId}/variables`);
+    return response.data;
+  };
 
-export const patchTemplateVersion = async (
-  templateVersionId: string,
-  data: TypesGen.PatchTemplateVersionRequest,
-) => {
-  const response = await axiosInstance.patch<TypesGen.TemplateVersion>(
-    `/api/v2/templateversions/${templateVersionId}`,
-    data,
-  );
-  return response.data;
-};
+  getTemplateVersions = async (
+    templateId: string,
+  ): Promise<TypesGen.TemplateVersion[]> => {
+    const response = await axiosInstance.get<TypesGen.TemplateVersion[]>(
+      `/api/v2/templates/${templateId}/versions`,
+    );
+    return response.data;
+  };
+
+  getTemplateVersionByName = async (
+    organizationId: string,
+    templateName: string,
+    versionName: string,
+  ): Promise<TypesGen.TemplateVersion> => {
+    const response = await axiosInstance.get<TypesGen.TemplateVersion>(
+      `/api/v2/organizations/${organizationId}/templates/${templateName}/versions/${versionName}`,
+    );
+    return response.data;
+  };
+
+  getPreviousTemplateVersionByName = async (
+    organizationId: string,
+    templateName: string,
+    versionName: string,
+  ) => {
+    try {
+      const response = await axiosInstance.get<TypesGen.TemplateVersion>(
+        `/api/v2/organizations/${organizationId}/templates/${templateName}/versions/${versionName}/previous`,
+      );
+      return response.data;
+    } catch (error) {
+      // When there is no previous version, like the first version of a template,
+      // the API returns 404 so in this case we can safely return undefined
+      if (
+        isAxiosError(error) &&
+        error.response &&
+        error.response.status === 404
+      ) {
+        return undefined;
+      }
+
+      throw error;
+    }
+  };
+
+  createTemplateVersion = async (
+    organizationId: string,
+    data: TypesGen.CreateTemplateVersionRequest,
+  ): Promise<TypesGen.TemplateVersion> => {
+    const response = await axiosInstance.post<TypesGen.TemplateVersion>(
+      `/api/v2/organizations/${organizationId}/templateversions`,
+      data,
+    );
+    return response.data;
+  };
+
+  getTemplateVersionExternalAuth = async (
+    versionId: string,
+  ): Promise<TypesGen.TemplateVersionExternalAuth[]> => {
+    const response = await axiosInstance.get(
+      `/api/v2/templateversions/${versionId}/external-auth`,
+    );
+    return response.data;
+  };
+
+  getTemplateVersionRichParameters = async (
+    versionId: string,
+  ): Promise<TypesGen.TemplateVersionParameter[]> => {
+    const response = await axiosInstance.get(
+      `/api/v2/templateversions/${versionId}/rich-parameters`,
+    );
+    return response.data;
+  };
+
+  createTemplate = async (
+    organizationId: string,
+    data: TypesGen.CreateTemplateRequest,
+  ): Promise<TypesGen.Template> => {
+    const response = await axiosInstance.post(
+      `/api/v2/organizations/${organizationId}/templates`,
+      data,
+    );
+    return response.data;
+  };
+
+  updateActiveTemplateVersion = async (
+    templateId: string,
+    data: TypesGen.UpdateActiveTemplateVersion,
+  ) => {
+    const response = await axiosInstance.patch<TypesGen.Response>(
+      `/api/v2/templates/${templateId}/versions`,
+      data,
+    );
+    return response.data;
+  };
+
+  patchTemplateVersion = async (
+    templateVersionId: string,
+    data: TypesGen.PatchTemplateVersionRequest,
+  ) => {
+    const response = await axiosInstance.patch<TypesGen.TemplateVersion>(
+      `/api/v2/templateversions/${templateVersionId}`,
+      data,
+    );
+    return response.data;
+  };
+
+  //////////////////////////////////////////////////////////////////////////////
+  //////////////////////////////////////////////////////////////////////////////
+  //////////////////////////////////////////////////////////////////////////////
+  //////////////////////////////////////////////////////////////////////////////
+  //////////////////////////////////////////////////////////////////////////////
+  //////////////////////////////////////////////////////////////////////////////
+}
+
+export const api = new CoderApi();
+export const axiosInstance = globalAxios.create();
 
 export const archiveTemplateVersion = async (templateVersionId: string) => {
   const response = await axiosInstance.post<TypesGen.TemplateVersion>(

@@ -4,7 +4,7 @@ import type {
   UseMutationOptions,
   UseQueryOptions,
 } from "react-query";
-import * as API from "api/api";
+import { api } from "api/api";
 import type {
   AuthorizationRequest,
   GetUsersResponse,
@@ -38,14 +38,14 @@ export function paginatedUsers(
     },
 
     queryKey: ({ payload }) => usersKey(payload),
-    queryFn: ({ payload, signal }) => API.getUsers(payload, signal),
+    queryFn: ({ payload, signal }) => api.getUsers(payload, signal),
   };
 }
 
 export const users = (req: UsersRequest): UseQueryOptions<GetUsersResponse> => {
   return {
     queryKey: usersKey(req),
-    queryFn: ({ signal }) => API.getUsers(req, signal),
+    queryFn: ({ signal }) => api.getUsers(req, signal),
     cacheTime: 5 * 1000 * 60,
   };
 };
@@ -56,13 +56,13 @@ export const updatePassword = () => {
       userId,
       ...request
     }: UpdateUserPasswordRequest & { userId: string }) =>
-      API.updateUserPassword(userId, request),
+      api.updateUserPassword(userId, request),
   };
 };
 
 export const createUser = (queryClient: QueryClient) => {
   return {
-    mutationFn: API.createUser,
+    mutationFn: api.createUser,
     onSuccess: async () => {
       await queryClient.invalidateQueries(["users"]);
     },
@@ -71,13 +71,13 @@ export const createUser = (queryClient: QueryClient) => {
 
 export const createFirstUser = () => {
   return {
-    mutationFn: API.createFirstUser,
+    mutationFn: api.createFirstUser,
   };
 };
 
 export const suspendUser = (queryClient: QueryClient) => {
   return {
-    mutationFn: API.suspendUser,
+    mutationFn: api.suspendUser,
     onSuccess: async () => {
       await queryClient.invalidateQueries(["users"]);
     },
@@ -86,7 +86,7 @@ export const suspendUser = (queryClient: QueryClient) => {
 
 export const activateUser = (queryClient: QueryClient) => {
   return {
-    mutationFn: API.activateUser,
+    mutationFn: api.activateUser,
     onSuccess: async () => {
       await queryClient.invalidateQueries(["users"]);
     },
@@ -95,7 +95,7 @@ export const activateUser = (queryClient: QueryClient) => {
 
 export const deleteUser = (queryClient: QueryClient) => {
   return {
-    mutationFn: API.deleteUser,
+    mutationFn: api.deleteUser,
     onSuccess: async () => {
       await queryClient.invalidateQueries(["users"]);
     },
@@ -105,7 +105,7 @@ export const deleteUser = (queryClient: QueryClient) => {
 export const updateRoles = (queryClient: QueryClient) => {
   return {
     mutationFn: ({ userId, roles }: { userId: string; roles: string[] }) =>
-      API.updateUserRoles(roles, userId),
+      api.updateUserRoles(roles, userId),
     onSuccess: async () => {
       await queryClient.invalidateQueries(["users"]);
     },
@@ -117,7 +117,7 @@ export const authMethods = () => {
     // Even the endpoint being /users/authmethods we don't want to revalidate it
     // when users change so its better add a unique query key
     queryKey: ["authMethods"],
-    queryFn: API.getAuthMethods,
+    queryFn: api.getAuthMethods,
   };
 };
 
@@ -131,21 +131,21 @@ export const me = (): UseQueryOptions<User> & {
   return {
     queryKey: meKey,
     initialData: initialUserData,
-    queryFn: API.getAuthenticatedUser,
+    queryFn: api.getAuthenticatedUser,
   };
 };
 
 export function apiKey(): UseQueryOptions<GenerateAPIKeyResponse> {
   return {
     queryKey: [...meKey, "apiKey"],
-    queryFn: () => API.getApiKey(),
+    queryFn: () => api.getApiKey(),
   };
 }
 
 export const hasFirstUser = () => {
   return {
     queryKey: ["hasFirstUser"],
-    queryFn: API.hasFirstUser,
+    queryFn: api.hasFirstUser,
   };
 };
 
@@ -175,10 +175,10 @@ const loginFn = async ({
   password: string;
   authorization: AuthorizationRequest;
 }) => {
-  await API.login(email, password);
+  await api.login(email, password);
   const [user, permissions] = await Promise.all([
-    API.getAuthenticatedUser(),
-    API.checkAuthorization(authorization),
+    api.getAuthenticatedUser(),
+    api.checkAuthorization(authorization),
   ]);
   return {
     user,
@@ -188,7 +188,7 @@ const loginFn = async ({
 
 export const logout = (queryClient: QueryClient) => {
   return {
-    mutationFn: API.logout,
+    mutationFn: api.logout,
     onSuccess: () => {
       queryClient.removeQueries();
     },
@@ -198,7 +198,7 @@ export const logout = (queryClient: QueryClient) => {
 export const updateProfile = (userId: string) => {
   return {
     mutationFn: (req: UpdateUserProfileRequest) =>
-      API.updateProfile(userId, req),
+      api.updateProfile(userId, req),
   };
 };
 
@@ -212,7 +212,7 @@ export const updateAppearanceSettings = (
   unknown
 > => {
   return {
-    mutationFn: (req) => API.updateAppearanceSettings(userId, req),
+    mutationFn: (req) => api.updateAppearanceSettings(userId, req),
     onMutate: async (patch) => {
       // Mutate the `queryClient` optimistically to make the theme switcher
       // more responsive.

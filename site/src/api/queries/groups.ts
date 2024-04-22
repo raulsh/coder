@@ -1,6 +1,6 @@
 import type { QueryClient, UseQueryOptions } from "react-query";
 import * as API from "api/api";
-import { checkAuthorization } from "api/api";
+import { api } from "api/api";
 import type {
   CreateGroupRequest,
   Group,
@@ -72,7 +72,7 @@ export const groupPermissions = (groupId: string) => {
   return {
     queryKey: [...getGroupQueryKey(groupId), "permissions"],
     queryFn: () =>
-      checkAuthorization({
+      api.checkAuthorization({
         checks: {
           canUpdateGroup: {
             object: {
