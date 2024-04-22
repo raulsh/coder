@@ -1,8 +1,8 @@
-import * as API from "api/api";
+import { api } from "api/api";
 
 export const roles = () => {
   return {
     queryKey: ["roles"],
-    queryFn: API.getRoles,
+    queryFn: api.getRoles,
   };
 };

@@ -1,6 +1,6 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import * as API from "api/api";
+import { api } from "api/api";
 import { Language as FooterFormLanguage } from "components/FormFooter/FormFooter";
 import {
   MockEntitlementsWithScheduling,
@@ -127,38 +127,38 @@ function waitForWithCutoff(callback: () => void | Promise<void>) {
 describe("TemplateSchedulePage", () => {
   beforeEach(() => {
     jest
-      .spyOn(API, "getEntitlements")
+      .spyOn(api, "getEntitlements")
       .mockResolvedValue(MockEntitlementsWithScheduling);
   });
 
-  it("Calls the API when user fills in and submits a form", async () => {
+  it("Calls the api when user fills in and submits a form", async () => {
     await renderTemplateSchedulePage();
-    jest.spyOn(API, "updateTemplateMeta").mockResolvedValueOnce({
+    jest.spyOn(api, "updateTemplateMeta").mockResolvedValueOnce({
       ...MockTemplate,
       ...validFormValues,
     });
 
     await fillAndSubmitForm(validFormValues);
     await waitForWithCutoff(() =>
-      expect(API.updateTemplateMeta).toBeCalledTimes(1),
+      expect(api.updateTemplateMeta).toBeCalledTimes(1),
     );
   });
 
   test("default is converted to and from hours", async () => {
     await renderTemplateSchedulePage();
 
-    jest.spyOn(API, "updateTemplateMeta").mockResolvedValueOnce({
+    jest.spyOn(api, "updateTemplateMeta").mockResolvedValueOnce({
       ...MockTemplate,
       ...validFormValues,
     });
 
     await fillAndSubmitForm(validFormValues);
     await waitForWithCutoff(() =>
-      expect(API.updateTemplateMeta).toBeCalledTimes(1),
+      expect(api.updateTemplateMeta).toBeCalledTimes(1),
     );
 
     await waitForWithCutoff(() => {
-      expect(API.updateTemplateMeta).toBeCalledWith(
+      expect(api.updateTemplateMeta).toBeCalledWith(
         "test-template",
         expect.objectContaining({
           default_ttl_ms: (validFormValues.default_ttl_ms || 0) * 3600000,
@@ -170,18 +170,18 @@ describe("TemplateSchedulePage", () => {
   test("failure, dormancy, and dormancy auto-deletion converted to and from days", async () => {
     await renderTemplateSchedulePage();
 
-    jest.spyOn(API, "updateTemplateMeta").mockResolvedValueOnce({
+    jest.spyOn(api, "updateTemplateMeta").mockResolvedValueOnce({
       ...MockTemplate,
       ...validFormValues,
     });
 
     await fillAndSubmitForm(validFormValues);
     await waitForWithCutoff(() =>
-      expect(API.updateTemplateMeta).toBeCalledTimes(1),
+      expect(api.updateTemplateMeta).toBeCalledTimes(1),
     );
 
     await waitForWithCutoff(() => {
-      expect(API.updateTemplateMeta).toBeCalledWith(
+      expect(api.updateTemplateMeta).toBeCalledWith(
         "test-template",
         expect.objectContaining({
           failure_ttl_ms: (validFormValues.failure_ttl_ms || 0) * 86400000,

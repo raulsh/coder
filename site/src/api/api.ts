@@ -67,6 +67,37 @@ export const withDefaultFeatures = (
   return fs as TypesGen.Entitlements["features"];
 };
 
+/**
+ * @param workspaceId
+ * @returns An EventSource that emits workspace event objects (ServerSentEvent)
+ */
+export const watchWorkspace = (workspaceId: string): EventSource => {
+  return new EventSource(
+    `${location.protocol}//${location.host}/api/v2/workspaces/${workspaceId}/watch`,
+    { withCredentials: true },
+  );
+};
+
+export const getURLWithSearchParams = (
+  basePath: string,
+  options?: SearchParamOptions,
+): string => {
+  if (options) {
+    const searchParams = new URLSearchParams();
+    const keys = Object.keys(options) as (keyof SearchParamOptions)[];
+    keys.forEach((key) => {
+      const value = options[key];
+      if (value !== undefined && value !== "") {
+        searchParams.append(key, value.toString());
+      }
+    });
+    const searchString = searchParams.toString();
+    return searchString ? `${basePath}?${searchString}` : basePath;
+  } else {
+    return basePath;
+  }
+};
+
 // Always attach CSRF token to all requests. In puppeteer the document is
 // undefined. In external libraries, the document is either undefined or does
 // not have the metadata tag. In either case, just do nothing.
@@ -82,6 +113,29 @@ export interface TemplateOptions {
 export type GetPreviousTemplateVersionByNameResponse =
   | TypesGen.TemplateVersion
   | undefined;
+
+interface SearchParamOptions extends TypesGen.Pagination {
+  q?: string;
+}
+
+export type DeleteWorkspaceOptions = Pick<
+  TypesGen.CreateWorkspaceBuildRequest,
+  "log_level" & "orphan"
+>;
+
+export class MissingBuildParameters extends Error {
+  parameters: TypesGen.TemplateVersionParameter[] = [];
+  versionId: string;
+
+  constructor(
+    parameters: TypesGen.TemplateVersionParameter[],
+    versionId: string,
+  ) {
+    super("Missing build parameters.");
+    this.parameters = parameters;
+    this.versionId = versionId;
+  }
+}
 
 export class CoderApi {
   readonly axios: AxiosInstance;
@@ -438,6 +492,519 @@ export class CoderApi {
     return response.data;
   };
 
+  archiveTemplateVersion = async (templateVersionId: string) => {
+    const response = await axiosInstance.post<TypesGen.TemplateVersion>(
+      `/api/v2/templateversions/${templateVersionId}/archive`,
+    );
+    return response.data;
+  };
+
+  unarchiveTemplateVersion = async (templateVersionId: string) => {
+    const response = await axiosInstance.post<TypesGen.TemplateVersion>(
+      `/api/v2/templateversions/${templateVersionId}/unarchive`,
+    );
+    return response.data;
+  };
+
+  updateTemplateMeta = async (
+    templateId: string,
+    data: TypesGen.UpdateTemplateMeta,
+  ): Promise<TypesGen.Template | null> => {
+    const response = await axiosInstance.patch<TypesGen.Template>(
+      `/api/v2/templates/${templateId}`,
+      data,
+    );
+    // On 304 response there is no data payload.
+    if (response.status === 304) {
+      return null;
+    }
+
+    return response.data;
+  };
+
+  deleteTemplate = async (templateId: string): Promise<TypesGen.Template> => {
+    const response = await axiosInstance.delete<TypesGen.Template>(
+      `/api/v2/templates/${templateId}`,
+    );
+    return response.data;
+  };
+
+  getWorkspace = async (
+    workspaceId: string,
+    params?: TypesGen.WorkspaceOptions,
+  ): Promise<TypesGen.Workspace> => {
+    const response = await axiosInstance.get<TypesGen.Workspace>(
+      `/api/v2/workspaces/${workspaceId}`,
+      { params },
+    );
+
+    return response.data;
+  };
+
+  getWorkspaces = async (
+    options: TypesGen.WorkspacesRequest,
+  ): Promise<TypesGen.WorkspacesResponse> => {
+    const url = getURLWithSearchParams("/api/v2/workspaces", options);
+    const response = await axiosInstance.get<TypesGen.WorkspacesResponse>(url);
+    return response.data;
+  };
+
+  getWorkspaceByOwnerAndName = async (
+    username = "me",
+    workspaceName: string,
+    params?: TypesGen.WorkspaceOptions,
+  ): Promise<TypesGen.Workspace> => {
+    const response = await axiosInstance.get<TypesGen.Workspace>(
+      `/api/v2/users/${username}/workspace/${workspaceName}`,
+      {
+        params,
+      },
+    );
+    return response.data;
+  };
+
+  waitForBuild = (build: TypesGen.WorkspaceBuild) => {
+    return new Promise<TypesGen.ProvisionerJob | undefined>((res, reject) => {
+      void (async () => {
+        let latestJobInfo: TypesGen.ProvisionerJob | undefined = undefined;
+
+        while (
+          !["succeeded", "canceled"].some(
+            (status) => latestJobInfo?.status.includes(status),
+          )
+        ) {
+          const { job } = await this.getWorkspaceBuildByNumber(
+            build.workspace_owner_name,
+            build.workspace_name,
+            build.build_number,
+          );
+          latestJobInfo = job;
+
+          if (latestJobInfo.status === "failed") {
+            return reject(latestJobInfo);
+          }
+
+          await delay(1000);
+        }
+
+        return res(latestJobInfo);
+      })();
+    });
+  };
+
+  postWorkspaceBuild = async (
+    workspaceId: string,
+    data: TypesGen.CreateWorkspaceBuildRequest,
+  ): Promise<TypesGen.WorkspaceBuild> => {
+    const response = await axiosInstance.post(
+      `/api/v2/workspaces/${workspaceId}/builds`,
+      data,
+    );
+    return response.data;
+  };
+
+  startWorkspace = (
+    workspaceId: string,
+    templateVersionId: string,
+    logLevel?: TypesGen.ProvisionerLogLevel,
+    buildParameters?: TypesGen.WorkspaceBuildParameter[],
+  ): Promise<TypesGen.WorkspaceBuild> => {
+    return this.postWorkspaceBuild(workspaceId, {
+      transition: "start",
+      template_version_id: templateVersionId,
+      log_level: logLevel,
+      rich_parameter_values: buildParameters,
+    });
+  };
+
+  stopWorkspace = (
+    workspaceId: string,
+    logLevel?: TypesGen.ProvisionerLogLevel,
+  ) => {
+    return this.postWorkspaceBuild(workspaceId, {
+      transition: "stop",
+      log_level: logLevel,
+    });
+  };
+
+  deleteWorkspace = (workspaceId: string, options?: DeleteWorkspaceOptions) => {
+    return this.postWorkspaceBuild(workspaceId, {
+      transition: "delete",
+      ...options,
+    });
+  };
+
+  cancelWorkspaceBuild = async (
+    workspaceBuildId: TypesGen.WorkspaceBuild["id"],
+  ): Promise<TypesGen.Response> => {
+    const response = await axiosInstance.patch(
+      `/api/v2/workspacebuilds/${workspaceBuildId}/cancel`,
+    );
+    return response.data;
+  };
+
+  updateWorkspaceDormancy = async (
+    workspaceId: string,
+    dormant: boolean,
+  ): Promise<TypesGen.Workspace> => {
+    const data: TypesGen.UpdateWorkspaceDormancy = {
+      dormant: dormant,
+    };
+
+    const response = await axiosInstance.put(
+      `/api/v2/workspaces/${workspaceId}/dormant`,
+      data,
+    );
+    return response.data;
+  };
+
+  updateWorkspaceAutomaticUpdates = async (
+    workspaceId: string,
+    automaticUpdates: TypesGen.AutomaticUpdates,
+  ): Promise<void> => {
+    const req: TypesGen.UpdateWorkspaceAutomaticUpdatesRequest = {
+      automatic_updates: automaticUpdates,
+    };
+
+    const response = await axiosInstance.put(
+      `/api/v2/workspaces/${workspaceId}/autoupdates`,
+      req,
+    );
+    return response.data;
+  };
+
+  restartWorkspace = async ({
+    workspace,
+    buildParameters,
+  }: {
+    workspace: TypesGen.Workspace;
+    buildParameters?: TypesGen.WorkspaceBuildParameter[];
+  }) => {
+    const stopBuild = await this.stopWorkspace(workspace.id);
+    const awaitedStopBuild = await this.waitForBuild(stopBuild);
+
+    // If the restart is canceled halfway through, make sure we bail
+    if (awaitedStopBuild?.status === "canceled") {
+      return;
+    }
+
+    const startBuild = await this.startWorkspace(
+      workspace.id,
+      workspace.latest_build.template_version_id,
+      undefined,
+      buildParameters,
+    );
+
+    await this.waitForBuild(startBuild);
+  };
+
+  cancelTemplateVersionBuild = async (
+    templateVersionId: TypesGen.TemplateVersion["id"],
+  ): Promise<TypesGen.Response> => {
+    const response = await axiosInstance.patch(
+      `/api/v2/templateversions/${templateVersionId}/cancel`,
+    );
+    return response.data;
+  };
+
+  createUser = async (
+    user: TypesGen.CreateUserRequest,
+  ): Promise<TypesGen.User> => {
+    const response = await axiosInstance.post<TypesGen.User>(
+      "/api/v2/users",
+      user,
+    );
+    return response.data;
+  };
+
+  createWorkspace = async (
+    organizationId: string,
+    userId = "me",
+    workspace: TypesGen.CreateWorkspaceRequest,
+  ): Promise<TypesGen.Workspace> => {
+    const response = await axiosInstance.post<TypesGen.Workspace>(
+      `/api/v2/organizations/${organizationId}/members/${userId}/workspaces`,
+      workspace,
+    );
+    return response.data;
+  };
+
+  patchWorkspace = async (
+    workspaceId: string,
+    data: TypesGen.UpdateWorkspaceRequest,
+  ) => {
+    const response = await axiosInstance.patch(
+      `/api/v2/workspaces/${workspaceId}`,
+      data,
+    );
+    return response.data;
+  };
+
+  getBuildInfo = async (): Promise<TypesGen.BuildInfoResponse> => {
+    const response = await axiosInstance.get("/api/v2/buildinfo");
+    return response.data;
+  };
+
+  getUpdateCheck = async (): Promise<TypesGen.UpdateCheckResponse> => {
+    const response = await axiosInstance.get("/api/v2/updatecheck");
+    return response.data;
+  };
+
+  putWorkspaceAutostart = async (
+    workspaceID: string,
+    autostart: TypesGen.UpdateWorkspaceAutostartRequest,
+  ): Promise<void> => {
+    const payload = JSON.stringify(autostart);
+    return axiosInstance.put(
+      `/api/v2/workspaces/${workspaceID}/autostart`,
+      payload,
+      {
+        headers: { ...CONTENT_TYPE_JSON },
+      },
+    );
+  };
+
+  putWorkspaceAutostop = async (
+    workspaceID: string,
+    ttl: TypesGen.UpdateWorkspaceTTLRequest,
+  ): Promise<void> => {
+    const payload = JSON.stringify(ttl);
+    return axiosInstance.put(`/api/v2/workspaces/${workspaceID}/ttl`, payload, {
+      headers: { ...CONTENT_TYPE_JSON },
+    });
+  };
+
+  updateProfile = async (
+    userId: string,
+    data: TypesGen.UpdateUserProfileRequest,
+  ): Promise<TypesGen.User> => {
+    const response = await axiosInstance.put(
+      `/api/v2/users/${userId}/profile`,
+      data,
+    );
+    return response.data;
+  };
+
+  updateAppearanceSettings = async (
+    userId: string,
+    data: TypesGen.UpdateUserAppearanceSettingsRequest,
+  ): Promise<TypesGen.User> => {
+    const response = await axiosInstance.put(
+      `/api/v2/users/${userId}/appearance`,
+      data,
+    );
+    return response.data;
+  };
+
+  getUserQuietHoursSchedule = async (
+    userId: TypesGen.User["id"],
+  ): Promise<TypesGen.UserQuietHoursScheduleResponse> => {
+    const response = await axiosInstance.get(
+      `/api/v2/users/${userId}/quiet-hours`,
+    );
+    return response.data;
+  };
+
+  updateUserQuietHoursSchedule = async (
+    userId: TypesGen.User["id"],
+    data: TypesGen.UpdateUserQuietHoursScheduleRequest,
+  ): Promise<TypesGen.UserQuietHoursScheduleResponse> => {
+    const response = await axiosInstance.put(
+      `/api/v2/users/${userId}/quiet-hours`,
+      data,
+    );
+    return response.data;
+  };
+
+  activateUser = async (
+    userId: TypesGen.User["id"],
+  ): Promise<TypesGen.User> => {
+    const response = await axiosInstance.put<TypesGen.User>(
+      `/api/v2/users/${userId}/status/activate`,
+    );
+    return response.data;
+  };
+
+  suspendUser = async (userId: TypesGen.User["id"]): Promise<TypesGen.User> => {
+    const response = await axiosInstance.put<TypesGen.User>(
+      `/api/v2/users/${userId}/status/suspend`,
+    );
+    return response.data;
+  };
+
+  deleteUser = async (userId: TypesGen.User["id"]): Promise<undefined> => {
+    return await axiosInstance.delete(`/api/v2/users/${userId}`);
+  };
+
+  /**
+   * API definition:
+   * @see {@link https://github.com/coder/coder/blob/db665e7261f3c24a272ccec48233a3e276878239/coderd/users.go#L33-L53}
+   */
+  hasFirstUser = async (): Promise<boolean> => {
+    try {
+      // If it is success, it is true
+      await axiosInstance.get("/api/v2/users/first");
+      return true;
+    } catch (error) {
+      // If it returns a 404, it is false
+      if (isAxiosError(error) && error.response?.status === 404) {
+        return false;
+      }
+
+      throw error;
+    }
+  };
+
+  createFirstUser = async (
+    req: TypesGen.CreateFirstUserRequest,
+  ): Promise<TypesGen.CreateFirstUserResponse> => {
+    const response = await axiosInstance.post(`/api/v2/users/first`, req);
+    return response.data;
+  };
+
+  updateUserPassword = async (
+    userId: TypesGen.User["id"],
+    updatePassword: TypesGen.UpdateUserPasswordRequest,
+  ): Promise<undefined> => {
+    return axiosInstance.put(
+      `/api/v2/users/${userId}/password`,
+      updatePassword,
+    );
+  };
+
+  getRoles = async (): Promise<Array<TypesGen.AssignableRoles>> => {
+    const response =
+      await axiosInstance.get<Array<TypesGen.AssignableRoles>>(
+        `/api/v2/users/roles`,
+      );
+    return response.data;
+  };
+
+  updateUserRoles = async (
+    roles: TypesGen.Role["name"][],
+    userId: TypesGen.User["id"],
+  ): Promise<TypesGen.User> => {
+    const response = await axiosInstance.put<TypesGen.User>(
+      `/api/v2/users/${userId}/roles`,
+      { roles },
+    );
+    return response.data;
+  };
+
+  getUserSSHKey = async (userId = "me"): Promise<TypesGen.GitSSHKey> => {
+    const response = await axiosInstance.get<TypesGen.GitSSHKey>(
+      `/api/v2/users/${userId}/gitsshkey`,
+    );
+    return response.data;
+  };
+
+  regenerateUserSSHKey = async (userId = "me"): Promise<TypesGen.GitSSHKey> => {
+    const response = await axiosInstance.put<TypesGen.GitSSHKey>(
+      `/api/v2/users/${userId}/gitsshkey`,
+    );
+    return response.data;
+  };
+
+  getWorkspaceBuilds = async (
+    workspaceId: string,
+    req?: TypesGen.WorkspaceBuildsRequest,
+  ) => {
+    const response = await axiosInstance.get<TypesGen.WorkspaceBuild[]>(
+      getURLWithSearchParams(`/api/v2/workspaces/${workspaceId}/builds`, req),
+    );
+    return response.data;
+  };
+
+  getWorkspaceBuildByNumber = async (
+    username = "me",
+    workspaceName: string,
+    buildNumber: number,
+  ): Promise<TypesGen.WorkspaceBuild> => {
+    const response = await axiosInstance.get<TypesGen.WorkspaceBuild>(
+      `/api/v2/users/${username}/workspace/${workspaceName}/builds/${buildNumber}`,
+    );
+    return response.data;
+  };
+
+  getWorkspaceBuildLogs = async (
+    buildId: string,
+    before: Date,
+  ): Promise<TypesGen.ProvisionerJobLog[]> => {
+    const response = await axiosInstance.get<TypesGen.ProvisionerJobLog[]>(
+      `/api/v2/workspacebuilds/${buildId}/logs?before=${before.getTime()}`,
+    );
+    return response.data;
+  };
+
+  getWorkspaceAgentLogs = async (
+    agentID: string,
+  ): Promise<TypesGen.WorkspaceAgentLog[]> => {
+    const response = await axiosInstance.get<TypesGen.WorkspaceAgentLog[]>(
+      `/api/v2/workspaceagents/${agentID}/logs`,
+    );
+    return response.data;
+  };
+
+  putWorkspaceExtension = async (
+    workspaceId: string,
+    newDeadline: dayjs.Dayjs,
+  ): Promise<void> => {
+    await axiosInstance.put(`/api/v2/workspaces/${workspaceId}/extend`, {
+      deadline: newDeadline,
+    });
+  };
+
+  refreshEntitlements = async (): Promise<void> => {
+    await axiosInstance.post("/api/v2/licenses/refresh-entitlements");
+  };
+
+  getEntitlements = async (): Promise<TypesGen.Entitlements> => {
+    try {
+      const response = await axiosInstance.get("/api/v2/entitlements");
+      return response.data;
+    } catch (ex) {
+      if (isAxiosError(ex) && ex.response?.status === 404) {
+        return {
+          errors: [],
+          features: withDefaultFeatures({}),
+          has_license: false,
+          require_telemetry: false,
+          trial: false,
+          warnings: [],
+          refreshed_at: "",
+        };
+      }
+      throw ex;
+    }
+  };
+
+  getExperiments = async (): Promise<TypesGen.Experiment[]> => {
+    try {
+      const response = await axiosInstance.get("/api/v2/experiments");
+      return response.data;
+    } catch (error) {
+      if (isAxiosError(error) && error.response?.status === 404) {
+        return [];
+      }
+      throw error;
+    }
+  };
+
+  getAvailableExperiments =
+    async (): Promise<TypesGen.AvailableExperiments> => {
+      try {
+        const response = await axiosInstance.get(
+          "/api/v2/experiments/available",
+        );
+        return response.data;
+      } catch (error) {
+        if (isAxiosError(error) && error.response?.status === 404) {
+          return { safe: [] };
+        }
+        throw error;
+      }
+    };
+
   //////////////////////////////////////////////////////////////////////////////
   //////////////////////////////////////////////////////////////////////////////
   //////////////////////////////////////////////////////////////////////////////
@@ -448,558 +1015,6 @@ export class CoderApi {
 
 export const api = new CoderApi();
 export const axiosInstance = globalAxios.create();
-
-export const archiveTemplateVersion = async (templateVersionId: string) => {
-  const response = await axiosInstance.post<TypesGen.TemplateVersion>(
-    `/api/v2/templateversions/${templateVersionId}/archive`,
-  );
-  return response.data;
-};
-
-export const unarchiveTemplateVersion = async (templateVersionId: string) => {
-  const response = await axiosInstance.post<TypesGen.TemplateVersion>(
-    `/api/v2/templateversions/${templateVersionId}/unarchive`,
-  );
-  return response.data;
-};
-
-export const updateTemplateMeta = async (
-  templateId: string,
-  data: TypesGen.UpdateTemplateMeta,
-): Promise<TypesGen.Template | null> => {
-  const response = await axiosInstance.patch<TypesGen.Template>(
-    `/api/v2/templates/${templateId}`,
-    data,
-  );
-  // On 304 response there is no data payload.
-  if (response.status === 304) {
-    return null;
-  }
-
-  return response.data;
-};
-
-export const deleteTemplate = async (
-  templateId: string,
-): Promise<TypesGen.Template> => {
-  const response = await axiosInstance.delete<TypesGen.Template>(
-    `/api/v2/templates/${templateId}`,
-  );
-  return response.data;
-};
-
-export const getWorkspace = async (
-  workspaceId: string,
-  params?: TypesGen.WorkspaceOptions,
-): Promise<TypesGen.Workspace> => {
-  const response = await axiosInstance.get<TypesGen.Workspace>(
-    `/api/v2/workspaces/${workspaceId}`,
-    {
-      params,
-    },
-  );
-  return response.data;
-};
-
-/**
- *
- * @param workspaceId
- * @returns An EventSource that emits workspace event objects (ServerSentEvent)
- */
-export const watchWorkspace = (workspaceId: string): EventSource => {
-  return new EventSource(
-    `${location.protocol}//${location.host}/api/v2/workspaces/${workspaceId}/watch`,
-    { withCredentials: true },
-  );
-};
-
-interface SearchParamOptions extends TypesGen.Pagination {
-  q?: string;
-}
-
-export const getURLWithSearchParams = (
-  basePath: string,
-  options?: SearchParamOptions,
-): string => {
-  if (options) {
-    const searchParams = new URLSearchParams();
-    const keys = Object.keys(options) as (keyof SearchParamOptions)[];
-    keys.forEach((key) => {
-      const value = options[key];
-      if (value !== undefined && value !== "") {
-        searchParams.append(key, value.toString());
-      }
-    });
-    const searchString = searchParams.toString();
-    return searchString ? `${basePath}?${searchString}` : basePath;
-  } else {
-    return basePath;
-  }
-};
-
-export const getWorkspaces = async (
-  options: TypesGen.WorkspacesRequest,
-): Promise<TypesGen.WorkspacesResponse> => {
-  const url = getURLWithSearchParams("/api/v2/workspaces", options);
-  const response = await axiosInstance.get<TypesGen.WorkspacesResponse>(url);
-  return response.data;
-};
-
-export const getWorkspaceByOwnerAndName = async (
-  username = "me",
-  workspaceName: string,
-  params?: TypesGen.WorkspaceOptions,
-): Promise<TypesGen.Workspace> => {
-  const response = await axiosInstance.get<TypesGen.Workspace>(
-    `/api/v2/users/${username}/workspace/${workspaceName}`,
-    {
-      params,
-    },
-  );
-  return response.data;
-};
-
-export function waitForBuild(build: TypesGen.WorkspaceBuild) {
-  return new Promise<TypesGen.ProvisionerJob | undefined>((res, reject) => {
-    void (async () => {
-      let latestJobInfo: TypesGen.ProvisionerJob | undefined = undefined;
-
-      while (
-        !["succeeded", "canceled"].some(
-          (status) => latestJobInfo?.status.includes(status),
-        )
-      ) {
-        const { job } = await getWorkspaceBuildByNumber(
-          build.workspace_owner_name,
-          build.workspace_name,
-          build.build_number,
-        );
-        latestJobInfo = job;
-
-        if (latestJobInfo.status === "failed") {
-          return reject(latestJobInfo);
-        }
-
-        await delay(1000);
-      }
-
-      return res(latestJobInfo);
-    })();
-  });
-}
-
-export const postWorkspaceBuild = async (
-  workspaceId: string,
-  data: TypesGen.CreateWorkspaceBuildRequest,
-): Promise<TypesGen.WorkspaceBuild> => {
-  const response = await axiosInstance.post(
-    `/api/v2/workspaces/${workspaceId}/builds`,
-    data,
-  );
-  return response.data;
-};
-
-export const startWorkspace = (
-  workspaceId: string,
-  templateVersionId: string,
-  logLevel?: TypesGen.ProvisionerLogLevel,
-  buildParameters?: TypesGen.WorkspaceBuildParameter[],
-) =>
-  postWorkspaceBuild(workspaceId, {
-    transition: "start",
-    template_version_id: templateVersionId,
-    log_level: logLevel,
-    rich_parameter_values: buildParameters,
-  });
-export const stopWorkspace = (
-  workspaceId: string,
-  logLevel?: TypesGen.ProvisionerLogLevel,
-) =>
-  postWorkspaceBuild(workspaceId, {
-    transition: "stop",
-    log_level: logLevel,
-  });
-
-export type DeleteWorkspaceOptions = Pick<
-  TypesGen.CreateWorkspaceBuildRequest,
-  "log_level" & "orphan"
->;
-
-export const deleteWorkspace = (
-  workspaceId: string,
-  options?: DeleteWorkspaceOptions,
-) =>
-  postWorkspaceBuild(workspaceId, {
-    transition: "delete",
-    ...options,
-  });
-
-export const cancelWorkspaceBuild = async (
-  workspaceBuildId: TypesGen.WorkspaceBuild["id"],
-): Promise<TypesGen.Response> => {
-  const response = await axiosInstance.patch(
-    `/api/v2/workspacebuilds/${workspaceBuildId}/cancel`,
-  );
-  return response.data;
-};
-
-export const updateWorkspaceDormancy = async (
-  workspaceId: string,
-  dormant: boolean,
-): Promise<TypesGen.Workspace> => {
-  const data: TypesGen.UpdateWorkspaceDormancy = {
-    dormant: dormant,
-  };
-
-  const response = await axiosInstance.put(
-    `/api/v2/workspaces/${workspaceId}/dormant`,
-    data,
-  );
-  return response.data;
-};
-
-export const updateWorkspaceAutomaticUpdates = async (
-  workspaceId: string,
-  automaticUpdates: TypesGen.AutomaticUpdates,
-): Promise<void> => {
-  const req: TypesGen.UpdateWorkspaceAutomaticUpdatesRequest = {
-    automatic_updates: automaticUpdates,
-  };
-
-  const response = await axiosInstance.put(
-    `/api/v2/workspaces/${workspaceId}/autoupdates`,
-    req,
-  );
-  return response.data;
-};
-
-export const restartWorkspace = async ({
-  workspace,
-  buildParameters,
-}: {
-  workspace: TypesGen.Workspace;
-  buildParameters?: TypesGen.WorkspaceBuildParameter[];
-}) => {
-  const stopBuild = await stopWorkspace(workspace.id);
-  const awaitedStopBuild = await waitForBuild(stopBuild);
-
-  // If the restart is canceled halfway through, make sure we bail
-  if (awaitedStopBuild?.status === "canceled") {
-    return;
-  }
-
-  const startBuild = await startWorkspace(
-    workspace.id,
-    workspace.latest_build.template_version_id,
-    undefined,
-    buildParameters,
-  );
-  await waitForBuild(startBuild);
-};
-
-export const cancelTemplateVersionBuild = async (
-  templateVersionId: TypesGen.TemplateVersion["id"],
-): Promise<TypesGen.Response> => {
-  const response = await axiosInstance.patch(
-    `/api/v2/templateversions/${templateVersionId}/cancel`,
-  );
-  return response.data;
-};
-
-export const createUser = async (
-  user: TypesGen.CreateUserRequest,
-): Promise<TypesGen.User> => {
-  const response = await axiosInstance.post<TypesGen.User>(
-    "/api/v2/users",
-    user,
-  );
-  return response.data;
-};
-
-export const createWorkspace = async (
-  organizationId: string,
-  userId = "me",
-  workspace: TypesGen.CreateWorkspaceRequest,
-): Promise<TypesGen.Workspace> => {
-  const response = await axiosInstance.post<TypesGen.Workspace>(
-    `/api/v2/organizations/${organizationId}/members/${userId}/workspaces`,
-    workspace,
-  );
-  return response.data;
-};
-
-export const patchWorkspace = async (
-  workspaceId: string,
-  data: TypesGen.UpdateWorkspaceRequest,
-) => {
-  await axiosInstance.patch(`/api/v2/workspaces/${workspaceId}`, data);
-};
-
-export const getBuildInfo = async (): Promise<TypesGen.BuildInfoResponse> => {
-  const response = await axiosInstance.get("/api/v2/buildinfo");
-  return response.data;
-};
-
-export const getUpdateCheck =
-  async (): Promise<TypesGen.UpdateCheckResponse> => {
-    const response = await axiosInstance.get("/api/v2/updatecheck");
-    return response.data;
-  };
-
-export const putWorkspaceAutostart = async (
-  workspaceID: string,
-  autostart: TypesGen.UpdateWorkspaceAutostartRequest,
-): Promise<void> => {
-  const payload = JSON.stringify(autostart);
-  await axiosInstance.put(
-    `/api/v2/workspaces/${workspaceID}/autostart`,
-    payload,
-    {
-      headers: { ...CONTENT_TYPE_JSON },
-    },
-  );
-};
-
-export const putWorkspaceAutostop = async (
-  workspaceID: string,
-  ttl: TypesGen.UpdateWorkspaceTTLRequest,
-): Promise<void> => {
-  const payload = JSON.stringify(ttl);
-  await axiosInstance.put(`/api/v2/workspaces/${workspaceID}/ttl`, payload, {
-    headers: { ...CONTENT_TYPE_JSON },
-  });
-};
-
-export const updateProfile = async (
-  userId: string,
-  data: TypesGen.UpdateUserProfileRequest,
-): Promise<TypesGen.User> => {
-  const response = await axiosInstance.put(
-    `/api/v2/users/${userId}/profile`,
-    data,
-  );
-  return response.data;
-};
-
-export const updateAppearanceSettings = async (
-  userId: string,
-  data: TypesGen.UpdateUserAppearanceSettingsRequest,
-): Promise<TypesGen.User> => {
-  const response = await axiosInstance.put(
-    `/api/v2/users/${userId}/appearance`,
-    data,
-  );
-  return response.data;
-};
-
-export const getUserQuietHoursSchedule = async (
-  userId: TypesGen.User["id"],
-): Promise<TypesGen.UserQuietHoursScheduleResponse> => {
-  const response = await axiosInstance.get(
-    `/api/v2/users/${userId}/quiet-hours`,
-  );
-  return response.data;
-};
-
-export const updateUserQuietHoursSchedule = async (
-  userId: TypesGen.User["id"],
-  data: TypesGen.UpdateUserQuietHoursScheduleRequest,
-): Promise<TypesGen.UserQuietHoursScheduleResponse> => {
-  const response = await axiosInstance.put(
-    `/api/v2/users/${userId}/quiet-hours`,
-    data,
-  );
-  return response.data;
-};
-
-export const activateUser = async (
-  userId: TypesGen.User["id"],
-): Promise<TypesGen.User> => {
-  const response = await axiosInstance.put<TypesGen.User>(
-    `/api/v2/users/${userId}/status/activate`,
-  );
-  return response.data;
-};
-
-export const suspendUser = async (
-  userId: TypesGen.User["id"],
-): Promise<TypesGen.User> => {
-  const response = await axiosInstance.put<TypesGen.User>(
-    `/api/v2/users/${userId}/status/suspend`,
-  );
-  return response.data;
-};
-
-export const deleteUser = async (
-  userId: TypesGen.User["id"],
-): Promise<undefined> => {
-  return await axiosInstance.delete(`/api/v2/users/${userId}`);
-};
-
-// API definition:
-// https://github.com/coder/coder/blob/db665e7261f3c24a272ccec48233a3e276878239/coderd/users.go#L33-L53
-export const hasFirstUser = async (): Promise<boolean> => {
-  try {
-    // If it is success, it is true
-    await axiosInstance.get("/api/v2/users/first");
-    return true;
-  } catch (error) {
-    // If it returns a 404, it is false
-    if (isAxiosError(error) && error.response?.status === 404) {
-      return false;
-    }
-
-    throw error;
-  }
-};
-
-export const createFirstUser = async (
-  req: TypesGen.CreateFirstUserRequest,
-): Promise<TypesGen.CreateFirstUserResponse> => {
-  const response = await axiosInstance.post(`/api/v2/users/first`, req);
-  return response.data;
-};
-
-export const updateUserPassword = async (
-  userId: TypesGen.User["id"],
-  updatePassword: TypesGen.UpdateUserPasswordRequest,
-): Promise<undefined> =>
-  axiosInstance.put(`/api/v2/users/${userId}/password`, updatePassword);
-
-export const getRoles = async (): Promise<Array<TypesGen.AssignableRoles>> => {
-  const response =
-    await axiosInstance.get<Array<TypesGen.AssignableRoles>>(
-      `/api/v2/users/roles`,
-    );
-  return response.data;
-};
-
-export const updateUserRoles = async (
-  roles: TypesGen.Role["name"][],
-  userId: TypesGen.User["id"],
-): Promise<TypesGen.User> => {
-  const response = await axiosInstance.put<TypesGen.User>(
-    `/api/v2/users/${userId}/roles`,
-    { roles },
-  );
-  return response.data;
-};
-
-export const getUserSSHKey = async (
-  userId = "me",
-): Promise<TypesGen.GitSSHKey> => {
-  const response = await axiosInstance.get<TypesGen.GitSSHKey>(
-    `/api/v2/users/${userId}/gitsshkey`,
-  );
-  return response.data;
-};
-
-export const regenerateUserSSHKey = async (
-  userId = "me",
-): Promise<TypesGen.GitSSHKey> => {
-  const response = await axiosInstance.put<TypesGen.GitSSHKey>(
-    `/api/v2/users/${userId}/gitsshkey`,
-  );
-  return response.data;
-};
-
-export const getWorkspaceBuilds = async (
-  workspaceId: string,
-  req?: TypesGen.WorkspaceBuildsRequest,
-) => {
-  const response = await axiosInstance.get<TypesGen.WorkspaceBuild[]>(
-    getURLWithSearchParams(`/api/v2/workspaces/${workspaceId}/builds`, req),
-  );
-  return response.data;
-};
-
-export const getWorkspaceBuildByNumber = async (
-  username = "me",
-  workspaceName: string,
-  buildNumber: number,
-): Promise<TypesGen.WorkspaceBuild> => {
-  const response = await axiosInstance.get<TypesGen.WorkspaceBuild>(
-    `/api/v2/users/${username}/workspace/${workspaceName}/builds/${buildNumber}`,
-  );
-  return response.data;
-};
-
-export const getWorkspaceBuildLogs = async (
-  buildId: string,
-  before: Date,
-): Promise<TypesGen.ProvisionerJobLog[]> => {
-  const response = await axiosInstance.get<TypesGen.ProvisionerJobLog[]>(
-    `/api/v2/workspacebuilds/${buildId}/logs?before=${before.getTime()}`,
-  );
-  return response.data;
-};
-
-export const getWorkspaceAgentLogs = async (
-  agentID: string,
-): Promise<TypesGen.WorkspaceAgentLog[]> => {
-  const response = await axiosInstance.get<TypesGen.WorkspaceAgentLog[]>(
-    `/api/v2/workspaceagents/${agentID}/logs`,
-  );
-  return response.data;
-};
-
-export const putWorkspaceExtension = async (
-  workspaceId: string,
-  newDeadline: dayjs.Dayjs,
-): Promise<void> => {
-  await axiosInstance.put(`/api/v2/workspaces/${workspaceId}/extend`, {
-    deadline: newDeadline,
-  });
-};
-
-export const refreshEntitlements = async (): Promise<void> => {
-  await axiosInstance.post("/api/v2/licenses/refresh-entitlements");
-};
-
-export const getEntitlements = async (): Promise<TypesGen.Entitlements> => {
-  try {
-    const response = await axiosInstance.get("/api/v2/entitlements");
-    return response.data;
-  } catch (ex) {
-    if (isAxiosError(ex) && ex.response?.status === 404) {
-      return {
-        errors: [],
-        features: withDefaultFeatures({}),
-        has_license: false,
-        require_telemetry: false,
-        trial: false,
-        warnings: [],
-        refreshed_at: "",
-      };
-    }
-    throw ex;
-  }
-};
-
-export const getExperiments = async (): Promise<TypesGen.Experiment[]> => {
-  try {
-    const response = await axiosInstance.get("/api/v2/experiments");
-    return response.data;
-  } catch (error) {
-    if (isAxiosError(error) && error.response?.status === 404) {
-      return [];
-    }
-    throw error;
-  }
-};
-
-export const getAvailableExperiments =
-  async (): Promise<TypesGen.AvailableExperiments> => {
-    try {
-      const response = await axiosInstance.get("/api/v2/experiments/available");
-      return response.data;
-    } catch (error) {
-      if (isAxiosError(error) && error.response?.status === 404) {
-        return { safe: [] };
-      }
-      throw error;
-    }
-  };
 
 export const getExternalAuthProvider = async (
   provider: string,
@@ -1452,20 +1467,6 @@ export const createLicense = async (
 export const removeLicense = async (licenseId: number): Promise<void> => {
   await axiosInstance.delete(`/api/v2/licenses/${licenseId}`);
 };
-
-export class MissingBuildParameters extends Error {
-  parameters: TypesGen.TemplateVersionParameter[] = [];
-  versionId: string;
-
-  constructor(
-    parameters: TypesGen.TemplateVersionParameter[],
-    versionId: string,
-  ) {
-    super("Missing build parameters.");
-    this.parameters = parameters;
-    this.versionId = versionId;
-  }
-}
 
 /** Steps to change the workspace version
  * - Get the latest template to access the latest active version

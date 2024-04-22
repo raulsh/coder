@@ -1,5 +1,5 @@
 import { fireEvent, screen, within } from "@testing-library/react";
-import * as API from "api/api";
+import { api } from "api/api";
 import { MockGitSSHKey, mockApiError } from "testHelpers/entities";
 import { renderWithAuth } from "testHelpers/renderHelpers";
 import { Language as SSHKeysPageLanguage, SSHKeysPage } from "./SSHKeysPage";
@@ -28,7 +28,7 @@ describe("SSH keys Page", () => {
 
         const newUserSSHKey =
           "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDSC/ouD/LqiT1Rd99vDv/MwUmqzJuinLTMTpk5kVy66";
-        jest.spyOn(API, "regenerateUserSSHKey").mockResolvedValueOnce({
+        jest.spyOn(api, "regenerateUserSSHKey").mockResolvedValueOnce({
           ...MockGitSSHKey,
           public_key: newUserSSHKey,
         });
@@ -42,8 +42,8 @@ describe("SSH keys Page", () => {
         // Check if the success message is displayed
         await screen.findByText("SSH Key regenerated successfully.");
 
-        // Check if the API was called correctly
-        expect(API.regenerateUserSSHKey).toBeCalledTimes(1);
+        // Check if the api was called correctly
+        expect(api.regenerateUserSSHKey).toBeCalledTimes(1);
 
         // Check if the SSH key is updated
         await screen.findByText(newUserSSHKey);
@@ -57,7 +57,7 @@ describe("SSH keys Page", () => {
         // Wait to the ssh be rendered on the screen
         await screen.findByText(MockGitSSHKey.public_key);
 
-        jest.spyOn(API, "regenerateUserSSHKey").mockRejectedValueOnce(
+        jest.spyOn(api, "regenerateUserSSHKey").mockRejectedValueOnce(
           mockApiError({
             message: SSHKeysPageLanguage.regenerationError,
           }),
@@ -81,8 +81,8 @@ describe("SSH keys Page", () => {
         const alert = await screen.findByRole("alert");
         expect(alert).toHaveTextContent(SSHKeysPageLanguage.regenerationError);
 
-        // Check if the API was called correctly
-        expect(API.regenerateUserSSHKey).toBeCalledTimes(1);
+        // Check if the api was called correctly
+        expect(api.regenerateUserSSHKey).toBeCalledTimes(1);
       });
     });
   });

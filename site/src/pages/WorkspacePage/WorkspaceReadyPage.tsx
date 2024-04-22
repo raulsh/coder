@@ -3,7 +3,7 @@ import { type FC, useEffect, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate } from "react-router-dom";
-import { MissingBuildParameters, restartWorkspace } from "api/api";
+import { api, MissingBuildParameters } from "api/api";
 import { getErrorMessage } from "api/errors";
 import { deploymentConfig, deploymentSSHConfig } from "api/queries/deployment";
 import { templateVersion, templateVersions } from "api/queries/templates";
@@ -80,7 +80,7 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
   }>({ open: false });
   const { mutate: mutateRestartWorkspace, isLoading: isRestarting } =
     useMutation({
-      mutationFn: restartWorkspace,
+      mutationFn: api.restartWorkspace,
     });
 
   // SSH Prefix

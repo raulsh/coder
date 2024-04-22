@@ -1,12 +1,5 @@
 import { useMutation } from "react-query";
-import {
-  deleteWorkspace,
-  deleteFavoriteWorkspace,
-  putFavoriteWorkspace,
-  startWorkspace,
-  stopWorkspace,
-  updateWorkspace,
-} from "api/api";
+import { api } from "api/api";
 import type { Workspace } from "api/typesGenerated";
 import { displayError } from "components/GlobalSnackbar/utils";
 
@@ -21,7 +14,7 @@ export function useBatchActions(options: UseBatchActionsProps) {
     mutationFn: (workspaces: readonly Workspace[]) => {
       return Promise.all(
         workspaces.map((w) =>
-          startWorkspace(w.id, w.latest_build.template_version_id),
+          api.startWorkspace(w.id, w.latest_build.template_version_id),
         ),
       );
     },
@@ -33,7 +26,7 @@ export function useBatchActions(options: UseBatchActionsProps) {
 
   const stopAllMutation = useMutation({
     mutationFn: (workspaces: readonly Workspace[]) => {
-      return Promise.all(workspaces.map((w) => stopWorkspace(w.id)));
+      return Promise.all(workspaces.map((w) => api.stopWorkspace(w.id)));
     },
     onSuccess,
     onError: () => {
@@ -43,7 +36,7 @@ export function useBatchActions(options: UseBatchActionsProps) {
 
   const deleteAllMutation = useMutation({
     mutationFn: (workspaces: readonly Workspace[]) => {
-      return Promise.all(workspaces.map((w) => deleteWorkspace(w.id)));
+      return Promise.all(workspaces.map((w) => api.deleteWorkspace(w.id)));
     },
     onSuccess,
     onError: () => {
@@ -56,7 +49,7 @@ export function useBatchActions(options: UseBatchActionsProps) {
       return Promise.all(
         workspaces
           .filter((w) => w.outdated && !w.dormant_at)
-          .map((w) => updateWorkspace(w)),
+          .map((w) => api.updateWorkspace(w)),
       );
     },
     onSuccess,
@@ -70,7 +63,7 @@ export function useBatchActions(options: UseBatchActionsProps) {
       return Promise.all(
         workspaces
           .filter((w) => !w.favorite)
-          .map((w) => putFavoriteWorkspace(w.id)),
+          .map((w) => api.putFavoriteWorkspace(w.id)),
       );
     },
     onSuccess,
@@ -84,7 +77,7 @@ export function useBatchActions(options: UseBatchActionsProps) {
       return Promise.all(
         workspaces
           .filter((w) => w.favorite)
-          .map((w) => deleteFavoriteWorkspace(w.id)),
+          .map((w) => api.deleteFavoriteWorkspace(w.id)),
       );
     },
     onSuccess,

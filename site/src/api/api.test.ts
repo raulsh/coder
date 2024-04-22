@@ -6,7 +6,7 @@ import {
   MockWorkspaceBuild,
   MockWorkspaceBuildParameter1,
 } from "testHelpers/entities";
-import { api } from "./api";
+import { api, getURLWithSearchParams } from "./api";
 import type * as TypesGen from "./typesGenerated";
 
 describe("api.ts", () => {
@@ -146,7 +146,7 @@ describe("api.ts", () => {
     ])(
       `Workspaces - getURLWithSearchParams(%p, %p) returns %p`,
       (basePath, filter, expected) => {
-        expect(api.getURLWithSearchParams(basePath, filter)).toBe(expected);
+        expect(getURLWithSearchParams(basePath, filter)).toBe(expected);
       },
     );
   });
@@ -163,7 +163,7 @@ describe("api.ts", () => {
     ])(
       `Users - getURLWithSearchParams(%p, %p) returns %p`,
       (basePath, filter, expected) => {
-        expect(api.getURLWithSearchParams(basePath, filter)).toBe(expected);
+        expect(getURLWithSearchParams(basePath, filter)).toBe(expected);
       },
     );
   });

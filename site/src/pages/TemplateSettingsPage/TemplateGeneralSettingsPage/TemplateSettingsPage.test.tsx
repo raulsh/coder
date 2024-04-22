@@ -1,7 +1,7 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
-import * as API from "api/api";
+import { api, withDefaultFeatures } from "api/api";
 import type { Template, UpdateTemplateMeta } from "api/typesGenerated";
 import { Language as FooterFormLanguage } from "components/FormFooter/FormFooter";
 import { MockEntitlements, MockTemplate } from "testHelpers/entities";
@@ -104,12 +104,12 @@ const fillAndSubmitForm = async ({
 describe("TemplateSettingsPage", () => {
   it("succeeds", async () => {
     await renderTemplateSettingsPage();
-    jest.spyOn(API, "updateTemplateMeta").mockResolvedValueOnce({
+    jest.spyOn(api, "updateTemplateMeta").mockResolvedValueOnce({
       ...MockTemplate,
       ...validFormValues,
     });
     await fillAndSubmitForm(validFormValues);
-    await waitFor(() => expect(API.updateTemplateMeta).toBeCalledTimes(1));
+    await waitFor(() => expect(api.updateTemplateMeta).toBeCalledTimes(1));
   });
 
   it("allows a description of 128 chars", () => {
@@ -138,13 +138,13 @@ describe("TemplateSettingsPage", () => {
         http.get("/api/v2/entitlements", () => {
           return HttpResponse.json({
             ...MockEntitlements,
-            features: API.withDefaultFeatures({
+            features: withDefaultFeatures({
               access_control: { enabled: true, entitlement: "entitled" },
             }),
           });
         }),
       );
-      const updateTemplateMetaSpy = jest.spyOn(API, "updateTemplateMeta");
+      const updateTemplateMetaSpy = jest.spyOn(api, "updateTemplateMeta");
       const deprecationMessage = "This template is deprecated";
 
       await renderTemplateSettingsPage();
@@ -163,13 +163,13 @@ describe("TemplateSettingsPage", () => {
         http.get("/api/v2/entitlements", () => {
           return HttpResponse.json({
             ...MockEntitlements,
-            features: API.withDefaultFeatures({
+            features: withDefaultFeatures({
               access_control: { enabled: false, entitlement: "not_entitled" },
             }),
           });
         }),
       );
-      const updateTemplateMetaSpy = jest.spyOn(API, "updateTemplateMeta");
+      const updateTemplateMetaSpy = jest.spyOn(api, "updateTemplateMeta");
 
       await renderTemplateSettingsPage();
       await deprecateTemplate(

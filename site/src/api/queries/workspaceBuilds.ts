@@ -1,5 +1,5 @@
 import type { QueryOptions, UseInfiniteQueryOptions } from "react-query";
-import * as API from "api/api";
+import { api } from "api/api";
 import type {
   WorkspaceBuild,
   WorkspaceBuildParameter,
@@ -13,7 +13,7 @@ export function workspaceBuildParametersKey(workspaceBuildId: string) {
 export function workspaceBuildParameters(workspaceBuildId: string) {
   return {
     queryKey: workspaceBuildParametersKey(workspaceBuildId),
-    queryFn: () => API.getWorkspaceBuildParameters(workspaceBuildId),
+    queryFn: () => api.getWorkspaceBuildParameters(workspaceBuildId),
   } as const satisfies QueryOptions<WorkspaceBuildParameter[]>;
 }
 
@@ -25,7 +25,7 @@ export const workspaceBuildByNumber = (
   return {
     queryKey: ["workspaceBuild", username, workspaceName, buildNumber],
     queryFn: () =>
-      API.getWorkspaceBuildByNumber(username, workspaceName, buildNumber),
+      api.getWorkspaceBuildByNumber(username, workspaceName, buildNumber),
   };
 };
 
@@ -49,7 +49,7 @@ export const infiniteWorkspaceBuilds = (
       return pages.length + 1;
     },
     queryFn: ({ pageParam = 0 }) => {
-      return API.getWorkspaceBuilds(workspaceId, {
+      return api.getWorkspaceBuilds(workspaceId, {
         limit,
         offset: pageParam <= 0 ? 0 : (pageParam - 1) * limit,
       });
