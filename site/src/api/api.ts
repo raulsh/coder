@@ -453,7 +453,7 @@ export class CoderApi {
   };
 
   convertToOAUTH = async (request: TypesGen.ConvertLoginRequest) => {
-    const response = await axiosInstance.post<TypesGen.OAuthConversionResponse>(
+    const response = await this.axios.post<TypesGen.OAuthConversionResponse>(
       "/api/v2/users/me/convert-login",
       request,
     );
@@ -461,30 +461,30 @@ export class CoderApi {
   };
 
   logout = async (): Promise<void> => {
-    await axiosInstance.post("/api/v2/users/logout");
+    await this.axios.post("/api/v2/users/logout");
   };
 
   getAuthenticatedUser = async () => {
-    const response = await axiosInstance.get<TypesGen.User>("/api/v2/users/me");
+    const response = await this.axios.get<TypesGen.User>("/api/v2/users/me");
     return response.data;
   };
 
   getUserParameters = async (templateID: string) => {
-    const response = await axiosInstance.get<readonly TypesGen.UserParameter[]>(
+    const response = await this.axios.get<readonly TypesGen.UserParameter[]>(
       "/api/v2/users/me/autofill-parameters?template_id=" + templateID,
     );
     return response.data;
   };
 
   getAuthMethods = async (): Promise<TypesGen.AuthMethods> => {
-    const response = await axiosInstance.get<TypesGen.AuthMethods>(
+    const response = await this.axios.get<TypesGen.AuthMethods>(
       "/api/v2/users/authmethods",
     );
     return response.data;
   };
 
   getUserLoginType = async (): Promise<TypesGen.UserLoginType> => {
-    const response = await axiosInstance.get<TypesGen.UserLoginType>(
+    const response = await this.axios.get<TypesGen.UserLoginType>(
       "/api/v2/users/me/login-type",
     );
     return response.data;
@@ -493,7 +493,7 @@ export class CoderApi {
   checkAuthorization = async (
     params: TypesGen.AuthorizationRequest,
   ): Promise<TypesGen.AuthorizationResponse> => {
-    const response = await axiosInstance.post<TypesGen.AuthorizationResponse>(
+    const response = await this.axios.post<TypesGen.AuthorizationResponse>(
       `/api/v2/authcheck`,
       params,
     );
@@ -501,7 +501,7 @@ export class CoderApi {
   };
 
   getApiKey = async (): Promise<TypesGen.GenerateAPIKeyResponse> => {
-    const response = await axiosInstance.post<TypesGen.GenerateAPIKeyResponse>(
+    const response = await this.axios.post<TypesGen.GenerateAPIKeyResponse>(
       "/api/v2/users/me/keys",
     );
     return response.data;
@@ -510,20 +510,21 @@ export class CoderApi {
   getTokens = async (
     params: TypesGen.TokensFilter,
   ): Promise<readonly TypesGen.APIKeyWithOwner[]> => {
-    const response = await axiosInstance.get<
-      readonly TypesGen.APIKeyWithOwner[]
-    >(`/api/v2/users/me/keys/tokens`, { params });
+    const response = await this.axios.get<readonly TypesGen.APIKeyWithOwner[]>(
+      `/api/v2/users/me/keys/tokens`,
+      { params },
+    );
     return response.data;
   };
 
   deleteToken = async (keyId: string): Promise<void> => {
-    await axiosInstance.delete("/api/v2/users/me/keys/" + keyId);
+    await this.axios.delete("/api/v2/users/me/keys/" + keyId);
   };
 
   createToken = async (
     params: TypesGen.CreateTokenRequest,
   ): Promise<TypesGen.GenerateAPIKeyResponse> => {
-    const response = await axiosInstance.post(
+    const response = await this.axios.post(
       `/api/v2/users/me/keys/tokens`,
       params,
     );
@@ -531,7 +532,7 @@ export class CoderApi {
   };
 
   getTokenConfig = async (): Promise<TypesGen.TokenConfig> => {
-    const response = await axiosInstance.get(
+    const response = await this.axios.get(
       "/api/v2/users/me/keys/tokens/tokenconfig",
     );
     return response.data;
@@ -542,7 +543,7 @@ export class CoderApi {
     signal?: AbortSignal,
   ): Promise<TypesGen.GetUsersResponse> => {
     const url = getURLWithSearchParams("/api/v2/users", options);
-    const response = await axiosInstance.get<TypesGen.GetUsersResponse>(
+    const response = await this.axios.get<TypesGen.GetUsersResponse>(
       url.toString(),
       { signal },
     );
@@ -553,21 +554,21 @@ export class CoderApi {
   getOrganization = async (
     organizationId: string,
   ): Promise<TypesGen.Organization> => {
-    const response = await axiosInstance.get<TypesGen.Organization>(
+    const response = await this.axios.get<TypesGen.Organization>(
       `/api/v2/organizations/${organizationId}`,
     );
     return response.data;
   };
 
   getOrganizations = async (): Promise<readonly TypesGen.Organization[]> => {
-    const response = await axiosInstance.get<readonly TypesGen.Organization[]>(
+    const response = await this.axios.get<readonly TypesGen.Organization[]>(
       "/api/v2/users/me/organizations",
     );
     return response.data;
   };
 
   getTemplate = async (templateId: string): Promise<TypesGen.Template> => {
-    const response = await axiosInstance.get<TypesGen.Template>(
+    const response = await this.axios.get<TypesGen.Template>(
       `/api/v2/templates/${templateId}`,
     );
     return response.data;
@@ -585,7 +586,7 @@ export class CoderApi {
       params["deprecated"] = String(options.deprecated);
     }
 
-    const response = await axiosInstance.get<readonly TypesGen.Template[]>(
+    const response = await this.axios.get<readonly TypesGen.Template[]>(
       `/api/v2/organizations/${organizationId}/templates`,
       { params },
     );
@@ -597,7 +598,7 @@ export class CoderApi {
     organizationId: string,
     name: string,
   ): Promise<TypesGen.Template> => {
-    const response = await axiosInstance.get<TypesGen.Template>(
+    const response = await this.axios.get<TypesGen.Template>(
       `/api/v2/organizations/${organizationId}/templates/${name}`,
     );
     return response.data;
@@ -606,7 +607,7 @@ export class CoderApi {
   getTemplateVersion = async (
     versionId: string,
   ): Promise<TypesGen.TemplateVersion> => {
-    const response = await axiosInstance.get<TypesGen.TemplateVersion>(
+    const response = await this.axios.get<TypesGen.TemplateVersion>(
       `/api/v2/templateversions/${versionId}`,
     );
     return response.data;
@@ -615,7 +616,7 @@ export class CoderApi {
   getTemplateVersionResources = async (
     versionId: string,
   ): Promise<readonly TypesGen.WorkspaceResource[]> => {
-    const response = await axiosInstance.get<
+    const response = await this.axios.get<
       readonly TypesGen.WorkspaceResource[]
     >(`/api/v2/templateversions/${versionId}/resources`);
     return response.data;
@@ -624,7 +625,7 @@ export class CoderApi {
   getTemplateVersionVariables = async (
     versionId: string,
   ): Promise<readonly TypesGen.TemplateVersionVariable[]> => {
-    const response = await axiosInstance.get<
+    const response = await this.axios.get<
       readonly TypesGen.TemplateVersionVariable[]
     >(`/api/v2/templateversions/${versionId}/variables`);
     return response.data;
@@ -633,9 +634,9 @@ export class CoderApi {
   getTemplateVersions = async (
     templateId: string,
   ): Promise<readonly TypesGen.TemplateVersion[]> => {
-    const response = await axiosInstance.get<
-      readonly TypesGen.TemplateVersion[]
-    >(`/api/v2/templates/${templateId}/versions`);
+    const response = await this.axios.get<readonly TypesGen.TemplateVersion[]>(
+      `/api/v2/templates/${templateId}/versions`,
+    );
     return response.data;
   };
 
@@ -644,7 +645,7 @@ export class CoderApi {
     templateName: string,
     versionName: string,
   ): Promise<TypesGen.TemplateVersion> => {
-    const response = await axiosInstance.get<TypesGen.TemplateVersion>(
+    const response = await this.axios.get<TypesGen.TemplateVersion>(
       `/api/v2/organizations/${organizationId}/templates/${templateName}/versions/${versionName}`,
     );
     return response.data;
@@ -656,7 +657,7 @@ export class CoderApi {
     versionName: string,
   ) => {
     try {
-      const response = await axiosInstance.get<TypesGen.TemplateVersion>(
+      const response = await this.axios.get<TypesGen.TemplateVersion>(
         `/api/v2/organizations/${organizationId}/templates/${templateName}/versions/${versionName}/previous`,
       );
       return response.data;
@@ -679,7 +680,7 @@ export class CoderApi {
     organizationId: string,
     data: TypesGen.CreateTemplateVersionRequest,
   ): Promise<TypesGen.TemplateVersion> => {
-    const response = await axiosInstance.post<TypesGen.TemplateVersion>(
+    const response = await this.axios.post<TypesGen.TemplateVersion>(
       `/api/v2/organizations/${organizationId}/templateversions`,
       data,
     );
@@ -689,7 +690,7 @@ export class CoderApi {
   getTemplateVersionExternalAuth = async (
     versionId: string,
   ): Promise<readonly TypesGen.TemplateVersionExternalAuth[]> => {
-    const response = await axiosInstance.get(
+    const response = await this.axios.get(
       `/api/v2/templateversions/${versionId}/external-auth`,
     );
     return response.data;
@@ -698,7 +699,7 @@ export class CoderApi {
   getTemplateVersionRichParameters = async (
     versionId: string,
   ): Promise<readonly TypesGen.TemplateVersionParameter[]> => {
-    const response = await axiosInstance.get(
+    const response = await this.axios.get(
       `/api/v2/templateversions/${versionId}/rich-parameters`,
     );
     return response.data;
@@ -708,7 +709,7 @@ export class CoderApi {
     organizationId: string,
     data: TypesGen.CreateTemplateRequest,
   ): Promise<TypesGen.Template> => {
-    const response = await axiosInstance.post(
+    const response = await this.axios.post(
       `/api/v2/organizations/${organizationId}/templates`,
       data,
     );
@@ -719,7 +720,7 @@ export class CoderApi {
     templateId: string,
     data: TypesGen.UpdateActiveTemplateVersion,
   ) => {
-    const response = await axiosInstance.patch<TypesGen.Response>(
+    const response = await this.axios.patch<TypesGen.Response>(
       `/api/v2/templates/${templateId}/versions`,
       data,
     );
@@ -730,7 +731,7 @@ export class CoderApi {
     templateVersionId: string,
     data: TypesGen.PatchTemplateVersionRequest,
   ) => {
-    const response = await axiosInstance.patch<TypesGen.TemplateVersion>(
+    const response = await this.axios.patch<TypesGen.TemplateVersion>(
       `/api/v2/templateversions/${templateVersionId}`,
       data,
     );
@@ -738,14 +739,14 @@ export class CoderApi {
   };
 
   archiveTemplateVersion = async (templateVersionId: string) => {
-    const response = await axiosInstance.post<TypesGen.TemplateVersion>(
+    const response = await this.axios.post<TypesGen.TemplateVersion>(
       `/api/v2/templateversions/${templateVersionId}/archive`,
     );
     return response.data;
   };
 
   unarchiveTemplateVersion = async (templateVersionId: string) => {
-    const response = await axiosInstance.post<TypesGen.TemplateVersion>(
+    const response = await this.axios.post<TypesGen.TemplateVersion>(
       `/api/v2/templateversions/${templateVersionId}/unarchive`,
     );
     return response.data;
@@ -755,7 +756,7 @@ export class CoderApi {
     templateId: string,
     data: TypesGen.UpdateTemplateMeta,
   ): Promise<TypesGen.Template | null> => {
-    const response = await axiosInstance.patch<TypesGen.Template>(
+    const response = await this.axios.patch<TypesGen.Template>(
       `/api/v2/templates/${templateId}`,
       data,
     );
@@ -768,7 +769,7 @@ export class CoderApi {
   };
 
   deleteTemplate = async (templateId: string): Promise<TypesGen.Template> => {
-    const response = await axiosInstance.delete<TypesGen.Template>(
+    const response = await this.axios.delete<TypesGen.Template>(
       `/api/v2/templates/${templateId}`,
     );
     return response.data;
@@ -778,7 +779,7 @@ export class CoderApi {
     workspaceId: string,
     params?: TypesGen.WorkspaceOptions,
   ): Promise<TypesGen.Workspace> => {
-    const response = await axiosInstance.get<TypesGen.Workspace>(
+    const response = await this.axios.get<TypesGen.Workspace>(
       `/api/v2/workspaces/${workspaceId}`,
       { params },
     );
@@ -790,7 +791,7 @@ export class CoderApi {
     options: TypesGen.WorkspacesRequest,
   ): Promise<TypesGen.WorkspacesResponse> => {
     const url = getURLWithSearchParams("/api/v2/workspaces", options);
-    const response = await axiosInstance.get<TypesGen.WorkspacesResponse>(url);
+    const response = await this.axios.get<TypesGen.WorkspacesResponse>(url);
     return response.data;
   };
 
@@ -799,7 +800,7 @@ export class CoderApi {
     workspaceName: string,
     params?: TypesGen.WorkspaceOptions,
   ): Promise<TypesGen.Workspace> => {
-    const response = await axiosInstance.get<TypesGen.Workspace>(
+    const response = await this.axios.get<TypesGen.Workspace>(
       `/api/v2/users/${username}/workspace/${workspaceName}`,
       {
         params,
@@ -841,7 +842,7 @@ export class CoderApi {
     workspaceId: string,
     data: TypesGen.CreateWorkspaceBuildRequest,
   ): Promise<TypesGen.WorkspaceBuild> => {
-    const response = await axiosInstance.post(
+    const response = await this.axios.post(
       `/api/v2/workspaces/${workspaceId}/builds`,
       data,
     );
@@ -882,7 +883,7 @@ export class CoderApi {
   cancelWorkspaceBuild = async (
     workspaceBuildId: TypesGen.WorkspaceBuild["id"],
   ): Promise<TypesGen.Response> => {
-    const response = await axiosInstance.patch(
+    const response = await this.axios.patch(
       `/api/v2/workspacebuilds/${workspaceBuildId}/cancel`,
     );
     return response.data;
@@ -896,7 +897,7 @@ export class CoderApi {
       dormant: dormant,
     };
 
-    const response = await axiosInstance.put(
+    const response = await this.axios.put(
       `/api/v2/workspaces/${workspaceId}/dormant`,
       data,
     );
@@ -911,7 +912,7 @@ export class CoderApi {
       automatic_updates: automaticUpdates,
     };
 
-    const response = await axiosInstance.put(
+    const response = await this.axios.put(
       `/api/v2/workspaces/${workspaceId}/autoupdates`,
       req,
     );
@@ -946,7 +947,7 @@ export class CoderApi {
   cancelTemplateVersionBuild = async (
     templateVersionId: TypesGen.TemplateVersion["id"],
   ): Promise<TypesGen.Response> => {
-    const response = await axiosInstance.patch(
+    const response = await this.axios.patch(
       `/api/v2/templateversions/${templateVersionId}/cancel`,
     );
     return response.data;
@@ -955,7 +956,7 @@ export class CoderApi {
   createUser = async (
     user: TypesGen.CreateUserRequest,
   ): Promise<TypesGen.User> => {
-    const response = await axiosInstance.post<TypesGen.User>(
+    const response = await this.axios.post<TypesGen.User>(
       "/api/v2/users",
       user,
     );
@@ -967,7 +968,7 @@ export class CoderApi {
     userId = "me",
     workspace: TypesGen.CreateWorkspaceRequest,
   ): Promise<TypesGen.Workspace> => {
-    const response = await axiosInstance.post<TypesGen.Workspace>(
+    const response = await this.axios.post<TypesGen.Workspace>(
       `/api/v2/organizations/${organizationId}/members/${userId}/workspaces`,
       workspace,
     );
@@ -978,7 +979,7 @@ export class CoderApi {
     workspaceId: string,
     data: TypesGen.UpdateWorkspaceRequest,
   ) => {
-    const response = await axiosInstance.patch(
+    const response = await this.axios.patch(
       `/api/v2/workspaces/${workspaceId}`,
       data,
     );
@@ -986,12 +987,12 @@ export class CoderApi {
   };
 
   getBuildInfo = async (): Promise<TypesGen.BuildInfoResponse> => {
-    const response = await axiosInstance.get("/api/v2/buildinfo");
+    const response = await this.axios.get("/api/v2/buildinfo");
     return response.data;
   };
 
   getUpdateCheck = async (): Promise<TypesGen.UpdateCheckResponse> => {
-    const response = await axiosInstance.get("/api/v2/updatecheck");
+    const response = await this.axios.get("/api/v2/updatecheck");
     return response.data;
   };
 
@@ -1000,7 +1001,7 @@ export class CoderApi {
     autostart: TypesGen.UpdateWorkspaceAutostartRequest,
   ): Promise<void> => {
     const payload = JSON.stringify(autostart);
-    return axiosInstance.put(
+    return this.axios.put(
       `/api/v2/workspaces/${workspaceID}/autostart`,
       payload,
       {
@@ -1014,7 +1015,7 @@ export class CoderApi {
     ttl: TypesGen.UpdateWorkspaceTTLRequest,
   ): Promise<void> => {
     const payload = JSON.stringify(ttl);
-    return axiosInstance.put(`/api/v2/workspaces/${workspaceID}/ttl`, payload, {
+    return this.axios.put(`/api/v2/workspaces/${workspaceID}/ttl`, payload, {
       headers: { ...CONTENT_TYPE_JSON },
     });
   };
@@ -1023,7 +1024,7 @@ export class CoderApi {
     userId: string,
     data: TypesGen.UpdateUserProfileRequest,
   ): Promise<TypesGen.User> => {
-    const response = await axiosInstance.put(
+    const response = await this.axios.put(
       `/api/v2/users/${userId}/profile`,
       data,
     );
@@ -1034,7 +1035,7 @@ export class CoderApi {
     userId: string,
     data: TypesGen.UpdateUserAppearanceSettingsRequest,
   ): Promise<TypesGen.User> => {
-    const response = await axiosInstance.put(
+    const response = await this.axios.put(
       `/api/v2/users/${userId}/appearance`,
       data,
     );
@@ -1044,7 +1045,7 @@ export class CoderApi {
   getUserQuietHoursSchedule = async (
     userId: TypesGen.User["id"],
   ): Promise<TypesGen.UserQuietHoursScheduleResponse> => {
-    const response = await axiosInstance.get(
+    const response = await this.axios.get(
       `/api/v2/users/${userId}/quiet-hours`,
     );
     return response.data;
@@ -1054,7 +1055,7 @@ export class CoderApi {
     userId: TypesGen.User["id"],
     data: TypesGen.UpdateUserQuietHoursScheduleRequest,
   ): Promise<TypesGen.UserQuietHoursScheduleResponse> => {
-    const response = await axiosInstance.put(
+    const response = await this.axios.put(
       `/api/v2/users/${userId}/quiet-hours`,
       data,
     );
@@ -1064,21 +1065,21 @@ export class CoderApi {
   activateUser = async (
     userId: TypesGen.User["id"],
   ): Promise<TypesGen.User> => {
-    const response = await axiosInstance.put<TypesGen.User>(
+    const response = await this.axios.put<TypesGen.User>(
       `/api/v2/users/${userId}/status/activate`,
     );
     return response.data;
   };
 
   suspendUser = async (userId: TypesGen.User["id"]): Promise<TypesGen.User> => {
-    const response = await axiosInstance.put<TypesGen.User>(
+    const response = await this.axios.put<TypesGen.User>(
       `/api/v2/users/${userId}/status/suspend`,
     );
     return response.data;
   };
 
   deleteUser = async (userId: TypesGen.User["id"]): Promise<undefined> => {
-    return await axiosInstance.delete(`/api/v2/users/${userId}`);
+    return await this.axios.delete(`/api/v2/users/${userId}`);
   };
 
   /**
@@ -1088,7 +1089,7 @@ export class CoderApi {
   hasFirstUser = async (): Promise<boolean> => {
     try {
       // If it is success, it is true
-      await axiosInstance.get("/api/v2/users/first");
+      await this.axios.get("/api/v2/users/first");
       return true;
     } catch (error) {
       // If it returns a 404, it is false
@@ -1103,7 +1104,7 @@ export class CoderApi {
   createFirstUser = async (
     req: TypesGen.CreateFirstUserRequest,
   ): Promise<TypesGen.CreateFirstUserResponse> => {
-    const response = await axiosInstance.post(`/api/v2/users/first`, req);
+    const response = await this.axios.post(`/api/v2/users/first`, req);
     return response.data;
   };
 
@@ -1111,15 +1112,12 @@ export class CoderApi {
     userId: TypesGen.User["id"],
     updatePassword: TypesGen.UpdateUserPasswordRequest,
   ): Promise<undefined> => {
-    return axiosInstance.put(
-      `/api/v2/users/${userId}/password`,
-      updatePassword,
-    );
+    return this.axios.put(`/api/v2/users/${userId}/password`, updatePassword);
   };
 
   getRoles = async (): Promise<Array<TypesGen.AssignableRoles>> => {
     const response =
-      await axiosInstance.get<Array<TypesGen.AssignableRoles>>(
+      await this.axios.get<Array<TypesGen.AssignableRoles>>(
         `/api/v2/users/roles`,
       );
     return response.data;
@@ -1129,7 +1127,7 @@ export class CoderApi {
     roles: TypesGen.Role["name"][],
     userId: TypesGen.User["id"],
   ): Promise<TypesGen.User> => {
-    const response = await axiosInstance.put<TypesGen.User>(
+    const response = await this.axios.put<TypesGen.User>(
       `/api/v2/users/${userId}/roles`,
       { roles },
     );
@@ -1137,14 +1135,14 @@ export class CoderApi {
   };
 
   getUserSSHKey = async (userId = "me"): Promise<TypesGen.GitSSHKey> => {
-    const response = await axiosInstance.get<TypesGen.GitSSHKey>(
+    const response = await this.axios.get<TypesGen.GitSSHKey>(
       `/api/v2/users/${userId}/gitsshkey`,
     );
     return response.data;
   };
 
   regenerateUserSSHKey = async (userId = "me"): Promise<TypesGen.GitSSHKey> => {
-    const response = await axiosInstance.put<TypesGen.GitSSHKey>(
+    const response = await this.axios.put<TypesGen.GitSSHKey>(
       `/api/v2/users/${userId}/gitsshkey`,
     );
     return response.data;
@@ -1154,9 +1152,9 @@ export class CoderApi {
     workspaceId: string,
     req?: TypesGen.WorkspaceBuildsRequest,
   ) => {
-    const response = await axiosInstance.get<
-      readonly TypesGen.WorkspaceBuild[]
-    >(getURLWithSearchParams(`/api/v2/workspaces/${workspaceId}/builds`, req));
+    const response = await this.axios.get<readonly TypesGen.WorkspaceBuild[]>(
+      getURLWithSearchParams(`/api/v2/workspaces/${workspaceId}/builds`, req),
+    );
     return response.data;
   };
 
@@ -1165,7 +1163,7 @@ export class CoderApi {
     workspaceName: string,
     buildNumber: number,
   ): Promise<TypesGen.WorkspaceBuild> => {
-    const response = await axiosInstance.get<TypesGen.WorkspaceBuild>(
+    const response = await this.axios.get<TypesGen.WorkspaceBuild>(
       `/api/v2/users/${username}/workspace/${workspaceName}/builds/${buildNumber}`,
     );
     return response.data;
@@ -1175,7 +1173,7 @@ export class CoderApi {
     buildId: string,
     before: Date,
   ): Promise<readonly TypesGen.ProvisionerJobLog[]> => {
-    const response = await axiosInstance.get<
+    const response = await this.axios.get<
       readonly TypesGen.ProvisionerJobLog[]
     >(`/api/v2/workspacebuilds/${buildId}/logs?before=${before.getTime()}`);
     return response.data;
@@ -1184,7 +1182,7 @@ export class CoderApi {
   getWorkspaceAgentLogs = async (
     agentID: string,
   ): Promise<readonly TypesGen.WorkspaceAgentLog[]> => {
-    const response = await axiosInstance.get<
+    const response = await this.axios.get<
       readonly TypesGen.WorkspaceAgentLog[]
     >(`/api/v2/workspaceagents/${agentID}/logs`);
     return response.data;
@@ -1194,18 +1192,18 @@ export class CoderApi {
     workspaceId: string,
     newDeadline: dayjs.Dayjs,
   ): Promise<void> => {
-    await axiosInstance.put(`/api/v2/workspaces/${workspaceId}/extend`, {
+    await this.axios.put(`/api/v2/workspaces/${workspaceId}/extend`, {
       deadline: newDeadline,
     });
   };
 
   refreshEntitlements = async (): Promise<void> => {
-    await axiosInstance.post("/api/v2/licenses/refresh-entitlements");
+    await this.axios.post("/api/v2/licenses/refresh-entitlements");
   };
 
   getEntitlements = async (): Promise<TypesGen.Entitlements> => {
     try {
-      const response = await axiosInstance.get("/api/v2/entitlements");
+      const response = await this.axios.get("/api/v2/entitlements");
       return response.data;
     } catch (ex) {
       if (isAxiosError(ex) && ex.response?.status === 404) {
@@ -1225,7 +1223,7 @@ export class CoderApi {
 
   getExperiments = async (): Promise<readonly TypesGen.Experiment[]> => {
     try {
-      const response = await axiosInstance.get("/api/v2/experiments");
+      const response = await this.axios.get("/api/v2/experiments");
       return response.data;
     } catch (error) {
       if (isAxiosError(error) && error.response?.status === 404) {
@@ -1238,9 +1236,7 @@ export class CoderApi {
   getAvailableExperiments =
     async (): Promise<TypesGen.AvailableExperiments> => {
       try {
-        const response = await axiosInstance.get(
-          "/api/v2/experiments/available",
-        );
+        const response = await this.axios.get("/api/v2/experiments/available");
         return response.data;
       } catch (error) {
         if (isAxiosError(error) && error.response?.status === 404) {
@@ -1253,14 +1249,14 @@ export class CoderApi {
   getExternalAuthProvider = async (
     provider: string,
   ): Promise<TypesGen.ExternalAuth> => {
-    const resp = await axiosInstance.get(`/api/v2/external-auth/${provider}`);
+    const resp = await this.axios.get(`/api/v2/external-auth/${provider}`);
     return resp.data;
   };
 
   getExternalAuthDevice = async (
     provider: string,
   ): Promise<TypesGen.ExternalAuthDevice> => {
-    const resp = await axiosInstance.get(
+    const resp = await this.axios.get(
       `/api/v2/external-auth/${provider}/device`,
     );
     return resp.data;
@@ -1270,7 +1266,7 @@ export class CoderApi {
     provider: string,
     req: TypesGen.ExternalAuthDeviceExchange,
   ): Promise<void> => {
-    const resp = await axiosInstance.post(
+    const resp = await this.axios.post(
       `/api/v2/external-auth/${provider}/device`,
       req,
     );
@@ -1279,14 +1275,12 @@ export class CoderApi {
 
   getUserExternalAuthProviders =
     async (): Promise<TypesGen.ListUserExternalAuthResponse> => {
-      const resp = await axiosInstance.get(`/api/v2/external-auth`);
+      const resp = await this.axios.get(`/api/v2/external-auth`);
       return resp.data;
     };
 
   unlinkExternalAuthProvider = async (provider: string): Promise<string> => {
-    const resp = await axiosInstance.delete(
-      `/api/v2/external-auth/${provider}`,
-    );
+    const resp = await this.axios.delete(`/api/v2/external-auth/${provider}`);
     return resp.data;
   };
 
@@ -1296,23 +1290,21 @@ export class CoderApi {
     const params = filter?.user_id
       ? new URLSearchParams({ user_id: filter.user_id })
       : "";
-    const resp = await axiosInstance.get(
-      `/api/v2/oauth2-provider/apps?${params}`,
-    );
+    const resp = await this.axios.get(`/api/v2/oauth2-provider/apps?${params}`);
     return resp.data;
   };
 
   getOAuth2ProviderApp = async (
     id: string,
   ): Promise<TypesGen.OAuth2ProviderApp> => {
-    const resp = await axiosInstance.get(`/api/v2/oauth2-provider/apps/${id}`);
+    const resp = await this.axios.get(`/api/v2/oauth2-provider/apps/${id}`);
     return resp.data;
   };
 
   postOAuth2ProviderApp = async (
     data: TypesGen.PostOAuth2ProviderAppRequest,
   ): Promise<TypesGen.OAuth2ProviderApp> => {
-    const response = await axiosInstance.post(
+    const response = await this.axios.post(
       `/api/v2/oauth2-provider/apps`,
       data,
     );
@@ -1323,7 +1315,7 @@ export class CoderApi {
     id: string,
     data: TypesGen.PutOAuth2ProviderAppRequest,
   ): Promise<TypesGen.OAuth2ProviderApp> => {
-    const response = await axiosInstance.put(
+    const response = await this.axios.put(
       `/api/v2/oauth2-provider/apps/${id}`,
       data,
     );
@@ -1331,13 +1323,13 @@ export class CoderApi {
   };
 
   deleteOAuth2ProviderApp = async (id: string): Promise<void> => {
-    await axiosInstance.delete(`/api/v2/oauth2-provider/apps/${id}`);
+    await this.axios.delete(`/api/v2/oauth2-provider/apps/${id}`);
   };
 
   getOAuth2ProviderAppSecrets = async (
     id: string,
   ): Promise<TypesGen.OAuth2ProviderAppSecret[]> => {
-    const resp = await axiosInstance.get(
+    const resp = await this.axios.get(
       `/api/v2/oauth2-provider/apps/${id}/secrets`,
     );
     return resp.data;
@@ -1346,7 +1338,7 @@ export class CoderApi {
   postOAuth2ProviderAppSecret = async (
     id: string,
   ): Promise<TypesGen.OAuth2ProviderAppSecretFull> => {
-    const resp = await axiosInstance.post(
+    const resp = await this.axios.post(
       `/api/v2/oauth2-provider/apps/${id}/secrets`,
     );
     return resp.data;
@@ -1356,27 +1348,27 @@ export class CoderApi {
     appId: string,
     secretId: string,
   ): Promise<void> => {
-    await axiosInstance.delete(
+    await this.axios.delete(
       `/api/v2/oauth2-provider/apps/${appId}/secrets/${secretId}`,
     );
   };
 
   revokeOAuth2ProviderApp = async (appId: string): Promise<void> => {
-    await axiosInstance.delete(`/oauth2/tokens?client_id=${appId}`);
+    await this.axios.delete(`/oauth2/tokens?client_id=${appId}`);
   };
 
   getAuditLogs = async (
     options: TypesGen.AuditLogsRequest,
   ): Promise<TypesGen.AuditLogResponse> => {
     const url = getURLWithSearchParams("/api/v2/audit", options);
-    const response = await axiosInstance.get(url);
+    const response = await this.axios.get(url);
     return response.data;
   };
 
   getTemplateDAUs = async (
     templateId: string,
   ): Promise<TypesGen.DAUsResponse> => {
-    const response = await axiosInstance.get(
+    const response = await this.axios.get(
       `/api/v2/templates/${templateId}/daus`,
     );
     return response.data;
@@ -1388,7 +1380,7 @@ export class CoderApi {
     // we truncate the tz offset down to the closest hour.
     offset = Math.trunc(new Date().getTimezoneOffset() / 60),
   ): Promise<TypesGen.DAUsResponse> => {
-    const response = await axiosInstance.get(
+    const response = await this.axios.get(
       `/api/v2/insights/daus?tz_offset=${offset}`,
     );
     return response.data;
@@ -1402,14 +1394,14 @@ export class CoderApi {
       `/api/v2/templates/${templateId}/acl/available`,
       options,
     );
-    const response = await axiosInstance.get(url.toString());
+    const response = await this.axios.get(url.toString());
     return response.data;
   };
 
   getTemplateACL = async (
     templateId: string,
   ): Promise<TypesGen.TemplateACL> => {
-    const response = await axiosInstance.get(
+    const response = await this.axios.get(
       `/api/v2/templates/${templateId}/acl`,
     );
     return response.data;
@@ -1419,7 +1411,7 @@ export class CoderApi {
     templateId: string,
     data: TypesGen.UpdateTemplateACL,
   ): Promise<{ message: string }> => {
-    const response = await axiosInstance.patch(
+    const response = await this.axios.patch(
       `/api/v2/templates/${templateId}/acl`,
       data,
     );
@@ -1427,14 +1419,14 @@ export class CoderApi {
   };
 
   getApplicationsHost = async (): Promise<TypesGen.AppHostResponse> => {
-    const response = await axiosInstance.get(`/api/v2/applications/host`);
+    const response = await this.axios.get(`/api/v2/applications/host`);
     return response.data;
   };
 
   getGroups = async (
     organizationId: string,
   ): Promise<readonly TypesGen.Group[]> => {
-    const response = await axiosInstance.get(
+    const response = await this.axios.get(
       `/api/v2/organizations/${organizationId}/groups`,
     );
     return response.data;
@@ -1444,7 +1436,7 @@ export class CoderApi {
     organizationId: string,
     data: TypesGen.CreateGroupRequest,
   ): Promise<TypesGen.Group> => {
-    const response = await axiosInstance.post(
+    const response = await this.axios.post(
       `/api/v2/organizations/${organizationId}/groups`,
       data,
     );
@@ -1452,7 +1444,7 @@ export class CoderApi {
   };
 
   getGroup = async (groupId: string): Promise<TypesGen.Group> => {
-    const response = await axiosInstance.get(`/api/v2/groups/${groupId}`);
+    const response = await this.axios.get(`/api/v2/groups/${groupId}`);
     return response.data;
   };
 
@@ -1460,10 +1452,7 @@ export class CoderApi {
     groupId: string,
     data: TypesGen.PatchGroupRequest,
   ): Promise<TypesGen.Group> => {
-    const response = await axiosInstance.patch(
-      `/api/v2/groups/${groupId}`,
-      data,
-    );
+    const response = await this.axios.patch(`/api/v2/groups/${groupId}`, data);
     return response.data;
   };
 
@@ -1485,13 +1474,13 @@ export class CoderApi {
   };
 
   deleteGroup = async (groupId: string): Promise<void> => {
-    await axiosInstance.delete(`/api/v2/groups/${groupId}`);
+    await this.axios.delete(`/api/v2/groups/${groupId}`);
   };
 
   getWorkspaceQuota = async (
     username: string,
   ): Promise<TypesGen.WorkspaceQuota> => {
-    const response = await axiosInstance.get(
+    const response = await this.axios.get(
       `/api/v2/workspace-quota/${encodeURIComponent(username)}`,
     );
     return response.data;
@@ -1500,7 +1489,7 @@ export class CoderApi {
   getAgentListeningPorts = async (
     agentID: string,
   ): Promise<TypesGen.WorkspaceAgentListeningPortsResponse> => {
-    const response = await axiosInstance.get(
+    const response = await this.axios.get(
       `/api/v2/workspaceagents/${agentID}/listening-ports`,
     );
     return response.data;
@@ -1509,7 +1498,7 @@ export class CoderApi {
   getWorkspaceAgentSharedPorts = async (
     workspaceID: string,
   ): Promise<TypesGen.WorkspaceAgentPortShares> => {
-    const response = await axiosInstance.get(
+    const response = await this.axios.get(
       `/api/v2/workspaces/${workspaceID}/port-share`,
     );
     return response.data;
@@ -1519,7 +1508,7 @@ export class CoderApi {
     workspaceID: string,
     req: TypesGen.UpsertWorkspaceAgentPortShareRequest,
   ): Promise<TypesGen.WorkspaceAgentPortShares> => {
-    const response = await axiosInstance.post(
+    const response = await this.axios.post(
       `/api/v2/workspaces/${workspaceID}/port-share`,
       req,
     );
@@ -1530,7 +1519,7 @@ export class CoderApi {
     workspaceID: string,
     req: TypesGen.DeleteWorkspaceAgentPortShareRequest,
   ): Promise<TypesGen.WorkspaceAgentPortShares> => {
-    const response = await axiosInstance.delete(
+    const response = await this.axios.delete(
       `/api/v2/workspaces/${workspaceID}/port-share`,
       {
         data: req,
@@ -1541,27 +1530,27 @@ export class CoderApi {
 
   // getDeploymentSSHConfig is used by the VSCode-Extension.
   getDeploymentSSHConfig = async (): Promise<TypesGen.SSHConfigResponse> => {
-    const response = await axiosInstance.get(`/api/v2/deployment/ssh`);
+    const response = await this.axios.get(`/api/v2/deployment/ssh`);
     return response.data;
   };
 
   getDeploymentConfig = async (): Promise<DeploymentConfig> => {
-    const response = await axiosInstance.get(`/api/v2/deployment/config`);
+    const response = await this.axios.get(`/api/v2/deployment/config`);
     return response.data;
   };
 
   getDeploymentStats = async (): Promise<TypesGen.DeploymentStats> => {
-    const response = await axiosInstance.get(`/api/v2/deployment/stats`);
+    const response = await this.axios.get(`/api/v2/deployment/stats`);
     return response.data;
   };
 
   getReplicas = async (): Promise<readonly TypesGen.Replica[]> => {
-    const response = await axiosInstance.get(`/api/v2/replicas`);
+    const response = await this.axios.get(`/api/v2/replicas`);
     return response.data;
   };
 
   getFile = async (fileId: string): Promise<ArrayBuffer> => {
-    const response = await axiosInstance.get<ArrayBuffer>(
+    const response = await this.axios.get<ArrayBuffer>(
       `/api/v2/files/${fileId}`,
       { responseType: "arraybuffer" },
     );
@@ -1573,7 +1562,7 @@ export class CoderApi {
     TypesGen.RegionsResponse<TypesGen.Region>
   > => {
     const response =
-      await axiosInstance.get<TypesGen.RegionsResponse<TypesGen.Region>>(
+      await this.axios.get<TypesGen.RegionsResponse<TypesGen.Region>>(
         `/api/v2/regions`,
       );
     return response.data;
@@ -1582,7 +1571,7 @@ export class CoderApi {
   getWorkspaceProxies = async (): Promise<
     TypesGen.RegionsResponse<TypesGen.WorkspaceProxy>
   > => {
-    const response = await axiosInstance.get<
+    const response = await this.axios.get<
       TypesGen.RegionsResponse<TypesGen.WorkspaceProxy>
     >(`/api/v2/workspaceproxies`);
     return response.data;
@@ -1591,13 +1580,13 @@ export class CoderApi {
   createWorkspaceProxy = async (
     b: TypesGen.CreateWorkspaceProxyRequest,
   ): Promise<TypesGen.UpdateWorkspaceProxyResponse> => {
-    const response = await axiosInstance.post(`/api/v2/workspaceproxies`, b);
+    const response = await this.axios.post(`/api/v2/workspaceproxies`, b);
     return response.data;
   };
 
   getAppearance = async (): Promise<TypesGen.AppearanceConfig> => {
     try {
-      const response = await axiosInstance.get(`/api/v2/appearance`);
+      const response = await this.axios.get(`/api/v2/appearance`);
       return response.data || {};
     } catch (ex) {
       if (isAxiosError(ex) && ex.response?.status === 404) {
@@ -1616,21 +1605,21 @@ export class CoderApi {
   updateAppearance = async (
     b: TypesGen.AppearanceConfig,
   ): Promise<TypesGen.AppearanceConfig> => {
-    const response = await axiosInstance.put(`/api/v2/appearance`, b);
+    const response = await this.axios.put(`/api/v2/appearance`, b);
     return response.data;
   };
 
   getTemplateExamples = async (
     organizationId: string,
   ): Promise<readonly TypesGen.TemplateExample[]> => {
-    const response = await axiosInstance.get(
+    const response = await this.axios.get(
       `/api/v2/organizations/${organizationId}/templates/examples`,
     );
     return response.data;
   };
 
   uploadFile = async (file: File): Promise<TypesGen.UploadResponse> => {
-    const response = await axiosInstance.post("/api/v2/files", file, {
+    const response = await this.axios.post("/api/v2/files", file, {
       headers: {
         "Content-Type": "application/x-tar",
       },
@@ -1641,7 +1630,7 @@ export class CoderApi {
   getTemplateVersionLogs = async (
     versionId: string,
   ): Promise<readonly TypesGen.ProvisionerJobLog[]> => {
-    const response = await axiosInstance.get<
+    const response = await this.axios.get<
       readonly TypesGen.ProvisionerJobLog[]
     >(`/api/v2/templateversions/${versionId}/logs`);
     return response.data;
@@ -1657,7 +1646,7 @@ export class CoderApi {
   getWorkspaceBuildParameters = async (
     workspaceBuildId: TypesGen.WorkspaceBuild["id"],
   ): Promise<readonly TypesGen.WorkspaceBuildParameter[]> => {
-    const response = await axiosInstance.get<
+    const response = await this.axios.get<
       readonly TypesGen.WorkspaceBuildParameter[]
     >(`/api/v2/workspacebuilds/${workspaceBuildId}/parameters`);
 
@@ -1665,19 +1654,19 @@ export class CoderApi {
   };
 
   getLicenses = async (): Promise<GetLicensesResponse[]> => {
-    const response = await axiosInstance.get(`/api/v2/licenses`);
+    const response = await this.axios.get(`/api/v2/licenses`);
     return response.data;
   };
 
   createLicense = async (
     data: TypesGen.AddLicenseRequest,
   ): Promise<TypesGen.AddLicenseRequest> => {
-    const response = await axiosInstance.post(`/api/v2/licenses`, data);
+    const response = await this.axios.post(`/api/v2/licenses`, data);
     return response.data;
   };
 
   removeLicense = async (licenseId: number): Promise<void> => {
-    await axiosInstance.delete(`/api/v2/licenses/${licenseId}`);
+    await this.axios.delete(`/api/v2/licenses/${licenseId}`);
   };
 
   /** Steps to change the workspace version
@@ -1755,7 +1744,7 @@ export class CoderApi {
   getWorkspaceResolveAutostart = async (
     workspaceId: string,
   ): Promise<TypesGen.ResolveAutostartResponse> => {
-    const response = await axiosInstance.get(
+    const response = await this.axios.get(
       `/api/v2/workspaces/${workspaceId}/resolve-autostart`,
     );
     return response.data;
@@ -1764,7 +1753,7 @@ export class CoderApi {
   issueReconnectingPTYSignedToken = async (
     params: TypesGen.IssueReconnectingPTYSignedTokenRequest,
   ): Promise<TypesGen.IssueReconnectingPTYSignedTokenResponse> => {
-    const response = await axiosInstance.post(
+    const response = await this.axios.post(
       "/api/v2/applications/reconnecting-pty-signed-token",
       params,
     );
@@ -1788,7 +1777,7 @@ export class CoderApi {
     filters: InsightsParams,
   ): Promise<TypesGen.UserLatencyInsightsResponse> => {
     const params = new URLSearchParams(filters);
-    const response = await axiosInstance.get(
+    const response = await this.axios.get(
       `/api/v2/insights/user-latency?${params}`,
     );
     return response.data;
@@ -1798,7 +1787,7 @@ export class CoderApi {
     filters: InsightsParams,
   ): Promise<TypesGen.UserActivityInsightsResponse> => {
     const params = new URLSearchParams(filters);
-    const response = await axiosInstance.get(
+    const response = await this.axios.get(
       `/api/v2/insights/user-activity?${params}`,
     );
     return response.data;
@@ -1808,7 +1797,7 @@ export class CoderApi {
     params: InsightsTemplateParams,
   ): Promise<TypesGen.TemplateInsightsResponse> => {
     const searchParams = new URLSearchParams(params);
-    const response = await axiosInstance.get(
+    const response = await this.axios.get(
       `/api/v2/insights/templates?${searchParams}`,
     );
     return response.data;
@@ -1816,7 +1805,7 @@ export class CoderApi {
 
   getHealth = async (force: boolean = false) => {
     const params = new URLSearchParams({ force: force.toString() });
-    const response = await axiosInstance.get<TypesGen.HealthcheckReport>(
+    const response = await this.axios.get<TypesGen.HealthcheckReport>(
       `/api/v2/debug/health?${params}`,
     );
     return response.data;
@@ -1824,14 +1813,14 @@ export class CoderApi {
 
   getHealthSettings = async () => {
     return (
-      await axiosInstance.get<TypesGen.HealthSettings>(
+      await this.axios.get<TypesGen.HealthSettings>(
         `/api/v2/debug/health/settings`,
       )
     ).data;
   };
 
   updateHealthSettings = async (data: TypesGen.UpdateHealthSettings) => {
-    const response = await axiosInstance.put<TypesGen.HealthSettings>(
+    const response = await this.axios.put<TypesGen.HealthSettings>(
       `/api/v2/debug/health/settings`,
       data,
     );
@@ -1839,11 +1828,11 @@ export class CoderApi {
   };
 
   putFavoriteWorkspace = async (workspaceID: string) => {
-    await axiosInstance.put(`/api/v2/workspaces/${workspaceID}/favorite`);
+    await this.axios.put(`/api/v2/workspaces/${workspaceID}/favorite`);
   };
 
   deleteFavoriteWorkspace = async (workspaceID: string) => {
-    await axiosInstance.delete(`/api/v2/workspaces/${workspaceID}/favorite`);
+    await this.axios.delete(`/api/v2/workspaces/${workspaceID}/favorite`);
   };
 
   getJFrogXRayScan = async (options: GetJFrogXRayScanParams) => {
@@ -1853,7 +1842,7 @@ export class CoderApi {
     });
 
     try {
-      const res = await axiosInstance.get<TypesGen.JFrogXrayScan>(
+      const res = await this.axios.get<TypesGen.JFrogXrayScan>(
         `/api/v2/integrations/jfrog/xray-scan?${searchParams}`,
       );
       return res.data;
@@ -1867,4 +1856,3 @@ export class CoderApi {
 }
 
 export const api = new CoderApi();
-export const axiosInstance = globalAxios.create();

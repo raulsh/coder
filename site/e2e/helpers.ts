@@ -6,7 +6,7 @@ import capitalize from "lodash/capitalize";
 import path from "path";
 import * as ssh from "ssh2";
 import { Duplex } from "stream";
-import { axiosInstance } from "api/api";
+import { api } from "api/api";
 import type {
   WorkspaceBuildParameter,
   UpdateTemplateMeta,
@@ -398,7 +398,7 @@ export const waitUntilUrlIsNotResponding = async (url: string) => {
 
   while (retries < maxRetries) {
     try {
-      await axiosInstance.get(url);
+      await api.axios.get(url);
     } catch (error) {
       return;
     }
