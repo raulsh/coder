@@ -1,7 +1,7 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
-import { MissingBuildParameters, api } from "api/api";
+import { MissingBuildParameters, api, watchWorkspaceAgentLogs } from "api/api";
 import type { TemplateVersionParameter, Workspace } from "api/typesGenerated";
 import EventSourceMock from "eventsourcemock";
 import {
@@ -30,9 +30,14 @@ const renderWorkspacePage = async (workspace: Workspace) => {
   jest
     .spyOn(api, "getDeploymentConfig")
     .mockResolvedValueOnce(MockDeploymentConfig);
+
+  const websocketsMock = {
+    watchWorkspaceAgentLogs,
+  };
+
   jest
-    .spyOn(api, "watchWorkspaceAgentLogs")
-    .mockImplementation((_, options) => {
+    .spyOn(websocketsMock, "watchWorkspaceAgentLogs")
+    .mockImplementation((options) => {
       options.onDone?.();
       return new WebSocket("");
     });
