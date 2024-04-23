@@ -129,6 +129,8 @@ type sqlcQuerier interface {
 	GetGroupsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]Group, error)
 	GetHealthSettings(ctx context.Context) (string, error)
 	GetHungProvisionerJobs(ctx context.Context, updatedAt time.Time) ([]ProvisionerJob, error)
+	// Obtains a list of cohorts that a user can track invocations for.
+	GetIntelCohortsMatchedByMachineIDs(ctx context.Context, ids []uuid.UUID) ([]GetIntelCohortsMatchedByMachineIDsRow, error)
 	GetJFrogXrayScanByWorkspaceAndAgentID(ctx context.Context, arg GetJFrogXrayScanByWorkspaceAndAgentIDParams) (JfrogXrayScan, error)
 	GetLastUpdateCheck(ctx context.Context) (string, error)
 	GetLatestWorkspaceBuildByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) (WorkspaceBuild, error)
@@ -310,6 +312,9 @@ type sqlcQuerier interface {
 	InsertGitSSHKey(ctx context.Context, arg InsertGitSSHKeyParams) (GitSSHKey, error)
 	InsertGroup(ctx context.Context, arg InsertGroupParams) (Group, error)
 	InsertGroupMember(ctx context.Context, arg InsertGroupMemberParams) error
+	InsertIntelCohort(ctx context.Context, arg InsertIntelCohortParams) (IntelCohort, error)
+	// Insert many invocations using unnest
+	InsertIntelInvocations(ctx context.Context, arg InsertIntelInvocationsParams) error
 	InsertLicense(ctx context.Context, arg InsertLicenseParams) (License, error)
 	// Inserts any group by name that does not exist. All new groups are given
 	// a random uuid, are inserted into the same organization. They have the default
@@ -424,6 +429,7 @@ type sqlcQuerier interface {
 	// The functional values are immutable and controlled implicitly.
 	UpsertDefaultProxy(ctx context.Context, arg UpsertDefaultProxyParams) error
 	UpsertHealthSettings(ctx context.Context, value string) error
+	UpsertIntelMachine(ctx context.Context, arg UpsertIntelMachineParams) (IntelMachine, error)
 	UpsertJFrogXrayScanByWorkspaceAndAgentID(ctx context.Context, arg UpsertJFrogXrayScanByWorkspaceAndAgentIDParams) error
 	UpsertLastUpdateCheck(ctx context.Context, value string) error
 	UpsertLogoURL(ctx context.Context, value string) error

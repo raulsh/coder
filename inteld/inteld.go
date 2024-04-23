@@ -28,7 +28,7 @@ import (
 	"github.com/kalafut/imohash"
 )
 
-type Dialer func(ctx context.Context) (proto.DRPCIntelDaemonClient, error)
+type Dialer func(ctx context.Context, hostInfo codersdk.IntelDaemonHostInfo) (proto.DRPCIntelDaemonClient, error)
 
 type Options struct {
 	// Dialer connects the daemon to a client.
@@ -56,7 +56,7 @@ func New(opts Options) *API {
 		panic("Dialer is required")
 	}
 	if opts.InvocationFlushInterval == 0 {
-		opts.InvocationFlushInterval = 5 * time.Second
+		opts.InvocationFlushInterval = 30 * time.Second
 	}
 	if opts.Filesystem == nil {
 		opts.Filesystem = afero.NewOsFs()
@@ -77,7 +77,7 @@ func New(opts Options) *API {
 	api.closeWaitGroup.Add(3)
 	go api.invocationQueueLoop()
 	go api.connectLoop()
-	go api.registerLoop()
+	go api.listenLoop()
 	return api
 }
 
@@ -124,8 +124,8 @@ func (a *API) invocationQueueLoop() {
 	}
 }
 
-// registerLoop starts a loop that registers the system with the server.
-func (a *API) registerLoop() {
+// listenLoop starts a loop that listens for messages from the system.
+func (a *API) listenLoop() {
 	defer a.logger.Debug(a.closeContext, "system loop exited")
 	defer a.closeWaitGroup.Done()
 	for {
@@ -146,33 +146,10 @@ func (a *API) registerLoop() {
 		if err != nil {
 			a.logger.Warn(a.closeContext, "unable to fetch user.name from git config", slog.Error(err))
 		}
-		var (
-			hostname    string
-			osVersion   string
-			memoryTotal uint64
-		)
-		sysInfoHost, err := sysinfo.Host()
-		if err == nil {
-			info := sysInfoHost.Info()
-			osVersion = info.OS.Version
-			hostname = info.Hostname
-			mem, err := sysInfoHost.Memory()
-			if err == nil {
-				memoryTotal = mem.Total
-			}
-		} else {
-			a.logger.Warn(a.closeContext, "unable to fetch machine information", slog.Error(err))
-		}
-		system, err := client.Register(a.closeContext, &proto.RegisterRequest{
-			Hostname:               hostname,
-			OperatingSystem:        runtime.GOOS,
-			Architecture:           runtime.GOARCH,
-			OperatingSystemVersion: osVersion,
-			CpuCores:               uint32(runtime.NumCPU()),
-			MemoryTotal:            memoryTotal,
-			GitConfigEmail:         userEmail,
-			GitConfigName:          userName,
-			InstalledSoftware:      &proto.InstalledSoftware{
+		system, err := client.Listen(a.closeContext, &proto.ListenRequest{
+			GitConfigEmail:    userEmail,
+			GitConfigName:     userName,
+			InstalledSoftware: &proto.InstalledSoftware{
 				// TODO: Make this valid!
 			},
 		})
@@ -186,7 +163,7 @@ func (a *API) registerLoop() {
 	}
 }
 
-func (a *API) systemRecvLoop(client proto.DRPCIntelDaemon_RegisterClient) {
+func (a *API) systemRecvLoop(client proto.DRPCIntelDaemon_ListenClient) {
 	ctx := a.closeContext
 	for {
 		resp, err := client.Recv()
@@ -257,10 +234,39 @@ func (a *API) trackExecutables(binaryNames []string) error {
 func (a *API) connectLoop() {
 	defer a.logger.Debug(a.closeContext, "connect loop exited")
 	defer a.closeWaitGroup.Done()
+
+	var (
+		hostname    string
+		osVersion   string
+		memoryTotal uint64
+		instanceID  string
+	)
+	sysInfoHost, err := sysinfo.Host()
+	if err == nil {
+		info := sysInfoHost.Info()
+		instanceID = info.UniqueID
+		osVersion = info.OS.Version
+		hostname = info.Hostname
+		mem, err := sysInfoHost.Memory()
+		if err == nil {
+			memoryTotal = mem.Total
+		}
+	} else {
+		a.logger.Warn(a.closeContext, "unable to fetch machine information", slog.Error(err))
+	}
+	hostInfo := codersdk.IntelDaemonHostInfo{
+		InstanceID:             instanceID,
+		Hostname:               hostname,
+		OperatingSystem:        runtime.GOOS,
+		Architecture:           runtime.GOARCH,
+		OperatingSystemVersion: osVersion,
+		CPUCores:               uint16(runtime.NumCPU()),
+		MemoryTotalMB:          memoryTotal,
+	}
 connectLoop:
 	for retrier := retry.New(50*time.Millisecond, 10*time.Second); retrier.Wait(a.closeContext); {
 		a.logger.Debug(a.closeContext, "dialing coderd")
-		client, err := a.clientDialer(a.closeContext)
+		client, err := a.clientDialer(a.closeContext, hostInfo)
 		if err != nil {
 			if errors.Is(err, context.Canceled) {
 				return

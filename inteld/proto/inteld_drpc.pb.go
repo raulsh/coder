@@ -38,7 +38,7 @@ func (drpcEncoding_File_inteld_proto_inteld_proto) JSONUnmarshal(buf []byte, msg
 type DRPCIntelDaemonClient interface {
 	DRPCConn() drpc.Conn
 
-	Register(ctx context.Context, in *RegisterRequest) (DRPCIntelDaemon_RegisterClient, error)
+	Listen(ctx context.Context, in *ListenRequest) (DRPCIntelDaemon_ListenClient, error)
 	RecordInvocation(ctx context.Context, in *RecordInvocationRequest) (*Empty, error)
 	ReportPath(ctx context.Context, in *ReportPathRequest) (*Empty, error)
 }
@@ -53,12 +53,12 @@ func NewDRPCIntelDaemonClient(cc drpc.Conn) DRPCIntelDaemonClient {
 
 func (c *drpcIntelDaemonClient) DRPCConn() drpc.Conn { return c.cc }
 
-func (c *drpcIntelDaemonClient) Register(ctx context.Context, in *RegisterRequest) (DRPCIntelDaemon_RegisterClient, error) {
-	stream, err := c.cc.NewStream(ctx, "/inteld.IntelDaemon/Register", drpcEncoding_File_inteld_proto_inteld_proto{})
+func (c *drpcIntelDaemonClient) Listen(ctx context.Context, in *ListenRequest) (DRPCIntelDaemon_ListenClient, error) {
+	stream, err := c.cc.NewStream(ctx, "/inteld.IntelDaemon/Listen", drpcEncoding_File_inteld_proto_inteld_proto{})
 	if err != nil {
 		return nil, err
 	}
-	x := &drpcIntelDaemon_RegisterClient{stream}
+	x := &drpcIntelDaemon_ListenClient{stream}
 	if err := x.MsgSend(in, drpcEncoding_File_inteld_proto_inteld_proto{}); err != nil {
 		return nil, err
 	}
@@ -68,20 +68,20 @@ func (c *drpcIntelDaemonClient) Register(ctx context.Context, in *RegisterReques
 	return x, nil
 }
 
-type DRPCIntelDaemon_RegisterClient interface {
+type DRPCIntelDaemon_ListenClient interface {
 	drpc.Stream
 	Recv() (*SystemResponse, error)
 }
 
-type drpcIntelDaemon_RegisterClient struct {
+type drpcIntelDaemon_ListenClient struct {
 	drpc.Stream
 }
 
-func (x *drpcIntelDaemon_RegisterClient) GetStream() drpc.Stream {
+func (x *drpcIntelDaemon_ListenClient) GetStream() drpc.Stream {
 	return x.Stream
 }
 
-func (x *drpcIntelDaemon_RegisterClient) Recv() (*SystemResponse, error) {
+func (x *drpcIntelDaemon_ListenClient) Recv() (*SystemResponse, error) {
 	m := new(SystemResponse)
 	if err := x.MsgRecv(m, drpcEncoding_File_inteld_proto_inteld_proto{}); err != nil {
 		return nil, err
@@ -89,7 +89,7 @@ func (x *drpcIntelDaemon_RegisterClient) Recv() (*SystemResponse, error) {
 	return m, nil
 }
 
-func (x *drpcIntelDaemon_RegisterClient) RecvMsg(m *SystemResponse) error {
+func (x *drpcIntelDaemon_ListenClient) RecvMsg(m *SystemResponse) error {
 	return x.MsgRecv(m, drpcEncoding_File_inteld_proto_inteld_proto{})
 }
 
@@ -112,14 +112,14 @@ func (c *drpcIntelDaemonClient) ReportPath(ctx context.Context, in *ReportPathRe
 }
 
 type DRPCIntelDaemonServer interface {
-	Register(*RegisterRequest, DRPCIntelDaemon_RegisterStream) error
+	Listen(*ListenRequest, DRPCIntelDaemon_ListenStream) error
 	RecordInvocation(context.Context, *RecordInvocationRequest) (*Empty, error)
 	ReportPath(context.Context, *ReportPathRequest) (*Empty, error)
 }
 
 type DRPCIntelDaemonUnimplementedServer struct{}
 
-func (s *DRPCIntelDaemonUnimplementedServer) Register(*RegisterRequest, DRPCIntelDaemon_RegisterStream) error {
+func (s *DRPCIntelDaemonUnimplementedServer) Listen(*ListenRequest, DRPCIntelDaemon_ListenStream) error {
 	return drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
 }
 
@@ -138,14 +138,14 @@ func (DRPCIntelDaemonDescription) NumMethods() int { return 3 }
 func (DRPCIntelDaemonDescription) Method(n int) (string, drpc.Encoding, drpc.Receiver, interface{}, bool) {
 	switch n {
 	case 0:
-		return "/inteld.IntelDaemon/Register", drpcEncoding_File_inteld_proto_inteld_proto{},
+		return "/inteld.IntelDaemon/Listen", drpcEncoding_File_inteld_proto_inteld_proto{},
 			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
 				return nil, srv.(DRPCIntelDaemonServer).
-					Register(
-						in1.(*RegisterRequest),
-						&drpcIntelDaemon_RegisterStream{in2.(drpc.Stream)},
+					Listen(
+						in1.(*ListenRequest),
+						&drpcIntelDaemon_ListenStream{in2.(drpc.Stream)},
 					)
-			}, DRPCIntelDaemonServer.Register, true
+			}, DRPCIntelDaemonServer.Listen, true
 	case 1:
 		return "/inteld.IntelDaemon/RecordInvocation", drpcEncoding_File_inteld_proto_inteld_proto{},
 			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
@@ -173,16 +173,16 @@ func DRPCRegisterIntelDaemon(mux drpc.Mux, impl DRPCIntelDaemonServer) error {
 	return mux.Register(impl, DRPCIntelDaemonDescription{})
 }
 
-type DRPCIntelDaemon_RegisterStream interface {
+type DRPCIntelDaemon_ListenStream interface {
 	drpc.Stream
 	Send(*SystemResponse) error
 }
 
-type drpcIntelDaemon_RegisterStream struct {
+type drpcIntelDaemon_ListenStream struct {
 	drpc.Stream
 }
 
-func (x *drpcIntelDaemon_RegisterStream) Send(m *SystemResponse) error {
+func (x *drpcIntelDaemon_ListenStream) Send(m *SystemResponse) error {
 	return x.MsgSend(m, drpcEncoding_File_inteld_proto_inteld_proto{})
 }
 

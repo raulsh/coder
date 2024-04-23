@@ -1184,6 +1184,21 @@ func (mr *MockStoreMockRecorder) GetHungProvisionerJobs(arg0, arg1 any) *gomock.
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetHungProvisionerJobs", reflect.TypeOf((*MockStore)(nil).GetHungProvisionerJobs), arg0, arg1)
 }
 
+// GetIntelCohortsMatchedByMachineIDs mocks base method.
+func (m *MockStore) GetIntelCohortsMatchedByMachineIDs(arg0 context.Context, arg1 []uuid.UUID) ([]database.GetIntelCohortsMatchedByMachineIDsRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetIntelCohortsMatchedByMachineIDs", arg0, arg1)
+	ret0, _ := ret[0].([]database.GetIntelCohortsMatchedByMachineIDsRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetIntelCohortsMatchedByMachineIDs indicates an expected call of GetIntelCohortsMatchedByMachineIDs.
+func (mr *MockStoreMockRecorder) GetIntelCohortsMatchedByMachineIDs(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetIntelCohortsMatchedByMachineIDs", reflect.TypeOf((*MockStore)(nil).GetIntelCohortsMatchedByMachineIDs), arg0, arg1)
+}
+
 // GetJFrogXrayScanByWorkspaceAndAgentID mocks base method.
 func (m *MockStore) GetJFrogXrayScanByWorkspaceAndAgentID(arg0 context.Context, arg1 database.GetJFrogXrayScanByWorkspaceAndAgentIDParams) (database.JfrogXrayScan, error) {
 	m.ctrl.T.Helper()
@@ -3159,6 +3174,20 @@ func (mr *MockStoreMockRecorder) InsertGroupMember(arg0, arg1 any) *gomock.Call 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertGroupMember", reflect.TypeOf((*MockStore)(nil).InsertGroupMember), arg0, arg1)
 }
 
+// InsertIntelCohort mocks base method.
+func (m *MockStore) InsertIntelCohort(arg0 context.Context, arg1 database.InsertIntelCohortParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertIntelCohort", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// InsertIntelCohort indicates an expected call of InsertIntelCohort.
+func (mr *MockStoreMockRecorder) InsertIntelCohort(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertIntelCohort", reflect.TypeOf((*MockStore)(nil).InsertIntelCohort), arg0, arg1)
+}
+
 // InsertLicense mocks base method.
 func (m *MockStore) InsertLicense(arg0 context.Context, arg1 database.InsertLicenseParams) (database.License, error) {
 	m.ctrl.T.Helper()
@@ -4622,6 +4651,21 @@ func (m *MockStore) UpsertHealthSettings(arg0 context.Context, arg1 string) erro
 func (mr *MockStoreMockRecorder) UpsertHealthSettings(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertHealthSettings", reflect.TypeOf((*MockStore)(nil).UpsertHealthSettings), arg0, arg1)
+}
+
+// UpsertIntelMachine mocks base method.
+func (m *MockStore) UpsertIntelMachine(arg0 context.Context, arg1 database.UpsertIntelMachineParams) (database.IntelMachine, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertIntelMachine", arg0, arg1)
+	ret0, _ := ret[0].(database.IntelMachine)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpsertIntelMachine indicates an expected call of UpsertIntelMachine.
+func (mr *MockStoreMockRecorder) UpsertIntelMachine(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertIntelMachine", reflect.TypeOf((*MockStore)(nil).UpsertIntelMachine), arg0, arg1)
 }
 
 // UpsertJFrogXrayScanByWorkspaceAndAgentID mocks base method.

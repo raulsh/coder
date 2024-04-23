@@ -2,16 +2,23 @@ package coderd
 
 import (
 	"context"
+	"database/sql"
 	"io"
+	"net"
 	"net/http"
+	"strconv"
 
+	"github.com/google/uuid"
 	"github.com/hashicorp/yamux"
+	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/xerrors"
 	"nhooyr.io/websocket"
 	"storj.io/drpc/drpcmux"
 	"storj.io/drpc/drpcserver"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/inteldserver"
@@ -21,8 +28,77 @@ import (
 
 func (api *API) intelDaemonServe(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	apiKey := httpmw.APIKey(r)
 	organization := httpmw.OrganizationParam(r)
-	_ = organization
+
+	query := r.URL.Query()
+	cpuCores, err := strconv.ParseUint(query.Get("cpu_cores"), 10, 16)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid CPU cores.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	memoryTotalMB, err := strconv.ParseUint(query.Get("memory_total_mb"), 10, 64)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid memory total MB.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	hostInfo := codersdk.IntelDaemonHostInfo{
+		InstanceID:             query.Get("instance_id"),
+		Hostname:               query.Get("hostname"),
+		OperatingSystem:        query.Get("operating_system"),
+		OperatingSystemVersion: query.Get("operating_system_version"),
+		Architecture:           query.Get("architecture"),
+		Tags:                   query["tags"],
+		CPUCores:               uint16(cpuCores),
+		MemoryTotalMB:          memoryTotalMB,
+	}
+	remoteIP := net.ParseIP(r.RemoteAddr)
+	if remoteIP == nil {
+		remoteIP = net.IPv4(0, 0, 0, 0)
+	}
+	bitlen := len(remoteIP) * 8
+	ipAddress := pqtype.Inet{
+		IPNet: net.IPNet{
+			IP:   remoteIP,
+			Mask: net.CIDRMask(bitlen, bitlen),
+		},
+		Valid: true,
+	}
+
+	machine, err := api.Database.UpsertIntelMachine(ctx, database.UpsertIntelMachineParams{
+		ID:             uuid.New(),
+		CreatedAt:      dbtime.Now(),
+		UpdatedAt:      dbtime.Now(),
+		UserID:         apiKey.UserID,
+		OrganizationID: organization.ID,
+		IPAddress:      ipAddress,
+
+		InstanceID:      hostInfo.InstanceID,
+		Hostname:        hostInfo.Hostname,
+		OperatingSystem: hostInfo.OperatingSystem,
+		OperatingSystemVersion: sql.NullString{
+			String: hostInfo.OperatingSystemVersion,
+			Valid:  hostInfo.OperatingSystemVersion != "",
+		},
+		CpuCores:      int32(hostInfo.CPUCores),
+		MemoryMbTotal: int32(hostInfo.MemoryTotalMB),
+		Architecture:  hostInfo.Architecture,
+		DaemonVersion: "",
+		Tags:          hostInfo.Tags,
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error creating intel machine.",
+			Detail:  err.Error(),
+		})
+		return
+	}
 
 	api.WebsocketWaitMutex.Lock()
 	api.WebsocketWaitGroup.Add(1)
@@ -63,7 +139,13 @@ func (api *API) intelDaemonServe(rw http.ResponseWriter, r *http.Request) {
 	defer srvCancel()
 	logger := api.Logger
 
-	srv, err := inteldserver.New(srvCtx, inteldserver.Options{})
+	srv, err := inteldserver.New(srvCtx, inteldserver.Options{
+		Database:  api.Database,
+		Pubsub:    api.Pubsub,
+		Logger:    logger.Named("intel_server"),
+		MachineID: machine.ID,
+		UserID:    apiKey.UserID,
+	})
 	if err != nil {
 		if !xerrors.Is(err, context.Canceled) {
 			api.Logger.Error(ctx, "create intel daemon server", slog.Error(err))

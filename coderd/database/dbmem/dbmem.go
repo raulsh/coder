@@ -2420,6 +2420,10 @@ func (q *FakeQuerier) GetHungProvisionerJobs(_ context.Context, hungSince time.T
 	return hungJobs, nil
 }
 
+func (q *FakeQuerier) GetIntelCohortsMatchedByMachineIDs(ctx context.Context, ids []uuid.UUID) ([]database.GetIntelCohortsMatchedByMachineIDsRow, error) {
+	panic("not implemented")
+}
+
 func (q *FakeQuerier) GetJFrogXrayScanByWorkspaceAndAgentID(_ context.Context, arg database.GetJFrogXrayScanByWorkspaceAndAgentIDParams) (database.JfrogXrayScan, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
@@ -5995,6 +5999,24 @@ func (q *FakeQuerier) InsertGroupMember(_ context.Context, arg database.InsertGr
 	return nil
 }
 
+func (q *FakeQuerier) InsertIntelCohort(ctx context.Context, arg database.InsertIntelCohortParams) (database.IntelCohort, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	panic("not implemented")
+}
+
+func (q *FakeQuerier) InsertIntelInvocations(ctx context.Context, arg database.InsertIntelInvocationsParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	panic("not implemented")
+}
+
 func (q *FakeQuerier) InsertLicense(
 	_ context.Context, arg database.InsertLicenseParams,
 ) (database.License, error) {
@@ -8421,6 +8443,15 @@ func (q *FakeQuerier) UpsertHealthSettings(_ context.Context, data string) error
 
 	q.healthSettings = []byte(data)
 	return nil
+}
+
+func (q *FakeQuerier) UpsertIntelMachine(ctx context.Context, arg database.UpsertIntelMachineParams) (database.IntelMachine, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.IntelMachine{}, err
+	}
+
+	panic("not implemented")
 }
 
 func (q *FakeQuerier) UpsertJFrogXrayScanByWorkspaceAndAgentID(_ context.Context, arg database.UpsertJFrogXrayScanByWorkspaceAndAgentIDParams) error {

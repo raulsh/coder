@@ -10,9 +10,11 @@ import (
 
 	"cdr.dev/slog"
 
+	"github.com/google/uuid"
 	"github.com/hashicorp/yamux"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/inteld/proto"
 )
@@ -24,6 +26,13 @@ type Options struct {
 
 	Logger slog.Logger
 
+	// MachineID is the unique identifier for an intel
+	// machine that will be used to record invocations.
+	MachineID uuid.UUID
+
+	// UserID is the unique identifier for the machine owner.
+	UserID uuid.UUID
+
 	// InvocationFlushInterval is the interval at which invocations
 	// are flushed to the database.
 	InvocationFlushInterval time.Duration
@@ -34,9 +43,18 @@ type Options struct {
 }
 
 func New(ctx context.Context, opts Options) (proto.DRPCIntelDaemonServer, error) {
+	if opts.InvocationFlushInterval == 0 {
+		opts.InvocationFlushInterval = time.Minute
+	}
+	if opts.InvocationQueueLimit == 0 {
+		opts.InvocationQueueLimit = 1000
+	}
+
+	opts.Logger = opts.Logger.With(slog.F("machine_id", opts.MachineID), slog.F("user_id", opts.UserID))
+
+	ctx, cancelFunc := context.WithCancel(ctx)
 	srv := &server{
-		Database: opts.Database,
-		Pubsub:   opts.Pubsub,
+		Options: opts,
 
 		invocationQueue: &invocationQueue{
 			Cond:          sync.NewCond(&sync.Mutex{}),
@@ -45,6 +63,8 @@ func New(ctx context.Context, opts Options) (proto.DRPCIntelDaemonServer, error)
 			queueLimit:    opts.InvocationQueueLimit,
 			logger:        opts.Logger.Named("invocation_queue"),
 		},
+		closeContext: ctx,
+		closeCancel:  cancelFunc,
 	}
 
 	srv.closeWaitGroup.Add(1)
@@ -54,9 +74,7 @@ func New(ctx context.Context, opts Options) (proto.DRPCIntelDaemonServer, error)
 }
 
 type server struct {
-	Database database.Store
-	Pubsub   pubsub.Pubsub
-	Logger   slog.Logger
+	Options
 
 	closeContext    context.Context
 	closeCancel     context.CancelFunc
@@ -71,6 +89,41 @@ func (s *server) invocationQueueLoop() {
 	defer s.closeWaitGroup.Done()
 	for {
 		err := s.invocationQueue.startFlushLoop(s.closeContext, func(i []*proto.Invocation) error {
+			ids := make([]uuid.UUID, 0, len(i))
+			binaryHashes := make([]string, 0, len(i))
+			binaryPaths := make([]string, 0, len(i))
+			binaryArgs := make([][]string, 0, len(i))
+			binaryVersions := make([]string, 0, len(i))
+			workingDirs := make([]string, 0, len(i))
+			gitRemoteURLs := make([]string, 0, len(i))
+			durationsMS := make([]int32, 0, len(i))
+			for _, invocation := range i {
+				ids = append(ids, uuid.New())
+				binaryHashes = append(binaryHashes, invocation.Executable.Hash)
+				binaryPaths = append(binaryPaths, invocation.Executable.Path)
+				binaryArgs = append(binaryArgs, invocation.Arguments)
+				binaryVersions = append(binaryVersions, invocation.Executable.Version)
+				workingDirs = append(workingDirs, invocation.WorkingDirectory)
+				gitRemoteURLs = append(gitRemoteURLs, invocation.GitRemoteUrl)
+				durationsMS = append(durationsMS, int32(invocation.DurationMs))
+			}
+			err := s.Database.InsertIntelInvocations(s.closeContext, database.InsertIntelInvocationsParams{
+				ID:               ids,
+				CreatedAt:        dbtime.Now(),
+				MachineID:        s.MachineID,
+				UserID:           s.UserID,
+				BinaryHash:       binaryHashes,
+				BinaryPath:       binaryPaths,
+				BinaryArgs:       binaryArgs,
+				BinaryVersion:    binaryVersions,
+				WorkingDirectory: workingDirs,
+				GitRemoteUrl:     gitRemoteURLs,
+				DurationMs:       durationsMS,
+			})
+			if err != nil {
+				s.Logger.Error(s.closeContext, "write invocations", slog.Error(err))
+				return err
+			}
 			s.Logger.Info(s.closeContext, "invocations flushed", slog.F("count", len(i)))
 			return nil
 		})
@@ -85,25 +138,34 @@ func (s *server) invocationQueueLoop() {
 	}
 }
 
-func (s *server) Register(req *proto.RegisterRequest, stream proto.DRPCIntelDaemon_RegisterStream) error {
-	didIt := false
+func (s *server) Listen(req *proto.ListenRequest, stream proto.DRPCIntelDaemon_ListenStream) error {
+	// TODO: Move this centrally so on update a single query is fired instead!
+	cohorts, err := s.Database.GetIntelCohortsMatchedByMachineIDs(stream.Context(), []uuid.UUID{s.MachineID})
+	if err != nil {
+		return xerrors.Errorf("get intel cohorts: %w", err)
+	}
+	executablesToTrack := []string{}
+	for _, cohort := range cohorts {
+		if cohort.MachineID != s.MachineID {
+			continue
+		}
+		executablesToTrack = append(executablesToTrack, cohort.TrackedExecutables...)
+	}
+	err = stream.Send(&proto.SystemResponse{
+		Message: &proto.SystemResponse_TrackExecutables{
+			TrackExecutables: &proto.TrackExecutables{
+				BinaryName: executablesToTrack,
+			},
+		},
+	})
+	if err != nil {
+		return xerrors.Errorf("send track executables: %w", err)
+	}
 	for {
 		select {
+		// TODO: Listen for updates here!
 		case <-stream.Context().Done():
 			return nil
-		case <-time.After(time.Second):
-			if !didIt {
-				stream.Send(&proto.SystemResponse{
-					Message: &proto.SystemResponse_TrackExecutables{
-						TrackExecutables: &proto.TrackExecutables{
-							BinaryName: []string{
-								"go",
-								"node",
-							},
-						},
-					},
-				})
-			}
 		}
 	}
 

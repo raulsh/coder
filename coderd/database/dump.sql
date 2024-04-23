@@ -497,15 +497,16 @@ COMMENT ON COLUMN groups.source IS 'Source indicates how the group was created. 
 
 CREATE TABLE intel_cohorts (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
+    organization_id uuid NOT NULL,
     created_by uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
     display_name text NOT NULL,
     description text NOT NULL,
-    filter_regex_operating_system character varying(255) NOT NULL,
-    filter_regex_operating_system_version character varying(255) NOT NULL,
-    filter_regex_architecture character varying(255) NOT NULL,
-    filter_regex_repositories character varying(255) NOT NULL,
+    filter_regex_operating_system character varying(255),
+    filter_regex_operating_system_version character varying(255),
+    filter_regex_architecture character varying(255),
+    filter_regex_git_remote_url character varying(255),
     tracked_executables text[] NOT NULL
 );
 
@@ -524,34 +525,43 @@ CREATE TABLE intel_git_commits (
 
 CREATE TABLE intel_invocations (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
+    created_at timestamp with time zone NOT NULL,
     machine_id uuid NOT NULL,
     user_id uuid NOT NULL,
     binary_hash text NOT NULL,
     binary_path text NOT NULL,
-    binary_args character varying(255) NOT NULL,
+    binary_args text[] NOT NULL,
     binary_version text NOT NULL,
     working_directory text NOT NULL,
     git_remote_url text NOT NULL,
-    started_at timestamp with time zone NOT NULL,
     duration_ms integer NOT NULL
+);
+
+CREATE TABLE intel_machine_executables (
+    machine_id uuid NOT NULL,
+    user_id uuid NOT NULL,
+    hash text NOT NULL,
+    basename text NOT NULL,
+    version text NOT NULL
 );
 
 CREATE TABLE intel_machines (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
-    machine_id uuid NOT NULL,
+    instance_id text NOT NULL,
+    organization_id uuid NOT NULL,
     user_id uuid NOT NULL,
-    ip_address text NOT NULL,
+    ip_address inet DEFAULT '0.0.0.0'::inet NOT NULL,
     hostname text NOT NULL,
     operating_system character varying(255) NOT NULL,
-    operating_system_version character varying(255) NOT NULL,
+    operating_system_version character varying(255),
     cpu_cores integer NOT NULL,
     memory_mb_total integer NOT NULL,
     architecture character varying(255) NOT NULL,
     daemon_version character varying(255) NOT NULL,
-    git_config_email character varying(255) NOT NULL,
-    git_config_name character varying(255) NOT NULL,
+    git_config_email character varying(255),
+    git_config_name character varying(255),
     tags character varying(64)[]
 );
 
@@ -568,15 +578,6 @@ COMMENT ON COLUMN intel_machines.git_config_email IS 'git config --get user.emai
 COMMENT ON COLUMN intel_machines.git_config_name IS 'git config --get user.name';
 
 COMMENT ON COLUMN intel_machines.tags IS 'Arbitrary user-defined tags. e.g. "coder-v1" or "coder-v2"';
-
-CREATE TABLE intel_path_executables (
-    machine_id uuid NOT NULL,
-    user_id uuid NOT NULL,
-    id uuid NOT NULL,
-    hash text NOT NULL,
-    basename text NOT NULL,
-    version text NOT NULL
-);
 
 CREATE TABLE jfrog_xray_scans (
     agent_id uuid NOT NULL,
@@ -1544,11 +1545,11 @@ ALTER TABLE ONLY intel_git_commits
 ALTER TABLE ONLY intel_invocations
     ADD CONSTRAINT intel_invocations_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY intel_machine_executables
+    ADD CONSTRAINT intel_machine_executables_pkey PRIMARY KEY (machine_id, user_id, hash);
+
 ALTER TABLE ONLY intel_machines
     ADD CONSTRAINT intel_machines_pkey PRIMARY KEY (id);
-
-ALTER TABLE ONLY intel_path_executables
-    ADD CONSTRAINT intel_path_executables_pkey PRIMARY KEY (machine_id, user_id, id);
 
 ALTER TABLE ONLY jfrog_xray_scans
     ADD CONSTRAINT jfrog_xray_scans_pkey PRIMARY KEY (agent_id, workspace_id);
@@ -1846,6 +1847,9 @@ ALTER TABLE ONLY group_members
 
 ALTER TABLE ONLY groups
     ADD CONSTRAINT groups_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY intel_invocations
+    ADD CONSTRAINT intel_invocations_machine_id_fkey FOREIGN KEY (machine_id) REFERENCES intel_machines(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY jfrog_xray_scans
     ADD CONSTRAINT jfrog_xray_scans_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;

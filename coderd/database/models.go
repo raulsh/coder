@@ -1859,19 +1859,81 @@ type GroupMember struct {
 	GroupID uuid.UUID `db:"group_id" json:"group_id"`
 }
 
-type InsightInvocation struct {
-	ID            uuid.UUID    `db:"id" json:"id"`
-	UserID        uuid.UUID    `db:"user_id" json:"user_id"`
-	BinaryHash    string       `db:"binary_hash" json:"binary_hash"`
-	BinaryPath    string       `db:"binary_path" json:"binary_path"`
-	BinaryArgs    string       `db:"binary_args" json:"binary_args"`
-	BinaryVersion string       `db:"binary_version" json:"binary_version"`
-	Version       string       `db:"version" json:"version"`
-	StartedAt     time.Time    `db:"started_at" json:"started_at"`
-	EndedAt       sql.NullTime `db:"ended_at" json:"ended_at"`
+type IntelCohort struct {
+	ID                                uuid.UUID      `db:"id" json:"id"`
+	OrganizationID                    uuid.UUID      `db:"organization_id" json:"organization_id"`
+	CreatedBy                         uuid.UUID      `db:"created_by" json:"created_by"`
+	CreatedAt                         time.Time      `db:"created_at" json:"created_at"`
+	UpdatedAt                         time.Time      `db:"updated_at" json:"updated_at"`
+	DisplayName                       string         `db:"display_name" json:"display_name"`
+	Description                       string         `db:"description" json:"description"`
+	FilterRegexOperatingSystem        sql.NullString `db:"filter_regex_operating_system" json:"filter_regex_operating_system"`
+	FilterRegexOperatingSystemVersion sql.NullString `db:"filter_regex_operating_system_version" json:"filter_regex_operating_system_version"`
+	FilterRegexArchitecture           sql.NullString `db:"filter_regex_architecture" json:"filter_regex_architecture"`
+	FilterRegexGitRemoteUrl           sql.NullString `db:"filter_regex_git_remote_url" json:"filter_regex_git_remote_url"`
+	TrackedExecutables                []string       `db:"tracked_executables" json:"tracked_executables"`
 }
 
-type InsightPathExecutable struct {
+type IntelGitCommit struct {
+	ID                   uuid.UUID `db:"id" json:"id"`
+	InvocationID         uuid.UUID `db:"invocation_id" json:"invocation_id"`
+	CommitHash           string    `db:"commit_hash" json:"commit_hash"`
+	CommitMessage        string    `db:"commit_message" json:"commit_message"`
+	CommitAuthor         string    `db:"commit_author" json:"commit_author"`
+	CommitAuthorEmail    string    `db:"commit_author_email" json:"commit_author_email"`
+	CommitAuthorDate     time.Time `db:"commit_author_date" json:"commit_author_date"`
+	CommitCommitter      string    `db:"commit_committer" json:"commit_committer"`
+	CommitCommitterEmail string    `db:"commit_committer_email" json:"commit_committer_email"`
+	CommitCommitterDate  time.Time `db:"commit_committer_date" json:"commit_committer_date"`
+}
+
+type IntelInvocation struct {
+	ID               uuid.UUID `db:"id" json:"id"`
+	CreatedAt        time.Time `db:"created_at" json:"created_at"`
+	MachineID        uuid.UUID `db:"machine_id" json:"machine_id"`
+	UserID           uuid.UUID `db:"user_id" json:"user_id"`
+	BinaryHash       string    `db:"binary_hash" json:"binary_hash"`
+	BinaryPath       string    `db:"binary_path" json:"binary_path"`
+	BinaryArgs       []string  `db:"binary_args" json:"binary_args"`
+	BinaryVersion    string    `db:"binary_version" json:"binary_version"`
+	WorkingDirectory string    `db:"working_directory" json:"working_directory"`
+	GitRemoteUrl     string    `db:"git_remote_url" json:"git_remote_url"`
+	DurationMs       int32     `db:"duration_ms" json:"duration_ms"`
+}
+
+type IntelMachine struct {
+	ID             uuid.UUID   `db:"id" json:"id"`
+	CreatedAt      time.Time   `db:"created_at" json:"created_at"`
+	UpdatedAt      time.Time   `db:"updated_at" json:"updated_at"`
+	InstanceID     string      `db:"instance_id" json:"instance_id"`
+	OrganizationID uuid.UUID   `db:"organization_id" json:"organization_id"`
+	UserID         uuid.UUID   `db:"user_id" json:"user_id"`
+	IPAddress      pqtype.Inet `db:"ip_address" json:"ip_address"`
+	Hostname       string      `db:"hostname" json:"hostname"`
+	// GOOS
+	OperatingSystem        string         `db:"operating_system" json:"operating_system"`
+	OperatingSystemVersion sql.NullString `db:"operating_system_version" json:"operating_system_version"`
+	CpuCores               int32          `db:"cpu_cores" json:"cpu_cores"`
+	// in MB
+	MemoryMbTotal int32 `db:"memory_mb_total" json:"memory_mb_total"`
+	// GOARCH. e.g. amd64
+	Architecture string `db:"architecture" json:"architecture"`
+	// Version of the daemon running on the machine
+	DaemonVersion string `db:"daemon_version" json:"daemon_version"`
+	// git config --get user.email
+	GitConfigEmail sql.NullString `db:"git_config_email" json:"git_config_email"`
+	// git config --get user.name
+	GitConfigName sql.NullString `db:"git_config_name" json:"git_config_name"`
+	// Arbitrary user-defined tags. e.g. "coder-v1" or "coder-v2"
+	Tags []string `db:"tags" json:"tags"`
+}
+
+type IntelMachineExecutable struct {
+	MachineID uuid.UUID `db:"machine_id" json:"machine_id"`
+	UserID    uuid.UUID `db:"user_id" json:"user_id"`
+	Hash      string    `db:"hash" json:"hash"`
+	Basename  string    `db:"basename" json:"basename"`
+	Version   string    `db:"version" json:"version"`
 }
 
 type JfrogXrayScan struct {

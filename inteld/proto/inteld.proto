@@ -42,18 +42,10 @@ message InstalledSoftware {
 	bool jetbrains_gateway = 6;
 }
 
-message RegisterRequest {
-	string hostname = 1;
-	// GOOS
-	string operating_system = 2;
-	string operating_system_version = 3;
-	uint32 cpu_cores = 4;
-	uint64 memory_total = 5;
-	// GOARCH
-	string architecture = 6;
-	string git_config_email = 7;
-	string git_config_name = 8;
-	InstalledSoftware installed_software = 9;
+message ListenRequest {
+	string git_config_email = 1;
+	string git_config_name = 2;
+	InstalledSoftware installed_software = 3;
 }
 
 // SystemResponse is a message that the client streams to
@@ -73,10 +65,9 @@ message TrackExecutables {
 // IntelDaemon is the daemon interface that communicates
 // with coderd.
 service IntelDaemon {
-	// Register must be sent before any other message.
-	// If the system is not registered, all other messages will
-	// fail with errors.
-	rpc Register(RegisterRequest) returns (stream SystemResponse);
+	// Listen begins a stream of SystemResponse messages.
+	// It also updates some basic information about the host.
+	rpc Listen(ListenRequest) returns (stream SystemResponse);
 
 	rpc RecordInvocation(RecordInvocationRequest) returns (Empty);
 	rpc ReportPath(ReportPathRequest) returns (Empty);

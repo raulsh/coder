@@ -7,6 +7,7 @@ import (
 	"storj.io/drpc/drpcmux"
 	"storj.io/drpc/drpcserver"
 
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/drpc"
 
 	"github.com/stretchr/testify/require"
@@ -24,24 +25,24 @@ func TestInteld(t *testing.T) {
 			close(done)
 		})
 		daemon := inteld.New(inteld.Options{
-			Dialer: func(ctx context.Context) (proto.DRPCIntelDaemonClient, error) {
+			Dialer: func(ctx context.Context, _ codersdk.IntelDaemonHostInfo) (proto.DRPCIntelDaemonClient, error) {
 				return createIntelDaemonClient(t, done, inteldServer{}), nil
 			},
 		})
 		require.NoError(t, daemon.Close())
 	})
-	t.Run("InstantlyRegisters", func(t *testing.T) {
+	t.Run("InstantlyListens", func(t *testing.T) {
 		t.Parallel()
 		done := make(chan struct{})
-		registered := make(chan struct{})
+		listened := make(chan struct{})
 		t.Cleanup(func() {
 			close(done)
 		})
 		daemon := inteld.New(inteld.Options{
-			Dialer: func(ctx context.Context) (proto.DRPCIntelDaemonClient, error) {
+			Dialer: func(ctx context.Context, _ codersdk.IntelDaemonHostInfo) (proto.DRPCIntelDaemonClient, error) {
 				return createIntelDaemonClient(t, done, inteldServer{
-					register: func(_ *proto.RegisterRequest, stream proto.DRPCIntelDaemon_RegisterStream) error {
-						registered <- struct{}{}
+					listen: func(_ *proto.ListenRequest, stream proto.DRPCIntelDaemon_ListenStream) error {
+						listened <- struct{}{}
 						<-ctx.Done()
 						return nil
 					},
@@ -49,7 +50,7 @@ func TestInteld(t *testing.T) {
 			},
 		})
 		select {
-		case <-registered:
+		case <-listened:
 		case <-done:
 			t.Error("test ended before registration")
 		}
@@ -58,16 +59,16 @@ func TestInteld(t *testing.T) {
 }
 
 type inteldServer struct {
-	register         func(req *proto.RegisterRequest, stream proto.DRPCIntelDaemon_RegisterStream) error
+	listen           func(req *proto.ListenRequest, stream proto.DRPCIntelDaemon_ListenStream) error
 	recordInvocation func(context.Context, *proto.RecordInvocationRequest) (*proto.Empty, error)
 	reportPath       func(context.Context, *proto.ReportPathRequest) (*proto.Empty, error)
 }
 
-func (i *inteldServer) Register(req *proto.RegisterRequest, stream proto.DRPCIntelDaemon_RegisterStream) error {
-	if i.register == nil {
+func (i *inteldServer) Listen(req *proto.ListenRequest, stream proto.DRPCIntelDaemon_ListenStream) error {
+	if i.listen == nil {
 		return nil
 	}
-	return i.register(req, stream)
+	return i.listen(req, stream)
 }
 
 func (i *inteldServer) RecordInvocation(ctx context.Context, inv *proto.RecordInvocationRequest) (*proto.Empty, error) {

@@ -606,6 +606,13 @@ func (m metricsStore) GetHungProvisionerJobs(ctx context.Context, hungSince time
 	return jobs, err
 }
 
+func (m metricsStore) GetIntelCohortsMatchedByMachineIDs(ctx context.Context, ids []uuid.UUID) ([]database.GetIntelCohortsMatchedByMachineIDsRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetIntelCohortsMatchedByMachineIDs(ctx, ids)
+	m.queryLatencies.WithLabelValues("GetIntelCohortsMatchedByMachineIDs").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) GetJFrogXrayScanByWorkspaceAndAgentID(ctx context.Context, arg database.GetJFrogXrayScanByWorkspaceAndAgentIDParams) (database.JfrogXrayScan, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetJFrogXrayScanByWorkspaceAndAgentID(ctx, arg)
@@ -1509,6 +1516,20 @@ func (m metricsStore) InsertGroupMember(ctx context.Context, arg database.Insert
 	return err
 }
 
+func (m metricsStore) InsertIntelCohort(ctx context.Context, arg database.InsertIntelCohortParams) (database.IntelCohort, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertIntelCohort(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertIntelCohort").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m metricsStore) InsertIntelInvocations(ctx context.Context, arg database.InsertIntelInvocationsParams) error {
+	start := time.Now()
+	r0 := m.s.InsertIntelInvocations(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertIntelInvocations").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m metricsStore) InsertLicense(ctx context.Context, arg database.InsertLicenseParams) (database.License, error) {
 	start := time.Now()
 	license, err := m.s.InsertLicense(ctx, arg)
@@ -2207,6 +2228,13 @@ func (m metricsStore) UpsertHealthSettings(ctx context.Context, value string) er
 	r0 := m.s.UpsertHealthSettings(ctx, value)
 	m.queryLatencies.WithLabelValues("UpsertHealthSettings").Observe(time.Since(start).Seconds())
 	return r0
+}
+
+func (m metricsStore) UpsertIntelMachine(ctx context.Context, arg database.UpsertIntelMachineParams) (database.IntelMachine, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpsertIntelMachine(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpsertIntelMachine").Observe(time.Since(start).Seconds())
+	return r0, r1
 }
 
 func (m metricsStore) UpsertJFrogXrayScanByWorkspaceAndAgentID(ctx context.Context, arg database.UpsertJFrogXrayScanByWorkspaceAndAgentIDParams) error {

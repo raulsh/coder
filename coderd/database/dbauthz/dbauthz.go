@@ -1287,6 +1287,12 @@ func (q *querier) GetHungProvisionerJobs(ctx context.Context, hungSince time.Tim
 	return q.db.GetHungProvisionerJobs(ctx, hungSince)
 }
 
+func (q *querier) GetIntelCohortsMatchedByMachineIDs(ctx context.Context, ids []uuid.UUID) ([]database.GetIntelCohortsMatchedByMachineIDsRow, error) {
+	// No authz checks - it'd be too slow to check the
+	// authorization for each user and each machine.
+	return q.db.GetIntelCohortsMatchedByMachineIDs(ctx, ids)
+}
+
 func (q *querier) GetJFrogXrayScanByWorkspaceAndAgentID(ctx context.Context, arg database.GetJFrogXrayScanByWorkspaceAndAgentIDParams) (database.JfrogXrayScan, error) {
 	if _, err := fetch(q.log, q.auth, q.db.GetWorkspaceByID)(ctx, arg.WorkspaceID); err != nil {
 		return database.JfrogXrayScan{}, err
@@ -2404,6 +2410,16 @@ func (q *querier) InsertGroupMember(ctx context.Context, arg database.InsertGrou
 	return update(q.log, q.auth, fetch, q.db.InsertGroupMember)(ctx, arg)
 }
 
+func (q *querier) InsertIntelCohort(ctx context.Context, arg database.InsertIntelCohortParams) (database.IntelCohort, error) {
+	return insert(q.log, q.auth, rbac.ResourceGroup.InOrg(arg.OrganizationID), q.db.InsertIntelCohort)(ctx, arg)
+}
+
+func (q *querier) InsertIntelInvocations(ctx context.Context, arg database.InsertIntelInvocationsParams) error {
+	// No authz checks - it'd be too slow to check the
+	// authorization for each user and each machine.
+	return q.db.InsertIntelInvocations(ctx, arg)
+}
+
 func (q *querier) InsertLicense(ctx context.Context, arg database.InsertLicenseParams) (database.License, error) {
 	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceLicense); err != nil {
 		return database.License{}, err
@@ -3486,6 +3502,11 @@ func (q *querier) UpsertHealthSettings(ctx context.Context, value string) error 
 		return err
 	}
 	return q.db.UpsertHealthSettings(ctx, value)
+}
+
+func (q *querier) UpsertIntelMachine(ctx context.Context, arg database.UpsertIntelMachineParams) (database.IntelMachine, error) {
+	// No authz
+	return q.db.UpsertIntelMachine(ctx, arg)
 }
 
 func (q *querier) UpsertJFrogXrayScanByWorkspaceAndAgentID(ctx context.Context, arg database.UpsertJFrogXrayScanByWorkspaceAndAgentIDParams) error {
