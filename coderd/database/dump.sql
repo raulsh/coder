@@ -495,19 +495,87 @@ COMMENT ON COLUMN groups.display_name IS 'Display name is a custom, human-friend
 
 COMMENT ON COLUMN groups.source IS 'Source indicates how the group was created. It can be created by a user manually, or through some system process like OIDC group sync.';
 
-CREATE TABLE insight_invocations (
+CREATE TABLE intel_cohorts (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
+    created_by uuid NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone NOT NULL,
+    display_name text NOT NULL,
+    description text NOT NULL,
+    filter_regex_operating_system character varying(255) NOT NULL,
+    filter_regex_operating_system_version character varying(255) NOT NULL,
+    filter_regex_architecture character varying(255) NOT NULL,
+    filter_regex_repositories character varying(255) NOT NULL,
+    tracked_executables text[] NOT NULL
+);
+
+CREATE TABLE intel_git_commits (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    invocation_id uuid NOT NULL,
+    commit_hash text NOT NULL,
+    commit_message text NOT NULL,
+    commit_author text NOT NULL,
+    commit_author_email character varying(255) NOT NULL,
+    commit_author_date timestamp with time zone NOT NULL,
+    commit_committer text NOT NULL,
+    commit_committer_email character varying(255) NOT NULL,
+    commit_committer_date timestamp with time zone NOT NULL
+);
+
+CREATE TABLE intel_invocations (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    machine_id uuid NOT NULL,
     user_id uuid NOT NULL,
     binary_hash text NOT NULL,
     binary_path text NOT NULL,
-    binary_args text NOT NULL,
+    binary_args character varying(255) NOT NULL,
     binary_version text NOT NULL,
-    version text NOT NULL,
-    started_at timestamp with time zone DEFAULT now() NOT NULL,
-    ended_at timestamp with time zone
+    working_directory text NOT NULL,
+    git_remote_url text NOT NULL,
+    started_at timestamp with time zone NOT NULL,
+    duration_ms integer NOT NULL
 );
 
-CREATE TABLE insight_path_executables (
+CREATE TABLE intel_machines (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone NOT NULL,
+    machine_id uuid NOT NULL,
+    user_id uuid NOT NULL,
+    ip_address text NOT NULL,
+    hostname text NOT NULL,
+    operating_system character varying(255) NOT NULL,
+    operating_system_version character varying(255) NOT NULL,
+    cpu_cores integer NOT NULL,
+    memory_mb_total integer NOT NULL,
+    architecture character varying(255) NOT NULL,
+    daemon_version character varying(255) NOT NULL,
+    git_config_email character varying(255) NOT NULL,
+    git_config_name character varying(255) NOT NULL,
+    tags character varying(64)[]
+);
+
+COMMENT ON COLUMN intel_machines.operating_system IS 'GOOS';
+
+COMMENT ON COLUMN intel_machines.memory_mb_total IS 'in MB';
+
+COMMENT ON COLUMN intel_machines.architecture IS 'GOARCH. e.g. amd64';
+
+COMMENT ON COLUMN intel_machines.daemon_version IS 'Version of the daemon running on the machine';
+
+COMMENT ON COLUMN intel_machines.git_config_email IS 'git config --get user.email';
+
+COMMENT ON COLUMN intel_machines.git_config_name IS 'git config --get user.name';
+
+COMMENT ON COLUMN intel_machines.tags IS 'Arbitrary user-defined tags. e.g. "coder-v1" or "coder-v2"';
+
+CREATE TABLE intel_path_executables (
+    machine_id uuid NOT NULL,
+    user_id uuid NOT NULL,
+    id uuid NOT NULL,
+    hash text NOT NULL,
+    basename text NOT NULL,
+    version text NOT NULL
 );
 
 CREATE TABLE jfrog_xray_scans (
@@ -1467,8 +1535,20 @@ ALTER TABLE ONLY groups
 ALTER TABLE ONLY groups
     ADD CONSTRAINT groups_pkey PRIMARY KEY (id);
 
-ALTER TABLE ONLY insight_invocations
-    ADD CONSTRAINT insight_invocations_pkey PRIMARY KEY (id);
+ALTER TABLE ONLY intel_cohorts
+    ADD CONSTRAINT intel_cohorts_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY intel_git_commits
+    ADD CONSTRAINT intel_git_commits_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY intel_invocations
+    ADD CONSTRAINT intel_invocations_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY intel_machines
+    ADD CONSTRAINT intel_machines_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY intel_path_executables
+    ADD CONSTRAINT intel_path_executables_pkey PRIMARY KEY (machine_id, user_id, id);
 
 ALTER TABLE ONLY jfrog_xray_scans
     ADD CONSTRAINT jfrog_xray_scans_pkey PRIMARY KEY (agent_id, workspace_id);
