@@ -323,6 +323,13 @@ export const router = createBrowserRouter(
             <Route path="tools" element={<InsightsToolsPage />} />
             <Route path="commands" element={<InsightsCommandsPage />} />
             <Route path="editors" element={<InsightsEditorsPage />} />
+            <Route path="cohorts">
+              <Route path="new" element={<div>hi</div>} />
+              <Route path=":cohort">
+                <Route index element={<div>hi</div>} />
+                <Route path="edit" element={<div>hi</div>} />
+              </Route>
+            </Route>
           </Route>
 
           <Route path="/users">

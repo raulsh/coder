@@ -1,16 +1,17 @@
 -- name: UpsertIntelCohort :one
-INSERT INTO intel_cohorts (id, organization_id, created_by, created_at, updated_at, display_name, icon, description, filter_regex_operating_system, filter_regex_operating_system_version, filter_regex_architecture, filter_regex_instance_id, tracked_executables)
-	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+INSERT INTO intel_cohorts (id, organization_id, created_by, created_at, updated_at, name, display_name, icon, description, filter_regex_operating_system, filter_regex_operating_system_version, filter_regex_architecture, filter_regex_instance_id, tracked_executables)
+	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
 	ON CONFLICT (id) DO UPDATE SET
 		updated_at = $5,
-		display_name = $6,
-		icon = $7,
-		description = $8,
-		filter_regex_operating_system = $9,
-		filter_regex_operating_system_version = $10,
-		filter_regex_architecture = $11,
-		filter_regex_instance_id = $12,
-		tracked_executables = $13
+		name = $6,
+		display_name = $7,
+		icon = $8,
+		description = $9,
+		filter_regex_operating_system = $10,
+		filter_regex_operating_system_version = $11,
+		filter_regex_architecture = $12,
+		filter_regex_instance_id = $13,
+		tracked_executables = $14
 	RETURNING *;
 
 -- name: GetIntelCohortsByOrganizationID :many
@@ -38,7 +39,7 @@ INSERT INTO intel_machines (id, created_at, updated_at, instance_id, organizatio
 -- Insert many invocations using unnest
 INSERT INTO intel_invocations (
 	created_at, machine_id, user_id, id, binary_hash, binary_path, binary_args,
-	binary_version, working_directory, git_remote_url, duration_ms)
+	binary_version, working_directory, git_remote_url, exit_code, duration_ms)
 SELECT
 	@created_at :: timestamptz as created_at,
 	@machine_id :: uuid as machine_id,
@@ -80,6 +81,22 @@ WHERE
     operating_system_version_match AND
     architecture_match AND
 	instance_id_match;
+
+-- name: GetIntelMachinesMatchingFilters :many
+WITH filtered_machines AS (
+	SELECT
+		*
+	FROM intel_machines WHERE organization_id = @organization_id
+	    AND operating_system ~ @filter_operating_system
+		AND (operating_system_version IS NULL OR operating_system_version ~ @filter_operating_system_version::text)
+		AND architecture ~ @filter_architecture
+		AND instance_id ~ @filter_instance_id
+), total_machines AS (
+	SELECT COUNT(*) as count FROM filtered_machines
+), paginated_machines AS (
+	SELECT * FROM filtered_machines ORDER BY created_at DESC LIMIT NULLIF(@limit_opt :: int, 0) OFFSET NULLIF(@offset_opt :: int, 0)
+)
+SELECT tm.count, sqlc.embed(intel_machines) FROM paginated_machines AS intel_machines CROSS JOIN total_machines as tm;
 
 -- name: GetConsistencyByIntelCohort :many
 SELECT

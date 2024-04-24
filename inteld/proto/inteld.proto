@@ -43,9 +43,7 @@ message InstalledSoftware {
 }
 
 message ListenRequest {
-	string git_config_email = 1;
-	string git_config_name = 2;
-	InstalledSoftware installed_software = 3;
+	InstalledSoftware installed_software = 1;
 }
 
 // SystemResponse is a message that the client streams to

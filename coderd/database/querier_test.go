@@ -6,11 +6,13 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"net"
 	"sort"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
@@ -676,4 +678,67 @@ func TestArchiveVersions(t *testing.T) {
 func requireUsersMatch(t testing.TB, expected []database.User, found []database.GetUsersRow, msg string) {
 	t.Helper()
 	require.ElementsMatch(t, expected, database.ConvertUserRows(found), msg)
+}
+
+func TestIntel(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		return
+	}
+	sqlDB := testSQLDB(t)
+	err := migrations.Up(sqlDB)
+	require.NoError(t, err)
+	db := database.New(sqlDB)
+	ctx := context.Background()
+
+	machine, err := db.UpsertIntelMachine(ctx, database.UpsertIntelMachineParams{
+		ID:             uuid.New(),
+		CreatedAt:      dbtime.Now(),
+		UpdatedAt:      dbtime.Now(),
+		InstanceID:     "some-id",
+		OrganizationID: uuid.New(),
+		UserID:         uuid.New(),
+		IPAddress: pqtype.Inet{
+			IPNet: net.IPNet{
+				IP:   net.IPv4(127, 0, 0, 1),
+				Mask: net.IPv4Mask(255, 255, 255, 255),
+			},
+			Valid: true,
+		},
+		Hostname:        "host",
+		OperatingSystem: "linux",
+		CPUCores:        4,
+		MemoryMBTotal:   16 * 1024,
+		Architecture:    "amd64",
+		DaemonVersion:   "1.0.0",
+	})
+	require.NoError(t, err)
+
+	rows, err := db.GetIntelMachinesMatchingFilters(ctx, database.GetIntelMachinesMatchingFiltersParams{
+		OrganizationID:               machine.OrganizationID,
+		FilterOperatingSystem:        "linux|windows",
+		FilterOperatingSystemVersion: ".*",
+		FilterArchitecture:           ".*",
+		FilterInstanceID:             ".*",
+		LimitOpt:                     999,
+		OffsetOpt:                    0,
+	})
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+
+	err = db.InsertIntelInvocations(ctx, database.InsertIntelInvocationsParams{
+		CreatedAt:        dbtime.Now(),
+		MachineID:        machine.ID,
+		UserID:           machine.UserID,
+		ID:               []uuid.UUID{uuid.New()},
+		BinaryHash:       []string{"hash"},
+		BinaryPath:       []string{"/go"},
+		BinaryArgs:       json.RawMessage("[[\"some\",\"arg\"]]"),
+		BinaryVersion:    []string{"1"},
+		WorkingDirectory: []string{"/"},
+		GitRemoteUrl:     []string{""},
+		ExitCode:         []int32{0},
+		DurationMs:       []int32{0},
+	})
+	require.NoError(t, err)
 }

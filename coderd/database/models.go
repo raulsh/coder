@@ -1865,6 +1865,7 @@ type IntelCohort struct {
 	CreatedBy                         uuid.UUID `db:"created_by" json:"created_by"`
 	CreatedAt                         time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt                         time.Time `db:"updated_at" json:"updated_at"`
+	Name                              string    `db:"name" json:"name"`
 	DisplayName                       string    `db:"display_name" json:"display_name"`
 	Icon                              string    `db:"icon" json:"icon"`
 	Description                       string    `db:"description" json:"description"`
@@ -1874,19 +1875,6 @@ type IntelCohort struct {
 	FilterRegexGitRemoteUrl           string    `db:"filter_regex_git_remote_url" json:"filter_regex_git_remote_url"`
 	FilterRegexInstanceID             string    `db:"filter_regex_instance_id" json:"filter_regex_instance_id"`
 	TrackedExecutables                []string  `db:"tracked_executables" json:"tracked_executables"`
-}
-
-type IntelGitCommit struct {
-	ID                   uuid.UUID `db:"id" json:"id"`
-	InvocationID         uuid.UUID `db:"invocation_id" json:"invocation_id"`
-	CommitHash           string    `db:"commit_hash" json:"commit_hash"`
-	CommitMessage        string    `db:"commit_message" json:"commit_message"`
-	CommitAuthor         string    `db:"commit_author" json:"commit_author"`
-	CommitAuthorEmail    string    `db:"commit_author_email" json:"commit_author_email"`
-	CommitAuthorDate     time.Time `db:"commit_author_date" json:"commit_author_date"`
-	CommitCommitter      string    `db:"commit_committer" json:"commit_committer"`
-	CommitCommitterEmail string    `db:"commit_committer_email" json:"commit_committer_email"`
-	CommitCommitterDate  time.Time `db:"commit_committer_date" json:"commit_committer_date"`
 }
 
 type IntelInvocation struct {
@@ -1923,18 +1911,6 @@ type IntelMachine struct {
 	Architecture string `db:"architecture" json:"architecture"`
 	// Version of the daemon running on the machine
 	DaemonVersion string `db:"daemon_version" json:"daemon_version"`
-	// git config --get user.email
-	GitConfigEmail sql.NullString `db:"git_config_email" json:"git_config_email"`
-	// git config --get user.name
-	GitConfigName sql.NullString `db:"git_config_name" json:"git_config_name"`
-}
-
-type IntelMachineExecutable struct {
-	MachineID uuid.UUID `db:"machine_id" json:"machine_id"`
-	UserID    uuid.UUID `db:"user_id" json:"user_id"`
-	Hash      string    `db:"hash" json:"hash"`
-	Basename  string    `db:"basename" json:"basename"`
-	Version   string    `db:"version" json:"version"`
 }
 
 type JfrogXrayScan struct {

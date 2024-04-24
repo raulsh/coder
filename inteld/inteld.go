@@ -305,30 +305,31 @@ func (a *API) connectLoop() {
 	var (
 		hostname    string
 		osVersion   string
+		osPlatform  string
 		memoryTotal uint64
-		instanceID  string
 	)
 	sysInfoHost, err := sysinfo.Host()
 	if err == nil {
 		info := sysInfoHost.Info()
-		instanceID = info.UniqueID
 		osVersion = info.OS.Version
+		osPlatform = info.OS.Platform
 		hostname = info.Hostname
 		mem, err := sysInfoHost.Memory()
 		if err == nil {
-			memoryTotal = mem.Total
+			// Convert from bytes to mb
+			memoryTotal = mem.Total / 1024 / 1024
 		}
 	} else {
 		a.logger.Warn(a.closeContext, "unable to fetch machine information", slog.Error(err))
 	}
 	hostInfo := codersdk.IntelDaemonHostInfo{
-		InstanceID:             instanceID,
-		Hostname:               hostname,
-		OperatingSystem:        runtime.GOOS,
-		Architecture:           runtime.GOARCH,
-		OperatingSystemVersion: osVersion,
-		CPUCores:               uint16(runtime.NumCPU()),
-		MemoryTotalMB:          memoryTotal,
+		Hostname:                hostname,
+		OperatingSystem:         runtime.GOOS,
+		Architecture:            runtime.GOARCH,
+		OperatingSystemVersion:  osVersion,
+		OperatingSystemPlatform: osPlatform,
+		CPUCores:                uint16(runtime.NumCPU()),
+		MemoryTotalMB:           memoryTotal,
 	}
 	invokeBinaryPath := filepath.Join(a.invokeDirectory, "coder-intel-invoke")
 	if runtime.GOOS == "windows" {
@@ -354,7 +355,7 @@ connectLoop:
 			a.logger.Warn(a.closeContext, "coderd client failed to dial", slog.Error(err))
 			continue
 		}
-		a.logger.Info(a.closeContext, "successfully connected to coderd")
+		a.logger.Info(a.closeContext, "successfully connected to coderd", slog.F("host_info", hostInfo))
 		err = a.downloadInvokeBinary(invokeBinaryPath)
 		if err != nil {
 			a.logger.Warn(a.closeContext, "unable to download invoke binary", slog.Error(err))

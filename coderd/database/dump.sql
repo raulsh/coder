@@ -501,6 +501,7 @@ CREATE TABLE intel_cohorts (
     created_by uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
+    name text NOT NULL,
     display_name text NOT NULL,
     icon character varying(256) DEFAULT ''::character varying NOT NULL,
     description text NOT NULL,
@@ -510,19 +511,6 @@ CREATE TABLE intel_cohorts (
     filter_regex_git_remote_url character varying(255) DEFAULT '.*'::character varying NOT NULL,
     filter_regex_instance_id character varying(255) DEFAULT '.*'::character varying NOT NULL,
     tracked_executables text[] NOT NULL
-);
-
-CREATE TABLE intel_git_commits (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
-    invocation_id uuid NOT NULL,
-    commit_hash text NOT NULL,
-    commit_message text NOT NULL,
-    commit_author text NOT NULL,
-    commit_author_email character varying(255) NOT NULL,
-    commit_author_date timestamp with time zone NOT NULL,
-    commit_committer text NOT NULL,
-    commit_committer_email character varying(255) NOT NULL,
-    commit_committer_date timestamp with time zone NOT NULL
 );
 
 CREATE TABLE intel_invocations (
@@ -540,14 +528,6 @@ CREATE TABLE intel_invocations (
     duration_ms integer NOT NULL
 );
 
-CREATE TABLE intel_machine_executables (
-    machine_id uuid NOT NULL,
-    user_id uuid NOT NULL,
-    hash text NOT NULL,
-    basename text NOT NULL,
-    version text NOT NULL
-);
-
 CREATE TABLE intel_machines (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     created_at timestamp with time zone NOT NULL,
@@ -562,9 +542,7 @@ CREATE TABLE intel_machines (
     cpu_cores integer NOT NULL,
     memory_mb_total integer NOT NULL,
     architecture character varying(255) NOT NULL,
-    daemon_version character varying(255) NOT NULL,
-    git_config_email character varying(255),
-    git_config_name character varying(255)
+    daemon_version character varying(255) NOT NULL
 );
 
 COMMENT ON COLUMN intel_machines.operating_system IS 'GOOS';
@@ -574,10 +552,6 @@ COMMENT ON COLUMN intel_machines.memory_mb_total IS 'in MB';
 COMMENT ON COLUMN intel_machines.architecture IS 'GOARCH. e.g. amd64';
 
 COMMENT ON COLUMN intel_machines.daemon_version IS 'Version of the daemon running on the machine';
-
-COMMENT ON COLUMN intel_machines.git_config_email IS 'git config --get user.email';
-
-COMMENT ON COLUMN intel_machines.git_config_name IS 'git config --get user.name';
 
 CREATE TABLE jfrog_xray_scans (
     agent_id uuid NOT NULL,
@@ -1538,12 +1512,6 @@ ALTER TABLE ONLY groups
 
 ALTER TABLE ONLY intel_cohorts
     ADD CONSTRAINT intel_cohorts_pkey PRIMARY KEY (id);
-
-ALTER TABLE ONLY intel_git_commits
-    ADD CONSTRAINT intel_git_commits_pkey PRIMARY KEY (id);
-
-ALTER TABLE ONLY intel_machine_executables
-    ADD CONSTRAINT intel_machine_executables_pkey PRIMARY KEY (machine_id, user_id, hash);
 
 ALTER TABLE ONLY intel_machines
     ADD CONSTRAINT intel_machines_pkey PRIMARY KEY (id);

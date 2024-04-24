@@ -611,14 +611,68 @@ export interface HealthcheckConfig {
 }
 
 // From codersdk/intel.go
+export interface IntelCohort extends IntelCohortMetadata {
+  readonly id: string;
+  readonly organization_id: string;
+  readonly created_by: string;
+  readonly created_at: number;
+  readonly updated_at: number;
+  readonly filters: IntelCohortFilters;
+}
+
+// From codersdk/intel.go
+export interface IntelCohortFilters {
+  readonly filter_regex_operating_system: string;
+  readonly filter_regex_operating_system_version: string;
+  readonly filter_regex_architecture: string;
+  readonly filter_regex_instance_id: string;
+}
+
+// From codersdk/intel.go
+export interface IntelCohortMetadata {
+  readonly name: string;
+  readonly display_name: string;
+  readonly icon: string;
+  readonly description: string;
+  readonly tracked_executables: readonly string[];
+}
+
+// From codersdk/intel.go
 export interface IntelDaemonHostInfo {
-  readonly instance_id: string;
   readonly hostname: string;
   readonly operating_system: string;
   readonly operating_system_version: string;
   readonly architecture: string;
   readonly cpu_cores: number;
   readonly memory_total_mb: number;
+}
+
+// From codersdk/intel.go
+export interface IntelMachine {
+  readonly id: string;
+  readonly created_at: string;
+  readonly updated_at: string;
+  readonly user_id: string;
+  readonly organization_id: string;
+  readonly instance_id: string;
+  readonly hostname: string;
+  readonly operating_system: string;
+  readonly operating_system_version: string;
+  readonly cpu_cores: number;
+  readonly memory_mb_total: number;
+  readonly architecture: string;
+}
+
+// From codersdk/intel.go
+export interface IntelMachinesRequest {
+  readonly organization_id: string;
+  readonly filters: IntelCohortFilters;
+}
+
+// From codersdk/intel.go
+export interface IntelMachinesResponse {
+  readonly intel_machines: readonly IntelMachine[];
+  readonly count: number;
 }
 
 // From codersdk/workspaceagents.go
@@ -1009,6 +1063,7 @@ export interface SSHConfigResponse {
 
 // From codersdk/intel.go
 export interface ServeIntelDaemonRequest extends IntelDaemonHostInfo {
+  readonly instance_id: string;
   readonly organization: string;
 }
 

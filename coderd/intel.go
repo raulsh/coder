@@ -26,6 +26,68 @@ import (
 	"github.com/coder/coder/v2/inteld/proto"
 )
 
+func (api *API) intelMachines(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	organization := httpmw.OrganizationParam(r)
+
+	page, ok := parsePagination(rw, r)
+	if !ok {
+		return
+	}
+	query := r.URL.Query()
+	filters := &codersdk.IntelCohortRegexFilters{
+		OperatingSystem:         query.Get("filter_regex_operating_system"),
+		OperatingSystemPlatform: query.Get("filter_regex_operating_system_platform"),
+		OperatingSystemVersion:  query.Get("filter_regex_operating_system_version"),
+		Architecture:            query.Get("filter_regex_architecture"),
+		InstanceID:              query.Get("filter_regex_instance_id"),
+	}
+	filters.Normalize()
+
+	machineRows, err := api.Database.GetIntelMachinesMatchingFilters(ctx, database.GetIntelMachinesMatchingFiltersParams{
+		OrganizationID:               organization.ID,
+		FilterOperatingSystem:        filters.OperatingSystem,
+		FilterOperatingSystemVersion: filters.OperatingSystemVersion,
+		FilterArchitecture:           filters.Architecture,
+		FilterInstanceID:             filters.InstanceID,
+		LimitOpt:                     int32(page.Limit),
+		OffsetOpt:                    int32(page.Offset),
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error getting intel machines.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	machines := make([]database.IntelMachine, 0, len(machineRows))
+	count := 0
+	for _, machineRow := range machineRows {
+		machines = append(machines, machineRow.IntelMachine)
+		count = int(machineRow.Count)
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.IntelMachinesResponse{
+		IntelMachines: convertIntelMachines(machines),
+		Count:         count,
+	})
+}
+
+func (api *API) intelCohorts(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	organization := httpmw.OrganizationParam(r)
+
+	cohorts, err := api.Database.GetIntelCohortsByOrganizationID(ctx, organization.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error getting intel cohorts.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	_ = cohorts
+}
+
 func (api *API) intelDaemonServe(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
@@ -48,8 +110,8 @@ func (api *API) intelDaemonServe(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	instanceID := query.Get("instance_id")
 	hostInfo := codersdk.IntelDaemonHostInfo{
-		InstanceID:             query.Get("instance_id"),
 		Hostname:               query.Get("hostname"),
 		OperatingSystem:        query.Get("operating_system"),
 		OperatingSystemVersion: query.Get("operating_system_version"),
@@ -71,14 +133,13 @@ func (api *API) intelDaemonServe(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	machine, err := api.Database.UpsertIntelMachine(ctx, database.UpsertIntelMachineParams{
-		ID:             uuid.New(),
-		CreatedAt:      dbtime.Now(),
-		UpdatedAt:      dbtime.Now(),
-		UserID:         apiKey.UserID,
-		OrganizationID: organization.ID,
-		IPAddress:      ipAddress,
-
-		InstanceID:      hostInfo.InstanceID,
+		ID:              uuid.New(),
+		CreatedAt:       dbtime.Now(),
+		UpdatedAt:       dbtime.Now(),
+		UserID:          apiKey.UserID,
+		OrganizationID:  organization.ID,
+		IPAddress:       ipAddress,
+		InstanceID:      instanceID,
 		Hostname:        hostInfo.Hostname,
 		OperatingSystem: hostInfo.OperatingSystem,
 		OperatingSystemVersion: sql.NullString{
@@ -172,4 +233,25 @@ func (api *API) intelDaemonServe(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_ = conn.Close(websocket.StatusGoingAway, "")
+}
+
+func convertIntelMachines(machines []database.IntelMachine) []codersdk.IntelMachine {
+	converted := make([]codersdk.IntelMachine, len(machines))
+	for i, machine := range machines {
+		converted[i] = codersdk.IntelMachine{
+			ID:                     machine.ID,
+			UserID:                 machine.UserID,
+			OrganizationID:         machine.OrganizationID,
+			CreatedAt:              machine.CreatedAt,
+			UpdatedAt:              machine.UpdatedAt,
+			InstanceID:             machine.InstanceID,
+			Hostname:               machine.Hostname,
+			OperatingSystem:        machine.OperatingSystem,
+			OperatingSystemVersion: machine.OperatingSystemVersion.String,
+			CPUCores:               uint16(machine.CPUCores),
+			MemoryMBTotal:          uint64(machine.MemoryMBTotal),
+			Architecture:           machine.Architecture,
+		}
+	}
+	return converted
 }

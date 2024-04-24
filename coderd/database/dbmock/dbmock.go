@@ -328,6 +328,20 @@ func (mr *MockStoreMockRecorder) DeleteGroupMemberFromGroup(arg0, arg1 any) *gom
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteGroupMemberFromGroup", reflect.TypeOf((*MockStore)(nil).DeleteGroupMemberFromGroup), arg0, arg1)
 }
 
+// DeleteIntelCohortsByIDs mocks base method.
+func (m *MockStore) DeleteIntelCohortsByIDs(arg0 context.Context, arg1 []uuid.UUID) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteIntelCohortsByIDs", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteIntelCohortsByIDs indicates an expected call of DeleteIntelCohortsByIDs.
+func (mr *MockStoreMockRecorder) DeleteIntelCohortsByIDs(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteIntelCohortsByIDs", reflect.TypeOf((*MockStore)(nil).DeleteIntelCohortsByIDs), arg0, arg1)
+}
+
 // DeleteLicense mocks base method.
 func (m *MockStore) DeleteLicense(arg0 context.Context, arg1 int32) (int32, error) {
 	m.ctrl.T.Helper()
@@ -869,6 +883,21 @@ func (mr *MockStoreMockRecorder) GetAuthorizedWorkspaces(arg0, arg1, arg2 any) *
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAuthorizedWorkspaces", reflect.TypeOf((*MockStore)(nil).GetAuthorizedWorkspaces), arg0, arg1, arg2)
 }
 
+// GetConsistencyByIntelCohort mocks base method.
+func (m *MockStore) GetConsistencyByIntelCohort(arg0 context.Context) ([]database.GetConsistencyByIntelCohortRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetConsistencyByIntelCohort", arg0)
+	ret0, _ := ret[0].([]database.GetConsistencyByIntelCohortRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetConsistencyByIntelCohort indicates an expected call of GetConsistencyByIntelCohort.
+func (mr *MockStoreMockRecorder) GetConsistencyByIntelCohort(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetConsistencyByIntelCohort", reflect.TypeOf((*MockStore)(nil).GetConsistencyByIntelCohort), arg0)
+}
+
 // GetDBCryptKeys mocks base method.
 func (m *MockStore) GetDBCryptKeys(arg0 context.Context) ([]database.DBCryptKey, error) {
 	m.ctrl.T.Helper()
@@ -1184,6 +1213,21 @@ func (mr *MockStoreMockRecorder) GetHungProvisionerJobs(arg0, arg1 any) *gomock.
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetHungProvisionerJobs", reflect.TypeOf((*MockStore)(nil).GetHungProvisionerJobs), arg0, arg1)
 }
 
+// GetIntelCohortsByOrganizationID mocks base method.
+func (m *MockStore) GetIntelCohortsByOrganizationID(arg0 context.Context, arg1 uuid.UUID) ([]database.IntelCohort, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetIntelCohortsByOrganizationID", arg0, arg1)
+	ret0, _ := ret[0].([]database.IntelCohort)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetIntelCohortsByOrganizationID indicates an expected call of GetIntelCohortsByOrganizationID.
+func (mr *MockStoreMockRecorder) GetIntelCohortsByOrganizationID(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetIntelCohortsByOrganizationID", reflect.TypeOf((*MockStore)(nil).GetIntelCohortsByOrganizationID), arg0, arg1)
+}
+
 // GetIntelCohortsMatchedByMachineIDs mocks base method.
 func (m *MockStore) GetIntelCohortsMatchedByMachineIDs(arg0 context.Context, arg1 []uuid.UUID) ([]database.GetIntelCohortsMatchedByMachineIDsRow, error) {
 	m.ctrl.T.Helper()
@@ -1197,6 +1241,21 @@ func (m *MockStore) GetIntelCohortsMatchedByMachineIDs(arg0 context.Context, arg
 func (mr *MockStoreMockRecorder) GetIntelCohortsMatchedByMachineIDs(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetIntelCohortsMatchedByMachineIDs", reflect.TypeOf((*MockStore)(nil).GetIntelCohortsMatchedByMachineIDs), arg0, arg1)
+}
+
+// GetIntelMachinesMatchingFilters mocks base method.
+func (m *MockStore) GetIntelMachinesMatchingFilters(arg0 context.Context, arg1 database.GetIntelMachinesMatchingFiltersParams) ([]database.GetIntelMachinesMatchingFiltersRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetIntelMachinesMatchingFilters", arg0, arg1)
+	ret0, _ := ret[0].([]database.GetIntelMachinesMatchingFiltersRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetIntelMachinesMatchingFilters indicates an expected call of GetIntelMachinesMatchingFilters.
+func (mr *MockStoreMockRecorder) GetIntelMachinesMatchingFilters(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetIntelMachinesMatchingFilters", reflect.TypeOf((*MockStore)(nil).GetIntelMachinesMatchingFilters), arg0, arg1)
 }
 
 // GetJFrogXrayScanByWorkspaceAndAgentID mocks base method.
@@ -3174,21 +3233,6 @@ func (mr *MockStoreMockRecorder) InsertGroupMember(arg0, arg1 any) *gomock.Call 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertGroupMember", reflect.TypeOf((*MockStore)(nil).InsertGroupMember), arg0, arg1)
 }
 
-// UpsertIntelCohort mocks base method.
-func (m *MockStore) UpsertIntelCohort(arg0 context.Context, arg1 database.UpsertIntelCohortParams) (database.IntelCohort, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpsertIntelCohort", arg0, arg1)
-	ret0, _ := ret[0].(database.IntelCohort)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// UpsertIntelCohort indicates an expected call of UpsertIntelCohort.
-func (mr *MockStoreMockRecorder) UpsertIntelCohort(arg0, arg1 any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertIntelCohort", reflect.TypeOf((*MockStore)(nil).UpsertIntelCohort), arg0, arg1)
-}
-
 // InsertIntelInvocations mocks base method.
 func (m *MockStore) InsertIntelInvocations(arg0 context.Context, arg1 database.InsertIntelInvocationsParams) error {
 	m.ctrl.T.Helper()
@@ -4666,6 +4710,21 @@ func (m *MockStore) UpsertHealthSettings(arg0 context.Context, arg1 string) erro
 func (mr *MockStoreMockRecorder) UpsertHealthSettings(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertHealthSettings", reflect.TypeOf((*MockStore)(nil).UpsertHealthSettings), arg0, arg1)
+}
+
+// UpsertIntelCohort mocks base method.
+func (m *MockStore) UpsertIntelCohort(arg0 context.Context, arg1 database.UpsertIntelCohortParams) (database.IntelCohort, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertIntelCohort", arg0, arg1)
+	ret0, _ := ret[0].(database.IntelCohort)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpsertIntelCohort indicates an expected call of UpsertIntelCohort.
+func (mr *MockStoreMockRecorder) UpsertIntelCohort(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertIntelCohort", reflect.TypeOf((*MockStore)(nil).UpsertIntelCohort), arg0, arg1)
 }
 
 // UpsertIntelMachine mocks base method.

@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"runtime"
 
+	"github.com/elastic/go-sysinfo"
+	"github.com/google/uuid"
 	"github.com/spf13/afero"
 	"golang.org/x/xerrors"
 
@@ -42,6 +44,7 @@ func (r *RootCmd) intelDaemonStart() *serpent.Command {
 		logStackdriver  string
 		logFilter       []string
 		invokeDirectory string
+		instanceID      string
 		verbose         bool
 	)
 	client := new(codersdk.Client)
@@ -84,6 +87,7 @@ func (r *RootCmd) intelDaemonStart() *serpent.Command {
 			srv := inteld.New(inteld.Options{
 				Dialer: func(ctx context.Context, hostInfo codersdk.IntelDaemonHostInfo) (proto.DRPCIntelDaemonClient, error) {
 					return client.ServeIntelDaemon(ctx, codersdk.ServeIntelDaemonRequest{
+						InstanceID:          instanceID,
 						IntelDaemonHostInfo: hostInfo,
 					})
 				},
@@ -195,6 +199,13 @@ func (r *RootCmd) intelDaemonStart() *serpent.Command {
 			Value:       serpent.StringOf(&invokeDirectory),
 			Default:     defaultInvokeDirectory(),
 		},
+		{
+			Flag:        "instance-id",
+			Env:         "CODER_INTEL_DAEMON_INSTANCE_ID",
+			Description: "The instance ID of the machine running the intel daemon. This is used to identify the machine.",
+			Value:       serpent.StringOf(&instanceID),
+			Default:     defaultInstanceID(),
+		},
 	}
 	return cmd
 }
@@ -205,4 +216,17 @@ func defaultInvokeDirectory() string {
 		return filepath.Join(homeDir, ".coder-intel", "bin")
 	}
 	return filepath.Join(os.TempDir(), ".coder-intel", "bin")
+}
+
+func defaultInstanceID() string {
+	sysInfoHost, err := sysinfo.Host()
+	if err == nil {
+		return sysInfoHost.Info().UniqueID
+	}
+	hostname, err := os.Hostname()
+	if err == nil {
+		return hostname
+	}
+	// This is worst-case scenario! Hopefully it doesn't happen!
+	return uuid.NewString()
 }

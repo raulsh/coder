@@ -466,6 +466,13 @@ func (m metricsStore) GetAuthorizationUserRoles(ctx context.Context, userID uuid
 	return row, err
 }
 
+func (m metricsStore) GetConsistencyByIntelCohort(ctx context.Context) ([]database.GetConsistencyByIntelCohortRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetConsistencyByIntelCohort(ctx)
+	m.queryLatencies.WithLabelValues("GetConsistencyByIntelCohort").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) GetDBCryptKeys(ctx context.Context) ([]database.DBCryptKey, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetDBCryptKeys(ctx)
@@ -624,6 +631,13 @@ func (m metricsStore) GetIntelCohortsMatchedByMachineIDs(ctx context.Context, id
 	start := time.Now()
 	r0, r1 := m.s.GetIntelCohortsMatchedByMachineIDs(ctx, ids)
 	m.queryLatencies.WithLabelValues("GetIntelCohortsMatchedByMachineIDs").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m metricsStore) GetIntelMachinesMatchingFilters(ctx context.Context, arg database.GetIntelMachinesMatchingFiltersParams) ([]database.GetIntelMachinesMatchingFiltersRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetIntelMachinesMatchingFilters(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetIntelMachinesMatchingFilters").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 

@@ -2959,8 +2959,50 @@ func (q *sqlQuerier) DeleteIntelCohortsByIDs(ctx context.Context, dollar_1 []uui
 	return err
 }
 
+const getConsistencyByIntelCohort = `-- name: GetConsistencyByIntelCohort :many
+SELECT
+    binary_path,
+    binary_args,
+    PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY duration_ms) AS median_duration
+FROM
+    intel_invocations
+GROUP BY
+    binary_path, binary_args
+ORDER BY
+    median_duration DESC
+`
+
+type GetConsistencyByIntelCohortRow struct {
+	BinaryPath     string          `db:"binary_path" json:"binary_path"`
+	BinaryArgs     json.RawMessage `db:"binary_args" json:"binary_args"`
+	MedianDuration float64         `db:"median_duration" json:"median_duration"`
+}
+
+func (q *sqlQuerier) GetConsistencyByIntelCohort(ctx context.Context) ([]GetConsistencyByIntelCohortRow, error) {
+	rows, err := q.db.QueryContext(ctx, getConsistencyByIntelCohort)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetConsistencyByIntelCohortRow
+	for rows.Next() {
+		var i GetConsistencyByIntelCohortRow
+		if err := rows.Scan(&i.BinaryPath, &i.BinaryArgs, &i.MedianDuration); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getIntelCohortsByOrganizationID = `-- name: GetIntelCohortsByOrganizationID :many
-SELECT id, organization_id, created_by, created_at, updated_at, display_name, icon, description, filter_regex_operating_system, filter_regex_operating_system_version, filter_regex_architecture, filter_regex_git_remote_url, filter_regex_instance_id, tracked_executables FROM intel_cohorts WHERE organization_id = $1
+SELECT id, organization_id, created_by, created_at, updated_at, name, display_name, icon, description, filter_regex_operating_system, filter_regex_operating_system_version, filter_regex_architecture, filter_regex_git_remote_url, filter_regex_instance_id, tracked_executables FROM intel_cohorts WHERE organization_id = $1
 `
 
 func (q *sqlQuerier) GetIntelCohortsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]IntelCohort, error) {
@@ -2978,6 +3020,7 @@ func (q *sqlQuerier) GetIntelCohortsByOrganizationID(ctx context.Context, organi
 			&i.CreatedBy,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Name,
 			&i.DisplayName,
 			&i.Icon,
 			&i.Description,
@@ -3003,7 +3046,7 @@ func (q *sqlQuerier) GetIntelCohortsByOrganizationID(ctx context.Context, organi
 
 const getIntelCohortsMatchedByMachineIDs = `-- name: GetIntelCohortsMatchedByMachineIDs :many
 WITH machines AS (
-    SELECT id, created_at, updated_at, instance_id, organization_id, user_id, ip_address, hostname, operating_system, operating_system_version, cpu_cores, memory_mb_total, architecture, daemon_version, git_config_email, git_config_name FROM intel_machines WHERE id = ANY($1::uuid [])
+    SELECT id, created_at, updated_at, instance_id, organization_id, user_id, ip_address, hostname, operating_system, operating_system_version, cpu_cores, memory_mb_total, architecture, daemon_version FROM intel_machines WHERE id = ANY($1::uuid [])
 ),
 matches AS (
     SELECT
@@ -3069,10 +3112,89 @@ func (q *sqlQuerier) GetIntelCohortsMatchedByMachineIDs(ctx context.Context, ids
 	return items, nil
 }
 
+const getIntelMachinesMatchingFilters = `-- name: GetIntelMachinesMatchingFilters :many
+WITH filtered_machines AS (
+	SELECT
+		id, created_at, updated_at, instance_id, organization_id, user_id, ip_address, hostname, operating_system, operating_system_version, cpu_cores, memory_mb_total, architecture, daemon_version
+	FROM intel_machines WHERE organization_id = $1
+	    AND operating_system ~ $2
+		AND (operating_system_version IS NULL OR operating_system_version ~ $3::text)
+		AND architecture ~ $4
+		AND instance_id ~ $5
+), total_machines AS (
+	SELECT COUNT(*) as count FROM filtered_machines
+), paginated_machines AS (
+	SELECT id, created_at, updated_at, instance_id, organization_id, user_id, ip_address, hostname, operating_system, operating_system_version, cpu_cores, memory_mb_total, architecture, daemon_version FROM filtered_machines ORDER BY created_at DESC LIMIT NULLIF($7 :: int, 0) OFFSET NULLIF($6 :: int, 0)
+)
+SELECT tm.count, intel_machines.id, intel_machines.created_at, intel_machines.updated_at, intel_machines.instance_id, intel_machines.organization_id, intel_machines.user_id, intel_machines.ip_address, intel_machines.hostname, intel_machines.operating_system, intel_machines.operating_system_version, intel_machines.cpu_cores, intel_machines.memory_mb_total, intel_machines.architecture, intel_machines.daemon_version FROM paginated_machines AS intel_machines CROSS JOIN total_machines as tm
+`
+
+type GetIntelMachinesMatchingFiltersParams struct {
+	OrganizationID               uuid.UUID `db:"organization_id" json:"organization_id"`
+	FilterOperatingSystem        string    `db:"filter_operating_system" json:"filter_operating_system"`
+	FilterOperatingSystemVersion string    `db:"filter_operating_system_version" json:"filter_operating_system_version"`
+	FilterArchitecture           string    `db:"filter_architecture" json:"filter_architecture"`
+	FilterInstanceID             string    `db:"filter_instance_id" json:"filter_instance_id"`
+	OffsetOpt                    int32     `db:"offset_opt" json:"offset_opt"`
+	LimitOpt                     int32     `db:"limit_opt" json:"limit_opt"`
+}
+
+type GetIntelMachinesMatchingFiltersRow struct {
+	Count        int64        `db:"count" json:"count"`
+	IntelMachine IntelMachine `db:"intel_machine" json:"intel_machine"`
+}
+
+func (q *sqlQuerier) GetIntelMachinesMatchingFilters(ctx context.Context, arg GetIntelMachinesMatchingFiltersParams) ([]GetIntelMachinesMatchingFiltersRow, error) {
+	rows, err := q.db.QueryContext(ctx, getIntelMachinesMatchingFilters,
+		arg.OrganizationID,
+		arg.FilterOperatingSystem,
+		arg.FilterOperatingSystemVersion,
+		arg.FilterArchitecture,
+		arg.FilterInstanceID,
+		arg.OffsetOpt,
+		arg.LimitOpt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetIntelMachinesMatchingFiltersRow
+	for rows.Next() {
+		var i GetIntelMachinesMatchingFiltersRow
+		if err := rows.Scan(
+			&i.Count,
+			&i.IntelMachine.ID,
+			&i.IntelMachine.CreatedAt,
+			&i.IntelMachine.UpdatedAt,
+			&i.IntelMachine.InstanceID,
+			&i.IntelMachine.OrganizationID,
+			&i.IntelMachine.UserID,
+			&i.IntelMachine.IPAddress,
+			&i.IntelMachine.Hostname,
+			&i.IntelMachine.OperatingSystem,
+			&i.IntelMachine.OperatingSystemVersion,
+			&i.IntelMachine.CPUCores,
+			&i.IntelMachine.MemoryMBTotal,
+			&i.IntelMachine.Architecture,
+			&i.IntelMachine.DaemonVersion,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const insertIntelInvocations = `-- name: InsertIntelInvocations :exec
 INSERT INTO intel_invocations (
 	created_at, machine_id, user_id, id, binary_hash, binary_path, binary_args,
-	binary_version, working_directory, git_remote_url, duration_ms)
+	binary_version, working_directory, git_remote_url, exit_code, duration_ms)
 SELECT
 	$1 :: timestamptz as created_at,
 	$2 :: uuid as machine_id,
@@ -3125,19 +3247,20 @@ func (q *sqlQuerier) InsertIntelInvocations(ctx context.Context, arg InsertIntel
 }
 
 const upsertIntelCohort = `-- name: UpsertIntelCohort :one
-INSERT INTO intel_cohorts (id, organization_id, created_by, created_at, updated_at, display_name, icon, description, filter_regex_operating_system, filter_regex_operating_system_version, filter_regex_architecture, filter_regex_instance_id, tracked_executables)
-	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+INSERT INTO intel_cohorts (id, organization_id, created_by, created_at, updated_at, name, display_name, icon, description, filter_regex_operating_system, filter_regex_operating_system_version, filter_regex_architecture, filter_regex_instance_id, tracked_executables)
+	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
 	ON CONFLICT (id) DO UPDATE SET
 		updated_at = $5,
-		display_name = $6,
-		icon = $7,
-		description = $8,
-		filter_regex_operating_system = $9,
-		filter_regex_operating_system_version = $10,
-		filter_regex_architecture = $11,
-		filter_regex_instance_id = $12,
-		tracked_executables = $13
-	RETURNING id, organization_id, created_by, created_at, updated_at, display_name, icon, description, filter_regex_operating_system, filter_regex_operating_system_version, filter_regex_architecture, filter_regex_git_remote_url, filter_regex_instance_id, tracked_executables
+		name = $6,
+		display_name = $7,
+		icon = $8,
+		description = $9,
+		filter_regex_operating_system = $10,
+		filter_regex_operating_system_version = $11,
+		filter_regex_architecture = $12,
+		filter_regex_instance_id = $13,
+		tracked_executables = $14
+	RETURNING id, organization_id, created_by, created_at, updated_at, name, display_name, icon, description, filter_regex_operating_system, filter_regex_operating_system_version, filter_regex_architecture, filter_regex_git_remote_url, filter_regex_instance_id, tracked_executables
 `
 
 type UpsertIntelCohortParams struct {
@@ -3146,6 +3269,7 @@ type UpsertIntelCohortParams struct {
 	CreatedBy                         uuid.UUID `db:"created_by" json:"created_by"`
 	CreatedAt                         time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt                         time.Time `db:"updated_at" json:"updated_at"`
+	Name                              string    `db:"name" json:"name"`
 	DisplayName                       string    `db:"display_name" json:"display_name"`
 	Icon                              string    `db:"icon" json:"icon"`
 	Description                       string    `db:"description" json:"description"`
@@ -3163,6 +3287,7 @@ func (q *sqlQuerier) UpsertIntelCohort(ctx context.Context, arg UpsertIntelCohor
 		arg.CreatedBy,
 		arg.CreatedAt,
 		arg.UpdatedAt,
+		arg.Name,
 		arg.DisplayName,
 		arg.Icon,
 		arg.Description,
@@ -3179,6 +3304,7 @@ func (q *sqlQuerier) UpsertIntelCohort(ctx context.Context, arg UpsertIntelCohor
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Name,
 		&i.DisplayName,
 		&i.Icon,
 		&i.Description,
@@ -3205,7 +3331,7 @@ INSERT INTO intel_machines (id, created_at, updated_at, instance_id, organizatio
 		memory_mb_total = $12,
 		architecture = $13,
 		daemon_version = $14
-	RETURNING id, created_at, updated_at, instance_id, organization_id, user_id, ip_address, hostname, operating_system, operating_system_version, cpu_cores, memory_mb_total, architecture, daemon_version, git_config_email, git_config_name
+	RETURNING id, created_at, updated_at, instance_id, organization_id, user_id, ip_address, hostname, operating_system, operating_system_version, cpu_cores, memory_mb_total, architecture, daemon_version
 `
 
 type UpsertIntelMachineParams struct {
@@ -3258,8 +3384,6 @@ func (q *sqlQuerier) UpsertIntelMachine(ctx context.Context, arg UpsertIntelMach
 		&i.MemoryMBTotal,
 		&i.Architecture,
 		&i.DaemonVersion,
-		&i.GitConfigEmail,
-		&i.GitConfigName,
 	)
 	return i, err
 }
