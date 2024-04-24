@@ -2448,47 +2448,112 @@ func (q *FakeQuerier) GetIntelCohortsMatchedByMachineIDs(_ context.Context, ids 
 
 	rows := make([]database.GetIntelCohortsMatchedByMachineIDsRow, 0)
 	for _, cohort := range q.intelCohorts {
-		filterOS, err := regexp.CompilePOSIX(cohort.FilterRegexOperatingSystem)
+		filterOS, err := regexp.CompilePOSIX(cohort.RegexOperatingSystem)
 		if err != nil {
 			return nil, err
 		}
-		filterOSVersion, err := regexp.CompilePOSIX(cohort.FilterRegexOperatingSystemVersion)
+		filterOSPlatform, err := regexp.CompilePOSIX(cohort.RegexOperatingSystemPlatform)
 		if err != nil {
 			return nil, err
 		}
-		filterArch, err := regexp.CompilePOSIX(cohort.FilterRegexArchitecture)
+		filterOSVersion, err := regexp.CompilePOSIX(cohort.RegexOperatingSystemVersion)
 		if err != nil {
 			return nil, err
 		}
-		filterInstanceID, err := regexp.CompilePOSIX(cohort.FilterRegexInstanceID)
+		filterArch, err := regexp.CompilePOSIX(cohort.RegexArchitecture)
+		if err != nil {
+			return nil, err
+		}
+		filterInstanceID, err := regexp.CompilePOSIX(cohort.RegexInstanceID)
 		if err != nil {
 			return nil, err
 		}
 		for _, machine := range machines {
-			row := database.GetIntelCohortsMatchedByMachineIDsRow{
-				ID:                   cohort.ID,
-				TrackedExecutables:   cohort.TrackedExecutables,
-				MachineID:            machine.ID,
-				OperatingSystemMatch: filterOS.MatchString(machine.OperatingSystem),
-				ArchitectureMatch:    filterArch.MatchString(machine.Architecture),
-				InstanceIDMatch:      filterInstanceID.MatchString(machine.InstanceID),
+			if !filterOS.MatchString(machine.OperatingSystem) {
+				continue
 			}
-			if machine.OperatingSystemVersion.Valid {
-				row.OperatingSystemVersionMatch = filterOSVersion.MatchString(machine.OperatingSystemVersion.String)
+			if !filterOSPlatform.MatchString(machine.OperatingSystemPlatform) {
+				continue
 			}
-			rows = append(rows, row)
+			if !filterOSVersion.MatchString(machine.OperatingSystemVersion) {
+				continue
+			}
+			if !filterArch.MatchString(machine.Architecture) {
+				continue
+			}
+			if !filterInstanceID.MatchString(machine.InstanceID) {
+				continue
+			}
+			rows = append(rows, database.GetIntelCohortsMatchedByMachineIDsRow{
+				ID:                 cohort.ID,
+				TrackedExecutables: cohort.TrackedExecutables,
+				MachineID:          machine.ID,
+			})
 		}
 	}
 	return rows, nil
 }
 
-func (q *FakeQuerier) GetIntelMachinesMatchingFilters(ctx context.Context, arg database.GetIntelMachinesMatchingFiltersParams) ([]database.GetIntelMachinesMatchingFiltersRow, error) {
+func (q *FakeQuerier) GetIntelMachinesMatchingFilters(_ context.Context, arg database.GetIntelMachinesMatchingFiltersParams) ([]database.GetIntelMachinesMatchingFiltersRow, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
 		return nil, err
 	}
 
-	panic("not implemented")
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	filterOS, err := regexp.CompilePOSIX(arg.RegexOperatingSystem)
+	if err != nil {
+		return nil, err
+	}
+	filterOSVersion, err := regexp.CompilePOSIX(arg.RegexOperatingSystemVersion)
+	if err != nil {
+		return nil, err
+	}
+	filterOSPlatform, err := regexp.CompilePOSIX(arg.RegexOperatingSystemPlatform)
+
+	filterArch, err := regexp.CompilePOSIX(arg.RegexArchitecture)
+	if err != nil {
+		return nil, err
+	}
+	filterInstanceID, err := regexp.CompilePOSIX(arg.RegexInstanceID)
+	if err != nil {
+		return nil, err
+	}
+	machines := make([]database.GetIntelMachinesMatchingFiltersRow, 0)
+	for _, m := range q.intelMachines {
+		if !filterOS.MatchString(m.OperatingSystem) {
+			continue
+		}
+		if !filterOSVersion.MatchString(m.OperatingSystemVersion) {
+			continue
+		}
+		if !filterOSPlatform.MatchString(m.OperatingSystemPlatform) {
+			continue
+		}
+		if !filterArch.MatchString(m.Architecture) {
+			continue
+		}
+		if !filterInstanceID.MatchString(m.InstanceID) {
+			continue
+		}
+		machines = append(machines, database.GetIntelMachinesMatchingFiltersRow{
+			Count:        0,
+			IntelMachine: m,
+		})
+	}
+	for i, m := range machines {
+		m.Count = int64(len(machines))
+		machines[i] = m
+	}
+	if arg.OffsetOpt != 0 && arg.OffsetOpt < int32(len(machines)) {
+		machines = machines[arg.OffsetOpt:]
+	}
+	if arg.LimitOpt != 0 && arg.LimitOpt < int32(len(machines)) {
+		machines = machines[:arg.LimitOpt]
+	}
+	return machines, nil
 }
 
 func (q *FakeQuerier) GetJFrogXrayScanByWorkspaceAndAgentID(_ context.Context, arg database.GetJFrogXrayScanByWorkspaceAndAgentIDParams) (database.JfrogXrayScan, error) {
@@ -8532,25 +8597,47 @@ func (q *FakeQuerier) UpsertIntelCohort(_ context.Context, arg database.UpsertIn
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
+	for i, cohort := range q.intelCohorts {
+		if cohort.ID != arg.ID {
+			continue
+		}
+		cohort.UpdatedAt = arg.UpdatedAt
+		cohort.DisplayName = arg.DisplayName
+		cohort.Description = arg.Description
+		cohort.RegexOperatingSystem = arg.RegexOperatingSystem
+		cohort.RegexOperatingSystemPlatform = arg.RegexOperatingSystemPlatform
+		cohort.RegexOperatingSystemVersion = arg.RegexOperatingSystemVersion
+		cohort.RegexArchitecture = arg.RegexArchitecture
+		cohort.RegexInstanceID = arg.RegexInstanceID
+		cohort.TrackedExecutables = arg.TrackedExecutables
+		cohort.Name = arg.Name
+		cohort.Icon = arg.Icon
+		q.intelCohorts[i] = cohort
+		return cohort, nil
+	}
+
 	cohort := database.IntelCohort{
-		ID:                                arg.ID,
-		OrganizationID:                    arg.OrganizationID,
-		CreatedBy:                         arg.CreatedBy,
-		CreatedAt:                         arg.CreatedAt,
-		UpdatedAt:                         arg.UpdatedAt,
-		DisplayName:                       arg.DisplayName,
-		Description:                       arg.Description,
-		FilterRegexOperatingSystem:        arg.FilterRegexOperatingSystem,
-		FilterRegexOperatingSystemVersion: arg.FilterRegexOperatingSystemVersion,
-		FilterRegexArchitecture:           arg.FilterRegexArchitecture,
-		FilterRegexInstanceID:             arg.FilterRegexInstanceID,
-		TrackedExecutables:                arg.TrackedExecutables,
+		ID:                           arg.ID,
+		OrganizationID:               arg.OrganizationID,
+		CreatedBy:                    arg.CreatedBy,
+		CreatedAt:                    arg.CreatedAt,
+		UpdatedAt:                    arg.UpdatedAt,
+		DisplayName:                  arg.DisplayName,
+		Description:                  arg.Description,
+		RegexOperatingSystem:         arg.RegexOperatingSystem,
+		RegexOperatingSystemPlatform: arg.RegexOperatingSystemPlatform,
+		RegexOperatingSystemVersion:  arg.RegexOperatingSystemVersion,
+		RegexArchitecture:            arg.RegexArchitecture,
+		RegexInstanceID:              arg.RegexInstanceID,
+		TrackedExecutables:           arg.TrackedExecutables,
+		Name:                         arg.Name,
+		Icon:                         arg.Icon,
 	}
 	q.intelCohorts = append(q.intelCohorts, cohort)
 	return cohort, nil
 }
 
-func (q *FakeQuerier) UpsertIntelMachine(ctx context.Context, arg database.UpsertIntelMachineParams) (database.IntelMachine, error) {
+func (q *FakeQuerier) UpsertIntelMachine(_ context.Context, arg database.UpsertIntelMachineParams) (database.IntelMachine, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
 		return database.IntelMachine{}, err
@@ -8565,6 +8652,7 @@ func (q *FakeQuerier) UpsertIntelMachine(ctx context.Context, arg database.Upser
 			machine.IPAddress = arg.IPAddress
 			machine.Hostname = arg.Hostname
 			machine.OperatingSystem = arg.OperatingSystem
+			machine.OperatingSystemPlatform = arg.OperatingSystemPlatform
 			machine.OperatingSystemVersion = arg.OperatingSystemVersion
 			machine.CPUCores = arg.CPUCores
 			machine.MemoryMBTotal = arg.MemoryMBTotal
@@ -8576,20 +8664,21 @@ func (q *FakeQuerier) UpsertIntelMachine(ctx context.Context, arg database.Upser
 	}
 
 	machine := database.IntelMachine{
-		ID:                     arg.ID,
-		CreatedAt:              arg.CreatedAt,
-		UpdatedAt:              arg.UpdatedAt,
-		InstanceID:             arg.InstanceID,
-		OrganizationID:         arg.OrganizationID,
-		UserID:                 arg.UserID,
-		IPAddress:              arg.IPAddress,
-		Hostname:               arg.Hostname,
-		OperatingSystem:        arg.OperatingSystem,
-		OperatingSystemVersion: arg.OperatingSystemVersion,
-		CPUCores:               arg.CPUCores,
-		MemoryMBTotal:          arg.MemoryMBTotal,
-		Architecture:           arg.Architecture,
-		DaemonVersion:          arg.DaemonVersion,
+		ID:                      arg.ID,
+		CreatedAt:               arg.CreatedAt,
+		UpdatedAt:               arg.UpdatedAt,
+		InstanceID:              arg.InstanceID,
+		OrganizationID:          arg.OrganizationID,
+		UserID:                  arg.UserID,
+		IPAddress:               arg.IPAddress,
+		Hostname:                arg.Hostname,
+		OperatingSystem:         arg.OperatingSystem,
+		OperatingSystemPlatform: arg.OperatingSystemPlatform,
+		OperatingSystemVersion:  arg.OperatingSystemVersion,
+		CPUCores:                arg.CPUCores,
+		MemoryMBTotal:           arg.MemoryMBTotal,
+		Architecture:            arg.Architecture,
+		DaemonVersion:           arg.DaemonVersion,
 	}
 	q.intelMachines = append(q.intelMachines, machine)
 	return machine, nil

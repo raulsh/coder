@@ -1860,21 +1860,21 @@ type GroupMember struct {
 }
 
 type IntelCohort struct {
-	ID                                uuid.UUID `db:"id" json:"id"`
-	OrganizationID                    uuid.UUID `db:"organization_id" json:"organization_id"`
-	CreatedBy                         uuid.UUID `db:"created_by" json:"created_by"`
-	CreatedAt                         time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt                         time.Time `db:"updated_at" json:"updated_at"`
-	Name                              string    `db:"name" json:"name"`
-	DisplayName                       string    `db:"display_name" json:"display_name"`
-	Icon                              string    `db:"icon" json:"icon"`
-	Description                       string    `db:"description" json:"description"`
-	FilterRegexOperatingSystem        string    `db:"filter_regex_operating_system" json:"filter_regex_operating_system"`
-	FilterRegexOperatingSystemVersion string    `db:"filter_regex_operating_system_version" json:"filter_regex_operating_system_version"`
-	FilterRegexArchitecture           string    `db:"filter_regex_architecture" json:"filter_regex_architecture"`
-	FilterRegexGitRemoteUrl           string    `db:"filter_regex_git_remote_url" json:"filter_regex_git_remote_url"`
-	FilterRegexInstanceID             string    `db:"filter_regex_instance_id" json:"filter_regex_instance_id"`
-	TrackedExecutables                []string  `db:"tracked_executables" json:"tracked_executables"`
+	ID                           uuid.UUID `db:"id" json:"id"`
+	OrganizationID               uuid.UUID `db:"organization_id" json:"organization_id"`
+	CreatedBy                    uuid.UUID `db:"created_by" json:"created_by"`
+	CreatedAt                    time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt                    time.Time `db:"updated_at" json:"updated_at"`
+	Name                         string    `db:"name" json:"name"`
+	DisplayName                  string    `db:"display_name" json:"display_name"`
+	Icon                         string    `db:"icon" json:"icon"`
+	Description                  string    `db:"description" json:"description"`
+	RegexOperatingSystem         string    `db:"regex_operating_system" json:"regex_operating_system"`
+	RegexOperatingSystemPlatform string    `db:"regex_operating_system_platform" json:"regex_operating_system_platform"`
+	RegexOperatingSystemVersion  string    `db:"regex_operating_system_version" json:"regex_operating_system_version"`
+	RegexArchitecture            string    `db:"regex_architecture" json:"regex_architecture"`
+	RegexInstanceID              string    `db:"regex_instance_id" json:"regex_instance_id"`
+	TrackedExecutables           []string  `db:"tracked_executables" json:"tracked_executables"`
 }
 
 type IntelInvocation struct {
@@ -1902,9 +1902,10 @@ type IntelMachine struct {
 	IPAddress      pqtype.Inet `db:"ip_address" json:"ip_address"`
 	Hostname       string      `db:"hostname" json:"hostname"`
 	// GOOS
-	OperatingSystem        string         `db:"operating_system" json:"operating_system"`
-	OperatingSystemVersion sql.NullString `db:"operating_system_version" json:"operating_system_version"`
-	CPUCores               int32          `db:"cpu_cores" json:"cpu_cores"`
+	OperatingSystem         string `db:"operating_system" json:"operating_system"`
+	OperatingSystemVersion  string `db:"operating_system_version" json:"operating_system_version"`
+	OperatingSystemPlatform string `db:"operating_system_platform" json:"operating_system_platform"`
+	CPUCores                int32  `db:"cpu_cores" json:"cpu_cores"`
 	// in MB
 	MemoryMBTotal int32 `db:"memory_mb_total" json:"memory_mb_total"`
 	// GOARCH. e.g. amd64

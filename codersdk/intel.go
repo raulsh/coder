@@ -82,18 +82,19 @@ type ServeIntelDaemonRequest struct {
 }
 
 type IntelMachine struct {
-	ID                     uuid.UUID `json:"id" format:"uuid"`
-	CreatedAt              time.Time `json:"created_at" format:"date-time"`
-	UpdatedAt              time.Time `json:"updated_at" format:"date-time"`
-	UserID                 uuid.UUID `json:"user_id" format:"uuid"`
-	OrganizationID         uuid.UUID `json:"organization_id" format:"uuid"`
-	InstanceID             string    `json:"instance_id"`
-	Hostname               string    `json:"hostname"`
-	OperatingSystem        string    `json:"operating_system"`
-	OperatingSystemVersion string    `json:"operating_system_version"`
-	CPUCores               uint16    `json:"cpu_cores"`
-	MemoryMBTotal          uint64    `json:"memory_mb_total"`
-	Architecture           string    `json:"architecture"`
+	ID                      uuid.UUID `json:"id" format:"uuid"`
+	CreatedAt               time.Time `json:"created_at" format:"date-time"`
+	UpdatedAt               time.Time `json:"updated_at" format:"date-time"`
+	UserID                  uuid.UUID `json:"user_id" format:"uuid"`
+	OrganizationID          uuid.UUID `json:"organization_id" format:"uuid"`
+	InstanceID              string    `json:"instance_id"`
+	Hostname                string    `json:"hostname"`
+	OperatingSystem         string    `json:"operating_system"`
+	OperatingSystemPlatform string    `json:"operating_system_platform"`
+	OperatingSystemVersion  string    `json:"operating_system_version"`
+	CPUCores                uint16    `json:"cpu_cores"`
+	MemoryMBTotal           uint64    `json:"memory_mb_total"`
+	Architecture            string    `json:"architecture"`
 }
 
 type IntelMachinesRequest struct {
@@ -110,28 +111,28 @@ type IntelMachinesResponse struct {
 
 // IntelMachines returns a set of machines that matches the filters provided.
 // It will return all machines if no filters are provided.
-func (c *Client) IntelMachines(ctx context.Context, req IntelMachinesRequest) ([]IntelMachine, error) {
+func (c *Client) IntelMachines(ctx context.Context, req IntelMachinesRequest) (IntelMachinesResponse, error) {
 	orgParam := req.OrganizationID.String()
 	if req.OrganizationID == uuid.Nil {
 		orgParam = DefaultOrganization
 	}
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/organizations/%s/intel/machines", orgParam), nil,
-		WithQueryParam("filter_regex_operating_system", req.RegexFilters.OperatingSystem),
-		WithQueryParam("filter_regex_operating_system_platform", req.RegexFilters.OperatingSystemPlatform),
-		WithQueryParam("filter_regex_operating_system_version", req.RegexFilters.OperatingSystemVersion),
-		WithQueryParam("filter_regex_architecture", req.RegexFilters.Architecture),
-		WithQueryParam("filter_regex_instance_id", req.RegexFilters.InstanceID),
+		WithQueryParam("operating_system", req.RegexFilters.OperatingSystem),
+		WithQueryParam("operating_system_platform", req.RegexFilters.OperatingSystemPlatform),
+		WithQueryParam("operating_system_version", req.RegexFilters.OperatingSystemVersion),
+		WithQueryParam("architecture", req.RegexFilters.Architecture),
+		WithQueryParam("instance_id", req.RegexFilters.InstanceID),
 		WithQueryParam("offset", strconv.Itoa(req.Offset)),
 		WithQueryParam("limit", strconv.Itoa(req.Limit)),
 	)
 	if err != nil {
-		return nil, err
+		return IntelMachinesResponse{}, err
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return nil, ReadBodyAsError(res)
+		return IntelMachinesResponse{}, ReadBodyAsError(res)
 	}
-	var machines []IntelMachine
+	var machines IntelMachinesResponse
 	return machines, json.NewDecoder(res.Body).Decode(&machines)
 }
 

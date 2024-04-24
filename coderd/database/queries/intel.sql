@@ -1,17 +1,18 @@
 -- name: UpsertIntelCohort :one
-INSERT INTO intel_cohorts (id, organization_id, created_by, created_at, updated_at, name, display_name, icon, description, filter_regex_operating_system, filter_regex_operating_system_version, filter_regex_architecture, filter_regex_instance_id, tracked_executables)
-	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+INSERT INTO intel_cohorts (id, organization_id, created_by, created_at, updated_at, name, display_name, icon, description, regex_operating_system, regex_operating_system_platform, regex_operating_system_version, regex_architecture, regex_instance_id, tracked_executables)
+	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
 	ON CONFLICT (id) DO UPDATE SET
 		updated_at = $5,
 		name = $6,
 		display_name = $7,
 		icon = $8,
 		description = $9,
-		filter_regex_operating_system = $10,
-		filter_regex_operating_system_version = $11,
-		filter_regex_architecture = $12,
-		filter_regex_instance_id = $13,
-		tracked_executables = $14
+		regex_operating_system = $10,
+		regex_operating_system_platform = $11,
+		regex_operating_system_version = $12,
+		regex_architecture = $13,
+		regex_instance_id = $14,
+		tracked_executables = $15
 	RETURNING *;
 
 -- name: GetIntelCohortsByOrganizationID :many
@@ -21,18 +22,19 @@ SELECT * FROM intel_cohorts WHERE organization_id = $1;
 DELETE FROM intel_cohorts WHERE id = ANY($1::uuid[]);
 
 -- name: UpsertIntelMachine :one
-INSERT INTO intel_machines (id, created_at, updated_at, instance_id, organization_id, user_id, ip_address, hostname, operating_system, operating_system_version, cpu_cores, memory_mb_total, architecture, daemon_version)
-	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+INSERT INTO intel_machines (id, created_at, updated_at, instance_id, organization_id, user_id, ip_address, hostname, operating_system, operating_system_platform, operating_system_version, cpu_cores, memory_mb_total, architecture, daemon_version)
+	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
 	ON CONFLICT (user_id, instance_id) DO UPDATE SET
 		updated_at = $3,
 		ip_address = $7,
 		hostname = $8,
 		operating_system = $9,
-		operating_system_version = $10,
-		cpu_cores = $11,
-		memory_mb_total = $12,
-		architecture = $13,
-		daemon_version = $14
+		operating_system_platform = $10,
+		operating_system_version = $11,
+		cpu_cores = $12,
+		memory_mb_total = $13,
+		architecture = $14,
+		daemon_version = $15
 	RETURNING *;
 
 -- name: InsertIntelInvocations :exec
@@ -60,37 +62,28 @@ SELECT
 -- Obtains a list of cohorts that a user can track invocations for.
 WITH machines AS (
     SELECT * FROM intel_machines WHERE id = ANY(@ids::uuid [])
-),
-matches AS (
-    SELECT
-		m.id machine_id,
-		c.id,
-        c.tracked_executables,
-        (c.filter_regex_operating_system ~ m.operating_system)::boolean AS operating_system_match,
-        (c.filter_regex_operating_system_version ~ m.operating_system_version)::boolean AS operating_system_version_match,
-        (c.filter_regex_architecture ~ m.architecture)::boolean AS architecture_match,
-        (c.filter_regex_instance_id ~ m.instance_id)::boolean AS instance_id_match
-    FROM intel_cohorts c
-    CROSS JOIN machines m
-)
-SELECT
-    *
-FROM matches
-WHERE
-    operating_system_match AND
-    operating_system_version_match AND
-    architecture_match AND
-	instance_id_match;
+) SELECT
+	m.id machine_id,
+	c.id,
+    c.tracked_executables
+  FROM intel_cohorts c
+  CROSS JOIN machines m
+	WHERE c.regex_operating_system ~ m.operating_system
+	AND c.regex_operating_system_platform ~ m.operating_system_platform
+	AND c.regex_operating_system_version ~ m.operating_system_version
+	AND c.regex_architecture ~ m.architecture
+	AND c.regex_instance_id ~ m.instance_id;
 
 -- name: GetIntelMachinesMatchingFilters :many
 WITH filtered_machines AS (
 	SELECT
 		*
 	FROM intel_machines WHERE organization_id = @organization_id
-	    AND operating_system ~ @filter_operating_system
-		AND (operating_system_version IS NULL OR operating_system_version ~ @filter_operating_system_version::text)
-		AND architecture ~ @filter_architecture
-		AND instance_id ~ @filter_instance_id
+	    AND operating_system ~ @regex_operating_system
+		AND operating_system_platform ~ @regex_operating_system_platform
+		AND operating_system_version ~ @regex_operating_system_version
+		AND architecture ~ @regex_architecture
+		AND instance_id ~ @regex_instance_id
 ), total_machines AS (
 	SELECT COUNT(*) as count FROM filtered_machines
 ), paginated_machines AS (

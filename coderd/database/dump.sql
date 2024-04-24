@@ -505,11 +505,11 @@ CREATE TABLE intel_cohorts (
     display_name text NOT NULL,
     icon character varying(256) DEFAULT ''::character varying NOT NULL,
     description text NOT NULL,
-    filter_regex_operating_system character varying(255) DEFAULT '.*'::character varying NOT NULL,
-    filter_regex_operating_system_version character varying(255) DEFAULT '.*'::character varying NOT NULL,
-    filter_regex_architecture character varying(255) DEFAULT '.*'::character varying NOT NULL,
-    filter_regex_git_remote_url character varying(255) DEFAULT '.*'::character varying NOT NULL,
-    filter_regex_instance_id character varying(255) DEFAULT '.*'::character varying NOT NULL,
+    regex_operating_system character varying(255) DEFAULT '.*'::character varying NOT NULL,
+    regex_operating_system_platform character varying(255) DEFAULT '.*'::character varying NOT NULL,
+    regex_operating_system_version character varying(255) DEFAULT '.*'::character varying NOT NULL,
+    regex_architecture character varying(255) DEFAULT '.*'::character varying NOT NULL,
+    regex_instance_id character varying(255) DEFAULT '.*'::character varying NOT NULL,
     tracked_executables text[] NOT NULL
 );
 
@@ -538,7 +538,8 @@ CREATE TABLE intel_machines (
     ip_address inet DEFAULT '0.0.0.0'::inet NOT NULL,
     hostname text NOT NULL,
     operating_system character varying(255) NOT NULL,
-    operating_system_version character varying(255),
+    operating_system_version character varying(255) NOT NULL,
+    operating_system_platform character varying(255) NOT NULL,
     cpu_cores integer NOT NULL,
     memory_mb_total integer NOT NULL,
     architecture character varying(255) NOT NULL,

@@ -3002,7 +3002,7 @@ func (q *sqlQuerier) GetConsistencyByIntelCohort(ctx context.Context) ([]GetCons
 }
 
 const getIntelCohortsByOrganizationID = `-- name: GetIntelCohortsByOrganizationID :many
-SELECT id, organization_id, created_by, created_at, updated_at, name, display_name, icon, description, filter_regex_operating_system, filter_regex_operating_system_version, filter_regex_architecture, filter_regex_git_remote_url, filter_regex_instance_id, tracked_executables FROM intel_cohorts WHERE organization_id = $1
+SELECT id, organization_id, created_by, created_at, updated_at, name, display_name, icon, description, regex_operating_system, regex_operating_system_platform, regex_operating_system_version, regex_architecture, regex_instance_id, tracked_executables FROM intel_cohorts WHERE organization_id = $1
 `
 
 func (q *sqlQuerier) GetIntelCohortsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]IntelCohort, error) {
@@ -3024,11 +3024,11 @@ func (q *sqlQuerier) GetIntelCohortsByOrganizationID(ctx context.Context, organi
 			&i.DisplayName,
 			&i.Icon,
 			&i.Description,
-			&i.FilterRegexOperatingSystem,
-			&i.FilterRegexOperatingSystemVersion,
-			&i.FilterRegexArchitecture,
-			&i.FilterRegexGitRemoteUrl,
-			&i.FilterRegexInstanceID,
+			&i.RegexOperatingSystem,
+			&i.RegexOperatingSystemPlatform,
+			&i.RegexOperatingSystemVersion,
+			&i.RegexArchitecture,
+			&i.RegexInstanceID,
 			pq.Array(&i.TrackedExecutables),
 		); err != nil {
 			return nil, err
@@ -3046,38 +3046,24 @@ func (q *sqlQuerier) GetIntelCohortsByOrganizationID(ctx context.Context, organi
 
 const getIntelCohortsMatchedByMachineIDs = `-- name: GetIntelCohortsMatchedByMachineIDs :many
 WITH machines AS (
-    SELECT id, created_at, updated_at, instance_id, organization_id, user_id, ip_address, hostname, operating_system, operating_system_version, cpu_cores, memory_mb_total, architecture, daemon_version FROM intel_machines WHERE id = ANY($1::uuid [])
-),
-matches AS (
-    SELECT
-		m.id machine_id,
-		c.id,
-        c.tracked_executables,
-        (c.filter_regex_operating_system ~ m.operating_system)::boolean AS operating_system_match,
-        (c.filter_regex_operating_system_version ~ m.operating_system_version)::boolean AS operating_system_version_match,
-        (c.filter_regex_architecture ~ m.architecture)::boolean AS architecture_match,
-        (c.filter_regex_instance_id ~ m.instance_id)::boolean AS instance_id_match
-    FROM intel_cohorts c
-    CROSS JOIN machines m
-)
-SELECT
-    machine_id, id, tracked_executables, operating_system_match, operating_system_version_match, architecture_match, instance_id_match
-FROM matches
-WHERE
-    operating_system_match AND
-    operating_system_version_match AND
-    architecture_match AND
-	instance_id_match
+    SELECT id, created_at, updated_at, instance_id, organization_id, user_id, ip_address, hostname, operating_system, operating_system_version, operating_system_platform, cpu_cores, memory_mb_total, architecture, daemon_version FROM intel_machines WHERE id = ANY($1::uuid [])
+) SELECT
+	m.id machine_id,
+	c.id,
+    c.tracked_executables
+  FROM intel_cohorts c
+  CROSS JOIN machines m
+	WHERE c.regex_operating_system ~ m.operating_system
+	AND c.regex_operating_system_platform ~ m.operating_system_platform
+	AND c.regex_operating_system_version ~ m.operating_system_version
+	AND c.regex_architecture ~ m.architecture
+	AND c.regex_instance_id ~ m.instance_id
 `
 
 type GetIntelCohortsMatchedByMachineIDsRow struct {
-	MachineID                   uuid.UUID `db:"machine_id" json:"machine_id"`
-	ID                          uuid.UUID `db:"id" json:"id"`
-	TrackedExecutables          []string  `db:"tracked_executables" json:"tracked_executables"`
-	OperatingSystemMatch        bool      `db:"operating_system_match" json:"operating_system_match"`
-	OperatingSystemVersionMatch bool      `db:"operating_system_version_match" json:"operating_system_version_match"`
-	ArchitectureMatch           bool      `db:"architecture_match" json:"architecture_match"`
-	InstanceIDMatch             bool      `db:"instance_id_match" json:"instance_id_match"`
+	MachineID          uuid.UUID `db:"machine_id" json:"machine_id"`
+	ID                 uuid.UUID `db:"id" json:"id"`
+	TrackedExecutables []string  `db:"tracked_executables" json:"tracked_executables"`
 }
 
 // Obtains a list of cohorts that a user can track invocations for.
@@ -3090,15 +3076,7 @@ func (q *sqlQuerier) GetIntelCohortsMatchedByMachineIDs(ctx context.Context, ids
 	var items []GetIntelCohortsMatchedByMachineIDsRow
 	for rows.Next() {
 		var i GetIntelCohortsMatchedByMachineIDsRow
-		if err := rows.Scan(
-			&i.MachineID,
-			&i.ID,
-			pq.Array(&i.TrackedExecutables),
-			&i.OperatingSystemMatch,
-			&i.OperatingSystemVersionMatch,
-			&i.ArchitectureMatch,
-			&i.InstanceIDMatch,
-		); err != nil {
+		if err := rows.Scan(&i.MachineID, &i.ID, pq.Array(&i.TrackedExecutables)); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -3115,26 +3093,28 @@ func (q *sqlQuerier) GetIntelCohortsMatchedByMachineIDs(ctx context.Context, ids
 const getIntelMachinesMatchingFilters = `-- name: GetIntelMachinesMatchingFilters :many
 WITH filtered_machines AS (
 	SELECT
-		id, created_at, updated_at, instance_id, organization_id, user_id, ip_address, hostname, operating_system, operating_system_version, cpu_cores, memory_mb_total, architecture, daemon_version
+		id, created_at, updated_at, instance_id, organization_id, user_id, ip_address, hostname, operating_system, operating_system_version, operating_system_platform, cpu_cores, memory_mb_total, architecture, daemon_version
 	FROM intel_machines WHERE organization_id = $1
 	    AND operating_system ~ $2
-		AND (operating_system_version IS NULL OR operating_system_version ~ $3::text)
-		AND architecture ~ $4
-		AND instance_id ~ $5
+		AND operating_system_platform ~ $3
+		AND operating_system_version ~ $4
+		AND architecture ~ $5
+		AND instance_id ~ $6
 ), total_machines AS (
 	SELECT COUNT(*) as count FROM filtered_machines
 ), paginated_machines AS (
-	SELECT id, created_at, updated_at, instance_id, organization_id, user_id, ip_address, hostname, operating_system, operating_system_version, cpu_cores, memory_mb_total, architecture, daemon_version FROM filtered_machines ORDER BY created_at DESC LIMIT NULLIF($7 :: int, 0) OFFSET NULLIF($6 :: int, 0)
+	SELECT id, created_at, updated_at, instance_id, organization_id, user_id, ip_address, hostname, operating_system, operating_system_version, operating_system_platform, cpu_cores, memory_mb_total, architecture, daemon_version FROM filtered_machines ORDER BY created_at DESC LIMIT NULLIF($8 :: int, 0) OFFSET NULLIF($7 :: int, 0)
 )
-SELECT tm.count, intel_machines.id, intel_machines.created_at, intel_machines.updated_at, intel_machines.instance_id, intel_machines.organization_id, intel_machines.user_id, intel_machines.ip_address, intel_machines.hostname, intel_machines.operating_system, intel_machines.operating_system_version, intel_machines.cpu_cores, intel_machines.memory_mb_total, intel_machines.architecture, intel_machines.daemon_version FROM paginated_machines AS intel_machines CROSS JOIN total_machines as tm
+SELECT tm.count, intel_machines.id, intel_machines.created_at, intel_machines.updated_at, intel_machines.instance_id, intel_machines.organization_id, intel_machines.user_id, intel_machines.ip_address, intel_machines.hostname, intel_machines.operating_system, intel_machines.operating_system_version, intel_machines.operating_system_platform, intel_machines.cpu_cores, intel_machines.memory_mb_total, intel_machines.architecture, intel_machines.daemon_version FROM paginated_machines AS intel_machines CROSS JOIN total_machines as tm
 `
 
 type GetIntelMachinesMatchingFiltersParams struct {
 	OrganizationID               uuid.UUID `db:"organization_id" json:"organization_id"`
-	FilterOperatingSystem        string    `db:"filter_operating_system" json:"filter_operating_system"`
-	FilterOperatingSystemVersion string    `db:"filter_operating_system_version" json:"filter_operating_system_version"`
-	FilterArchitecture           string    `db:"filter_architecture" json:"filter_architecture"`
-	FilterInstanceID             string    `db:"filter_instance_id" json:"filter_instance_id"`
+	RegexOperatingSystem         string    `db:"regex_operating_system" json:"regex_operating_system"`
+	RegexOperatingSystemPlatform string    `db:"regex_operating_system_platform" json:"regex_operating_system_platform"`
+	RegexOperatingSystemVersion  string    `db:"regex_operating_system_version" json:"regex_operating_system_version"`
+	RegexArchitecture            string    `db:"regex_architecture" json:"regex_architecture"`
+	RegexInstanceID              string    `db:"regex_instance_id" json:"regex_instance_id"`
 	OffsetOpt                    int32     `db:"offset_opt" json:"offset_opt"`
 	LimitOpt                     int32     `db:"limit_opt" json:"limit_opt"`
 }
@@ -3147,10 +3127,11 @@ type GetIntelMachinesMatchingFiltersRow struct {
 func (q *sqlQuerier) GetIntelMachinesMatchingFilters(ctx context.Context, arg GetIntelMachinesMatchingFiltersParams) ([]GetIntelMachinesMatchingFiltersRow, error) {
 	rows, err := q.db.QueryContext(ctx, getIntelMachinesMatchingFilters,
 		arg.OrganizationID,
-		arg.FilterOperatingSystem,
-		arg.FilterOperatingSystemVersion,
-		arg.FilterArchitecture,
-		arg.FilterInstanceID,
+		arg.RegexOperatingSystem,
+		arg.RegexOperatingSystemPlatform,
+		arg.RegexOperatingSystemVersion,
+		arg.RegexArchitecture,
+		arg.RegexInstanceID,
 		arg.OffsetOpt,
 		arg.LimitOpt,
 	)
@@ -3173,6 +3154,7 @@ func (q *sqlQuerier) GetIntelMachinesMatchingFilters(ctx context.Context, arg Ge
 			&i.IntelMachine.Hostname,
 			&i.IntelMachine.OperatingSystem,
 			&i.IntelMachine.OperatingSystemVersion,
+			&i.IntelMachine.OperatingSystemPlatform,
 			&i.IntelMachine.CPUCores,
 			&i.IntelMachine.MemoryMBTotal,
 			&i.IntelMachine.Architecture,
@@ -3247,37 +3229,39 @@ func (q *sqlQuerier) InsertIntelInvocations(ctx context.Context, arg InsertIntel
 }
 
 const upsertIntelCohort = `-- name: UpsertIntelCohort :one
-INSERT INTO intel_cohorts (id, organization_id, created_by, created_at, updated_at, name, display_name, icon, description, filter_regex_operating_system, filter_regex_operating_system_version, filter_regex_architecture, filter_regex_instance_id, tracked_executables)
-	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+INSERT INTO intel_cohorts (id, organization_id, created_by, created_at, updated_at, name, display_name, icon, description, regex_operating_system, regex_operating_system_platform, regex_operating_system_version, regex_architecture, regex_instance_id, tracked_executables)
+	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
 	ON CONFLICT (id) DO UPDATE SET
 		updated_at = $5,
 		name = $6,
 		display_name = $7,
 		icon = $8,
 		description = $9,
-		filter_regex_operating_system = $10,
-		filter_regex_operating_system_version = $11,
-		filter_regex_architecture = $12,
-		filter_regex_instance_id = $13,
-		tracked_executables = $14
-	RETURNING id, organization_id, created_by, created_at, updated_at, name, display_name, icon, description, filter_regex_operating_system, filter_regex_operating_system_version, filter_regex_architecture, filter_regex_git_remote_url, filter_regex_instance_id, tracked_executables
+		regex_operating_system = $10,
+		regex_operating_system_platform = $11,
+		regex_operating_system_version = $12,
+		regex_architecture = $13,
+		regex_instance_id = $14,
+		tracked_executables = $15
+	RETURNING id, organization_id, created_by, created_at, updated_at, name, display_name, icon, description, regex_operating_system, regex_operating_system_platform, regex_operating_system_version, regex_architecture, regex_instance_id, tracked_executables
 `
 
 type UpsertIntelCohortParams struct {
-	ID                                uuid.UUID `db:"id" json:"id"`
-	OrganizationID                    uuid.UUID `db:"organization_id" json:"organization_id"`
-	CreatedBy                         uuid.UUID `db:"created_by" json:"created_by"`
-	CreatedAt                         time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt                         time.Time `db:"updated_at" json:"updated_at"`
-	Name                              string    `db:"name" json:"name"`
-	DisplayName                       string    `db:"display_name" json:"display_name"`
-	Icon                              string    `db:"icon" json:"icon"`
-	Description                       string    `db:"description" json:"description"`
-	FilterRegexOperatingSystem        string    `db:"filter_regex_operating_system" json:"filter_regex_operating_system"`
-	FilterRegexOperatingSystemVersion string    `db:"filter_regex_operating_system_version" json:"filter_regex_operating_system_version"`
-	FilterRegexArchitecture           string    `db:"filter_regex_architecture" json:"filter_regex_architecture"`
-	FilterRegexInstanceID             string    `db:"filter_regex_instance_id" json:"filter_regex_instance_id"`
-	TrackedExecutables                []string  `db:"tracked_executables" json:"tracked_executables"`
+	ID                           uuid.UUID `db:"id" json:"id"`
+	OrganizationID               uuid.UUID `db:"organization_id" json:"organization_id"`
+	CreatedBy                    uuid.UUID `db:"created_by" json:"created_by"`
+	CreatedAt                    time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt                    time.Time `db:"updated_at" json:"updated_at"`
+	Name                         string    `db:"name" json:"name"`
+	DisplayName                  string    `db:"display_name" json:"display_name"`
+	Icon                         string    `db:"icon" json:"icon"`
+	Description                  string    `db:"description" json:"description"`
+	RegexOperatingSystem         string    `db:"regex_operating_system" json:"regex_operating_system"`
+	RegexOperatingSystemPlatform string    `db:"regex_operating_system_platform" json:"regex_operating_system_platform"`
+	RegexOperatingSystemVersion  string    `db:"regex_operating_system_version" json:"regex_operating_system_version"`
+	RegexArchitecture            string    `db:"regex_architecture" json:"regex_architecture"`
+	RegexInstanceID              string    `db:"regex_instance_id" json:"regex_instance_id"`
+	TrackedExecutables           []string  `db:"tracked_executables" json:"tracked_executables"`
 }
 
 func (q *sqlQuerier) UpsertIntelCohort(ctx context.Context, arg UpsertIntelCohortParams) (IntelCohort, error) {
@@ -3291,10 +3275,11 @@ func (q *sqlQuerier) UpsertIntelCohort(ctx context.Context, arg UpsertIntelCohor
 		arg.DisplayName,
 		arg.Icon,
 		arg.Description,
-		arg.FilterRegexOperatingSystem,
-		arg.FilterRegexOperatingSystemVersion,
-		arg.FilterRegexArchitecture,
-		arg.FilterRegexInstanceID,
+		arg.RegexOperatingSystem,
+		arg.RegexOperatingSystemPlatform,
+		arg.RegexOperatingSystemVersion,
+		arg.RegexArchitecture,
+		arg.RegexInstanceID,
 		pq.Array(arg.TrackedExecutables),
 	)
 	var i IntelCohort
@@ -3308,47 +3293,49 @@ func (q *sqlQuerier) UpsertIntelCohort(ctx context.Context, arg UpsertIntelCohor
 		&i.DisplayName,
 		&i.Icon,
 		&i.Description,
-		&i.FilterRegexOperatingSystem,
-		&i.FilterRegexOperatingSystemVersion,
-		&i.FilterRegexArchitecture,
-		&i.FilterRegexGitRemoteUrl,
-		&i.FilterRegexInstanceID,
+		&i.RegexOperatingSystem,
+		&i.RegexOperatingSystemPlatform,
+		&i.RegexOperatingSystemVersion,
+		&i.RegexArchitecture,
+		&i.RegexInstanceID,
 		pq.Array(&i.TrackedExecutables),
 	)
 	return i, err
 }
 
 const upsertIntelMachine = `-- name: UpsertIntelMachine :one
-INSERT INTO intel_machines (id, created_at, updated_at, instance_id, organization_id, user_id, ip_address, hostname, operating_system, operating_system_version, cpu_cores, memory_mb_total, architecture, daemon_version)
-	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+INSERT INTO intel_machines (id, created_at, updated_at, instance_id, organization_id, user_id, ip_address, hostname, operating_system, operating_system_platform, operating_system_version, cpu_cores, memory_mb_total, architecture, daemon_version)
+	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
 	ON CONFLICT (user_id, instance_id) DO UPDATE SET
 		updated_at = $3,
 		ip_address = $7,
 		hostname = $8,
 		operating_system = $9,
-		operating_system_version = $10,
-		cpu_cores = $11,
-		memory_mb_total = $12,
-		architecture = $13,
-		daemon_version = $14
-	RETURNING id, created_at, updated_at, instance_id, organization_id, user_id, ip_address, hostname, operating_system, operating_system_version, cpu_cores, memory_mb_total, architecture, daemon_version
+		operating_system_platform = $10,
+		operating_system_version = $11,
+		cpu_cores = $12,
+		memory_mb_total = $13,
+		architecture = $14,
+		daemon_version = $15
+	RETURNING id, created_at, updated_at, instance_id, organization_id, user_id, ip_address, hostname, operating_system, operating_system_version, operating_system_platform, cpu_cores, memory_mb_total, architecture, daemon_version
 `
 
 type UpsertIntelMachineParams struct {
-	ID                     uuid.UUID      `db:"id" json:"id"`
-	CreatedAt              time.Time      `db:"created_at" json:"created_at"`
-	UpdatedAt              time.Time      `db:"updated_at" json:"updated_at"`
-	InstanceID             string         `db:"instance_id" json:"instance_id"`
-	OrganizationID         uuid.UUID      `db:"organization_id" json:"organization_id"`
-	UserID                 uuid.UUID      `db:"user_id" json:"user_id"`
-	IPAddress              pqtype.Inet    `db:"ip_address" json:"ip_address"`
-	Hostname               string         `db:"hostname" json:"hostname"`
-	OperatingSystem        string         `db:"operating_system" json:"operating_system"`
-	OperatingSystemVersion sql.NullString `db:"operating_system_version" json:"operating_system_version"`
-	CPUCores               int32          `db:"cpu_cores" json:"cpu_cores"`
-	MemoryMBTotal          int32          `db:"memory_mb_total" json:"memory_mb_total"`
-	Architecture           string         `db:"architecture" json:"architecture"`
-	DaemonVersion          string         `db:"daemon_version" json:"daemon_version"`
+	ID                      uuid.UUID   `db:"id" json:"id"`
+	CreatedAt               time.Time   `db:"created_at" json:"created_at"`
+	UpdatedAt               time.Time   `db:"updated_at" json:"updated_at"`
+	InstanceID              string      `db:"instance_id" json:"instance_id"`
+	OrganizationID          uuid.UUID   `db:"organization_id" json:"organization_id"`
+	UserID                  uuid.UUID   `db:"user_id" json:"user_id"`
+	IPAddress               pqtype.Inet `db:"ip_address" json:"ip_address"`
+	Hostname                string      `db:"hostname" json:"hostname"`
+	OperatingSystem         string      `db:"operating_system" json:"operating_system"`
+	OperatingSystemPlatform string      `db:"operating_system_platform" json:"operating_system_platform"`
+	OperatingSystemVersion  string      `db:"operating_system_version" json:"operating_system_version"`
+	CPUCores                int32       `db:"cpu_cores" json:"cpu_cores"`
+	MemoryMBTotal           int32       `db:"memory_mb_total" json:"memory_mb_total"`
+	Architecture            string      `db:"architecture" json:"architecture"`
+	DaemonVersion           string      `db:"daemon_version" json:"daemon_version"`
 }
 
 func (q *sqlQuerier) UpsertIntelMachine(ctx context.Context, arg UpsertIntelMachineParams) (IntelMachine, error) {
@@ -3362,6 +3349,7 @@ func (q *sqlQuerier) UpsertIntelMachine(ctx context.Context, arg UpsertIntelMach
 		arg.IPAddress,
 		arg.Hostname,
 		arg.OperatingSystem,
+		arg.OperatingSystemPlatform,
 		arg.OperatingSystemVersion,
 		arg.CPUCores,
 		arg.MemoryMBTotal,
@@ -3380,6 +3368,7 @@ func (q *sqlQuerier) UpsertIntelMachine(ctx context.Context, arg UpsertIntelMach
 		&i.Hostname,
 		&i.OperatingSystem,
 		&i.OperatingSystemVersion,
+		&i.OperatingSystemPlatform,
 		&i.CPUCores,
 		&i.MemoryMBTotal,
 		&i.Architecture,

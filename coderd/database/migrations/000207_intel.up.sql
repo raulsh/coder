@@ -9,11 +9,11 @@ CREATE TABLE intel_cohorts (
     icon character varying(256) DEFAULT ''::character varying NOT NULL,
     description TEXT NOT NULL,
 
-    filter_regex_operating_system VARCHAR(255) NOT NULL DEFAULT '.*',
-    filter_regex_operating_system_version VARCHAR(255) NOT NULL DEFAULT '.*',
-    filter_regex_architecture VARCHAR(255) NOT NULL DEFAULT '.*',
-    filter_regex_git_remote_url VARCHAR(255) NOT NULL DEFAULT '.*',
-	filter_regex_instance_id VARCHAR(255) NOT NULL DEFAULT '.*',
+    regex_operating_system VARCHAR(255) NOT NULL DEFAULT '.*',
+	regex_operating_system_platform VARCHAR(255) NOT NULL DEFAULT '.*',
+    regex_operating_system_version VARCHAR(255) NOT NULL DEFAULT '.*',
+    regex_architecture VARCHAR(255) NOT NULL DEFAULT '.*',
+	regex_instance_id VARCHAR(255) NOT NULL DEFAULT '.*',
 
     tracked_executables TEXT[] NOT NULL
 );
@@ -28,7 +28,8 @@ CREATE TABLE intel_machines (
     ip_address inet DEFAULT '0.0.0.0'::inet NOT NULL,
     hostname TEXT NOT NULL,
     operating_system VARCHAR(255) NOT NULL,
-    operating_system_version VARCHAR(255),
+    operating_system_version VARCHAR(255) NOT NULL,
+	operating_system_platform VARCHAR(255) NOT NULL,
     cpu_cores INT NOT NULL,
     memory_mb_total INT NOT NULL,
     architecture VARCHAR(255) NOT NULL,
