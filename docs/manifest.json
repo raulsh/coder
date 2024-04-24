@@ -1,5 +1,7 @@
 {
-  "versions": ["main"],
+  "versions": [
+    "main"
+  ],
   "routes": [
     {
       "title": "About",
@@ -328,6 +330,17 @@
       "path": "./admin/README.md",
       "icon_path": "./images/icons/wrench.svg",
       "children": [
+        {
+          "title": "Tiered RBAC",
+          "description": "Granular access control",
+          "path": "./admin/rabbit/README.md",
+          "children": [
+            {
+              "title": "Bring Your Own Cluster",
+              "path": "./admin/rabbit/guides/byoc.md"
+            }
+          ]
+        },
         {
           "title": "Authentication",
           "description": "Learn how to set up authentication using GitHub or OpenID Connect",
