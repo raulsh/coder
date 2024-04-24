@@ -716,10 +716,11 @@ func TestIntel(t *testing.T) {
 
 	rows, err := db.GetIntelMachinesMatchingFilters(ctx, database.GetIntelMachinesMatchingFiltersParams{
 		OrganizationID:               machine.OrganizationID,
-		FilterOperatingSystem:        "linux|windows",
-		FilterOperatingSystemVersion: ".*",
-		FilterArchitecture:           ".*",
-		FilterInstanceID:             ".*",
+		RegexOperatingSystem:         "linux|windows",
+		RegexOperatingSystemVersion:  ".*",
+		RegexOperatingSystemPlatform: ".*",
+		RegexArchitecture:            ".*",
+		RegexInstanceID:              ".*",
 		LimitOpt:                     999,
 		OffsetOpt:                    0,
 	})
