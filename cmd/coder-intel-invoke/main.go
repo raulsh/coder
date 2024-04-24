@@ -64,7 +64,7 @@ func run(ctx context.Context) error {
 		return err
 	}
 	//nolint:gosec
-	cmd := exec.CommandContext(ctx, os.Args[0], os.Args[1:]...)
+	cmd := exec.CommandContext(ctx, baseName, os.Args[1:]...)
 	cmd.Stdout = os.Stdout
 	cmd.Stdin = os.Stdin
 	cmd.Stderr = os.Stderr
