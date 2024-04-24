@@ -198,17 +198,7 @@ func (a *API) listenLoop() {
 		if err != nil {
 			a.logger.Error(a.closeContext, "unable to prepend invoke directory to PATH", slog.Error(err))
 		}
-		userEmail, err := fetchFromGitConfig("user.email")
-		if err != nil {
-			a.logger.Warn(a.closeContext, "unable to fetch user.email from git config", slog.Error(err))
-		}
-		userName, err := fetchFromGitConfig("user.name")
-		if err != nil {
-			a.logger.Warn(a.closeContext, "unable to fetch user.name from git config", slog.Error(err))
-		}
 		system, err := client.Listen(a.closeContext, &proto.ListenRequest{
-			GitConfigEmail:    userEmail,
-			GitConfigName:     userName,
 			InstalledSoftware: &proto.InstalledSoftware{
 				// TODO: Make this valid!
 			},

@@ -617,15 +617,7 @@ export interface IntelCohort extends IntelCohortMetadata {
   readonly created_by: string;
   readonly created_at: number;
   readonly updated_at: number;
-  readonly filters: IntelCohortFilters;
-}
-
-// From codersdk/intel.go
-export interface IntelCohortFilters {
-  readonly filter_regex_operating_system: string;
-  readonly filter_regex_operating_system_version: string;
-  readonly filter_regex_architecture: string;
-  readonly filter_regex_instance_id: string;
+  readonly regex_filters: IntelCohortRegexFilters;
 }
 
 // From codersdk/intel.go
@@ -638,9 +630,19 @@ export interface IntelCohortMetadata {
 }
 
 // From codersdk/intel.go
+export interface IntelCohortRegexFilters {
+  readonly operating_system: string;
+  readonly operating_system_platform: string;
+  readonly operating_system_version: string;
+  readonly architecture: string;
+  readonly instance_id: string;
+}
+
+// From codersdk/intel.go
 export interface IntelDaemonHostInfo {
   readonly hostname: string;
   readonly operating_system: string;
+  readonly operating_system_platform: string;
   readonly operating_system_version: string;
   readonly architecture: string;
   readonly cpu_cores: number;
@@ -666,7 +668,7 @@ export interface IntelMachine {
 // From codersdk/intel.go
 export interface IntelMachinesRequest {
   readonly organization_id: string;
-  readonly filters: IntelCohortFilters;
+  readonly regex_filters: IntelCohortRegexFilters;
 }
 
 // From codersdk/intel.go
