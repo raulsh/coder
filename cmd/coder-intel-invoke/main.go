@@ -33,13 +33,8 @@ func run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	toRemove := filepath.Dir(currentPath)
-	for i, part := range pathParts {
-		if part == toRemove {
-			pathParts = append(pathParts[:i], pathParts[i+1:]...)
-			break
-		}
-	}
+	pathParts = cleanPathParts(filepath.Dir(currentPath), pathParts)
+
 	err = os.Setenv("PATH", strings.Join(pathParts, string(filepath.ListSeparator)))
 	if err != nil {
 		return err
@@ -86,4 +81,15 @@ func run(ctx context.Context) error {
 		ExitCode:         int32(exitCode),
 		WorkingDirectory: wd,
 	})
+}
+
+// cleanPathParts removes the currentPath from the pathParts slice.
+func cleanPathParts(currentPath string, pathParts []string) []string {
+	parts := []string{}
+	for _, part := range pathParts {
+		if part != currentPath {
+			parts = append(parts, part)
+		}
+	}
+	return parts
 }

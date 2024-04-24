@@ -54,6 +54,7 @@ CREATE TABLE intel_invocations (
     binary_version TEXT NOT NULL,
     working_directory TEXT NOT NULL,
     git_remote_url TEXT NOT NULL,
+	exit_code INT NOT NULL,
     duration_ms INT NOT NULL
 );
 

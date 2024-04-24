@@ -97,6 +97,7 @@ func (s *server) invocationQueueLoop() {
 			binaryVersions := make([]string, 0, len(i))
 			workingDirs := make([]string, 0, len(i))
 			gitRemoteURLs := make([]string, 0, len(i))
+			exitCodes := make([]int32, 0, len(i))
 			durationsMS := make([]int32, 0, len(i))
 
 			for _, invocation := range i {
@@ -108,6 +109,7 @@ func (s *server) invocationQueueLoop() {
 				binaryVersions = append(binaryVersions, invocation.Executable.Version)
 				workingDirs = append(workingDirs, invocation.WorkingDirectory)
 				gitRemoteURLs = append(gitRemoteURLs, invocation.GitRemoteUrl)
+				exitCodes = append(exitCodes, invocation.ExitCode)
 				durationsMS = append(durationsMS, int32(invocation.DurationMs))
 			}
 
@@ -123,6 +125,7 @@ func (s *server) invocationQueueLoop() {
 				BinaryVersion:    binaryVersions,
 				WorkingDirectory: workingDirs,
 				GitRemoteUrl:     gitRemoteURLs,
+				ExitCode:         exitCodes,
 				DurationMs:       durationsMS,
 			})
 			if err != nil {

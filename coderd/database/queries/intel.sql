@@ -35,6 +35,7 @@ SELECT
 	unnest(@binary_version :: text[ ]) as binary_version,
 	unnest(@working_directory :: text[ ]) as working_directory,
 	unnest(@git_remote_url :: text[ ]) as git_remote_url,
+	unnest(@exit_code :: int [ ]) as exit_code,
 	unnest(@duration_ms :: int[ ]) as duration_ms;
 
 -- name: GetIntelCohortsMatchedByMachineIDs :many

@@ -1899,6 +1899,7 @@ type IntelInvocation struct {
 	BinaryVersion    string          `db:"binary_version" json:"binary_version"`
 	WorkingDirectory string          `db:"working_directory" json:"working_directory"`
 	GitRemoteUrl     string          `db:"git_remote_url" json:"git_remote_url"`
+	ExitCode         int32           `db:"exit_code" json:"exit_code"`
 	DurationMs       int32           `db:"duration_ms" json:"duration_ms"`
 }
 

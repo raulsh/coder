@@ -3089,7 +3089,8 @@ SELECT
 	unnest($8 :: text[ ]) as binary_version,
 	unnest($9 :: text[ ]) as working_directory,
 	unnest($10 :: text[ ]) as git_remote_url,
-	unnest($11 :: int[ ]) as duration_ms
+	unnest($11 :: int [ ]) as exit_code,
+	unnest($12 :: int[ ]) as duration_ms
 `
 
 type InsertIntelInvocationsParams struct {
@@ -3103,6 +3104,7 @@ type InsertIntelInvocationsParams struct {
 	BinaryVersion    []string        `db:"binary_version" json:"binary_version"`
 	WorkingDirectory []string        `db:"working_directory" json:"working_directory"`
 	GitRemoteUrl     []string        `db:"git_remote_url" json:"git_remote_url"`
+	ExitCode         []int32         `db:"exit_code" json:"exit_code"`
 	DurationMs       []int32         `db:"duration_ms" json:"duration_ms"`
 }
 
@@ -3119,6 +3121,7 @@ func (q *sqlQuerier) InsertIntelInvocations(ctx context.Context, arg InsertIntel
 		pq.Array(arg.BinaryVersion),
 		pq.Array(arg.WorkingDirectory),
 		pq.Array(arg.GitRemoteUrl),
+		pq.Array(arg.ExitCode),
 		pq.Array(arg.DurationMs),
 	)
 	return err

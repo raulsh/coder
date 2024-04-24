@@ -7,6 +7,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog/sloggers/slogtest"
+
 	"github.com/coder/coder/v2/inteld/proto"
 )
 
@@ -17,7 +19,7 @@ func Test_invocationQueue(t *testing.T) {
 		// a group of invocations are being sent.
 		t.Parallel()
 		ctx, cancelFunc := context.WithCancel(context.Background())
-		queue := newInvocationQueue(time.Millisecond)
+		queue := newInvocationQueue(time.Millisecond, slogtest.Make(t, nil))
 		sendStarted := make(chan []*proto.Invocation)
 		sendCompleted := make(chan struct{})
 		go queue.startSendLoop(ctx, func(i []*proto.Invocation) error {
