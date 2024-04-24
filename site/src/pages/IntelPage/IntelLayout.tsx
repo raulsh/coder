@@ -1,12 +1,12 @@
 import type { FC, PropsWithChildren } from "react";
+import { Helmet } from "react-helmet-async";
 import { Outlet, useLocation } from "react-router-dom";
 import { Margins } from "components/Margins/Margins";
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
 import { TabLink, Tabs, TabsList } from "components/Tabs/Tabs";
-import { Helmet } from "react-helmet-async";
 import { pageTitle } from "utils/page";
 
-const InsightsLayout: FC<PropsWithChildren> = ({ children = <Outlet /> }) => {
+const IntelLayout: FC<PropsWithChildren> = ({ children = <Outlet /> }) => {
   const location = useLocation();
   const paths = location.pathname.split("/");
   const activeTab = paths[2] ?? "summary";
@@ -35,9 +35,9 @@ const InsightsLayout: FC<PropsWithChildren> = ({ children = <Outlet /> }) => {
           </TabLink>
         </TabsList>
       </Tabs>
-        {children}
+      {children}
     </Margins>
   );
 };
 
-export default InsightsLayout;
+export default IntelLayout;

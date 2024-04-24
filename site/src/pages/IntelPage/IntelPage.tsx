@@ -1,16 +1,16 @@
 import { Helmet } from "react-helmet-async";
 import { pageTitle } from "utils/page";
-import InsightsLayout from "./InsightsLayout";
+import IntelLayout from "./IntelLayout";
 
-const InsightsPage = () => {
+const IntelPage = () => {
   return (
     <>
       <Helmet>
         <title>{pageTitle("Insights")}</title>
       </Helmet>
-      <InsightsLayout />
+      <IntelLayout />
     </>
   );
 };
 
-export default InsightsPage;
+export default IntelPage;

@@ -1,18 +1,22 @@
 import { css, useTheme } from "@emotion/react";
 import type { FC, HTMLAttributes } from "react";
-import InsightsChart, { type InsightsChartProps } from "./InsightsChart";
+import IntelChart, { type IntelChartProps } from "./IntelChart";
 
-const InsightsSummaryPage = () => {
+const IntelSummaryPage = () => {
   return (
-    <div css={css`
-      display: grid;
-      grid-template-columns: 1fr 1fr 1fr 1fr 1fr;
-      gap: 16px;
-      padding: 16px;
-    `}>
-      <Panel css={css`
-        grid-column: span 3;
-      `}>
+    <div
+      css={css`
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr 1fr 1fr;
+        gap: 16px;
+        padding: 16px;
+      `}
+    >
+      <Panel
+        css={css`
+          grid-column: span 3;
+        `}
+      >
         <PanelHeader>
           <PanelTitle
             css={css`
@@ -28,29 +32,37 @@ const InsightsSummaryPage = () => {
             `}
           >
             Development Environment Consistency
-            <span>
-              Higher is Better
-            </span>
+            <span>Higher is Better</span>
           </PanelTitle>
         </PanelHeader>
         <PanelContent>
-          <p css={css`
-          margin-top: 0px;
-          margin-bottom: 16px;`}>
-          Your developers are using <b>97%</b> of the same toolchain in Coder workspaces.
+          <p
+            css={css`
+              margin-top: 0px;
+              margin-bottom: 16px;
+            `}
+          >
+            Your developers are using <b>97%</b> of the same toolchain in Coder
+            workspaces.
           </p>
-          <InsightsChart css={css`
-            max-height: 400px;
-            height: 100%;
-          `} lines={fakeConsistencyData} interval="day" />
+          <IntelChart
+            css={css`
+              max-height: 400px;
+              height: 100%;
+            `}
+            lines={fakeConsistencyData}
+            interval="day"
+          />
         </PanelContent>
       </Panel>
 
-      <Panel css={css`
-        grid-column: span 2;
-      `}>
+      <Panel
+        css={css`
+          grid-column: span 2;
+        `}
+      >
         <PanelHeader>
-        <PanelTitle
+          <PanelTitle
             css={css`
               font-size: 20px;
 
@@ -64,22 +76,26 @@ const InsightsSummaryPage = () => {
             `}
           >
             Time Between Commits
-            <span>
-              Lower is Better
-            </span>
+            <span>Lower is Better</span>
           </PanelTitle>
         </PanelHeader>
         <PanelContent>
-
-          <p css={css`
-          margin-top: 0px;
-          margin-bottom: 16px;`}>
-          In Coder environments, your engineers commit 40% more.
+          <p
+            css={css`
+              margin-top: 0px;
+              margin-bottom: 16px;
+            `}
+          >
+            In Coder environments, your engineers commit 40% more.
           </p>
-          <InsightsChart css={css`
-            max-height: 400px;
-            height: 100%;
-          `} lines={fakeTimeCommitsData} interval="day" />
+          <IntelChart
+            css={css`
+              max-height: 400px;
+              height: 100%;
+            `}
+            lines={fakeTimeCommitsData}
+            interval="day"
+          />
         </PanelContent>
       </Panel>
 
@@ -124,7 +140,7 @@ const Panel: FC<PanelProps> = ({ children, ...attrs }) => {
   );
 };
 
-const fakeTimeCommitsData: InsightsChartProps["lines"] = [
+const fakeTimeCommitsData: IntelChartProps["lines"] = [
   {
     label: "Coder",
     data: [
@@ -154,10 +170,12 @@ const fakeTimeCommitsData: InsightsChartProps["lines"] = [
       20, 25, 19, 8, 19, 22, 26, 24, 22, 19,
       // 10
       20, 25, 19, 16, 19, 36, 26, 24, 22, 19,
-    ].reverse().map((n, i) => ({
-      date: `2024-03-${i}`,
-      amount: n / 100,
-    })),
+    ]
+      .reverse()
+      .map((n, i) => ({
+        date: `2024-03-${i}`,
+        amount: n / 100,
+      })),
   },
   {
     label: "VDI",
@@ -171,14 +189,16 @@ const fakeTimeCommitsData: InsightsChartProps["lines"] = [
       40, 35, 36, 38, 39, 33, 30, 26, 28, 34,
       // 10
       36, 30, 29, 26, 29, 36, 46, 54, 42, 39,
-    ].reverse().map((n, i) => ({
-      date: `2024-03-${i}`,
-      amount: (n * 1.4) / 100,
-    })),
+    ]
+      .reverse()
+      .map((n, i) => ({
+        date: `2024-03-${i}`,
+        amount: (n * 1.4) / 100,
+      })),
   },
 ];
 
-const fakeConsistencyData: InsightsChartProps["lines"] = [
+const fakeConsistencyData: IntelChartProps["lines"] = [
   {
     label: "Coder",
     data: [
@@ -265,4 +285,4 @@ const PanelContent: FC<HTMLAttributes<HTMLDivElement>> = ({
   );
 };
 
-export default InsightsSummaryPage;
+export default IntelSummaryPage;

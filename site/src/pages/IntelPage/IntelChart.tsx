@@ -1,5 +1,5 @@
 import "chartjs-adapter-date-fns";
-import { useTheme } from "@emotion/react"
+import { useTheme } from "@emotion/react";
 import {
   CategoryScale,
   Chart as ChartJS,
@@ -32,27 +32,25 @@ ChartJS.register(
   annotationPlugin,
 );
 
-export interface InsightsChartProps {
-  className?: string
+export interface IntelChartProps {
+  className?: string;
   lines: Array<{
-    label: string
-    pointBackgroundColor: string
-    pointBorderColor: string
-    borderColor: string
-    data: Array<{ date: string; amount: number }>
+    label: string;
+    pointBackgroundColor: string;
+    pointBorderColor: string;
+    borderColor: string;
+    data: Array<{ date: string; amount: number }>;
   }>;
   interval: "day" | "week";
 }
 
-const InsightsChart: FC<InsightsChartProps> = ({
-  className,
-  lines,
-  interval,
-}) => {
-  const theme = useTheme()
+const IntelChart: FC<IntelChartProps> = ({ className, lines, interval }) => {
+  const theme = useTheme();
   const labels = useMemo(() => {
-    return lines.flatMap((line) => line.data.map((val) => dayjs(val.date).format("YYYY-MM-DD")))
-  }, [lines])
+    return lines.flatMap((line) =>
+      line.data.map((val) => dayjs(val.date).format("YYYY-MM-DD")),
+    );
+  }, [lines]);
 
   defaults.font.family = theme.typography.fontFamily as string;
   defaults.color = theme.palette.text.secondary;
@@ -118,6 +116,6 @@ const InsightsChart: FC<InsightsChartProps> = ({
       options={options}
     />
   );
-}
+};
 
-export default InsightsChart
+export default IntelChart;

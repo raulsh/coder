@@ -6,7 +6,7 @@ import {
   Outlet,
   Route,
 } from "react-router-dom";
-import InsightsLayout from "pages/InsightsPage/InsightsLayout";
+import IntelLayout from "pages/IntelPage/IntelLayout";
 import { Loader } from "./components/Loader/Loader";
 import { RequireAuth } from "./contexts/auth/RequireAuth";
 import { DashboardLayout } from "./modules/dashboard/DashboardLayout";
@@ -241,10 +241,18 @@ const WorkspaceProxyHealthPage = lazy(
 const ProvisionerDaemonsHealthPage = lazy(
   () => import("./pages/HealthPage/ProvisionerDaemonsPage"),
 );
-const InsightsSummaryPage = lazy(() => import("./pages/InsightsPage/InsightsSummaryPage"));
-const InsightsToolsPage = lazy(() => import("./pages/InsightsPage/InsightsToolsPage"));
-const InsightsCommandsPage = lazy(() => import("./pages/InsightsPage/InsightsCommandsPage"));
-const InsightsEditorsPage = lazy(() => import("./pages/InsightsPage/InsightsEditorsPage"));
+const InsightsSummaryPage = lazy(
+  () => import("./pages/IntelPage/IntelSummaryPage"),
+);
+const InsightsToolsPage = lazy(
+  () => import("./pages/IntelPage/IntelToolsPage"),
+);
+const InsightsCommandsPage = lazy(
+  () => import("./pages/IntelPage/IntelCommandsPage"),
+);
+const InsightsEditorsPage = lazy(
+  () => import("./pages/IntelPage/IntelEditorsPage"),
+);
 
 const RoutesWithSuspense = () => {
   return (
@@ -310,7 +318,7 @@ export const router = createBrowserRouter(
             </Route>
           </Route>
 
-          <Route path="/intel" element={<InsightsLayout />}>
+          <Route path="/intel" element={<IntelLayout />}>
             <Route index element={<InsightsSummaryPage />} />
             <Route path="tools" element={<InsightsToolsPage />} />
             <Route path="commands" element={<InsightsCommandsPage />} />
