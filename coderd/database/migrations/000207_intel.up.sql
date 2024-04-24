@@ -5,6 +5,7 @@ CREATE TABLE intel_cohorts (
     created_at TIMESTAMPTZ NOT NULL,
     updated_at TIMESTAMPTZ NOT NULL,
     display_name TEXT NOT NULL,
+    icon character varying(256) DEFAULT ''::character varying NOT NULL,
     description TEXT NOT NULL,
 
     filter_regex_operating_system VARCHAR(255) NOT NULL DEFAULT '.*',

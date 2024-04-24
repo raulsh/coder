@@ -1341,6 +1341,10 @@ func (q *FakeQuerier) DeleteGroupMemberFromGroup(_ context.Context, arg database
 	return nil
 }
 
+func (q *FakeQuerier) DeleteIntelCohortsByIDs(ctx context.Context, dollar_1 []uuid.UUID) error {
+	panic("not implemented")
+}
+
 func (q *FakeQuerier) DeleteLicense(_ context.Context, id int32) (int32, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -2421,6 +2425,10 @@ func (q *FakeQuerier) GetHungProvisionerJobs(_ context.Context, hungSince time.T
 		}
 	}
 	return hungJobs, nil
+}
+
+func (q *FakeQuerier) GetIntelCohortsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]database.IntelCohort, error) {
+	panic("not implemented")
 }
 
 func (q *FakeQuerier) GetIntelCohortsMatchedByMachineIDs(_ context.Context, ids []uuid.UUID) ([]database.GetIntelCohortsMatchedByMachineIDsRow, error) {
@@ -6045,33 +6053,6 @@ func (q *FakeQuerier) InsertGroupMember(_ context.Context, arg database.InsertGr
 	return nil
 }
 
-func (q *FakeQuerier) InsertIntelCohort(_ context.Context, arg database.InsertIntelCohortParams) (database.IntelCohort, error) {
-	err := validateDatabaseType(arg)
-	if err != nil {
-		return database.IntelCohort{}, err
-	}
-
-	q.mutex.Lock()
-	defer q.mutex.Unlock()
-
-	cohort := database.IntelCohort{
-		ID:                                arg.ID,
-		OrganizationID:                    arg.OrganizationID,
-		CreatedBy:                         arg.CreatedBy,
-		CreatedAt:                         arg.CreatedAt,
-		UpdatedAt:                         arg.UpdatedAt,
-		DisplayName:                       arg.DisplayName,
-		Description:                       arg.Description,
-		FilterRegexOperatingSystem:        arg.FilterRegexOperatingSystem,
-		FilterRegexOperatingSystemVersion: arg.FilterRegexOperatingSystemVersion,
-		FilterRegexArchitecture:           arg.FilterRegexArchitecture,
-		FilterRegexInstanceID:             arg.FilterRegexInstanceID,
-		TrackedExecutables:                arg.TrackedExecutables,
-	}
-	q.intelCohorts = append(q.intelCohorts, cohort)
-	return cohort, nil
-}
-
 func (q *FakeQuerier) InsertIntelInvocations(_ context.Context, arg database.InsertIntelInvocationsParams) error {
 	err := validateDatabaseType(arg)
 	if err != nil {
@@ -8527,6 +8508,33 @@ func (q *FakeQuerier) UpsertHealthSettings(_ context.Context, data string) error
 
 	q.healthSettings = []byte(data)
 	return nil
+}
+
+func (q *FakeQuerier) UpsertIntelCohort(_ context.Context, arg database.UpsertIntelCohortParams) (database.IntelCohort, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.IntelCohort{}, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	cohort := database.IntelCohort{
+		ID:                                arg.ID,
+		OrganizationID:                    arg.OrganizationID,
+		CreatedBy:                         arg.CreatedBy,
+		CreatedAt:                         arg.CreatedAt,
+		UpdatedAt:                         arg.UpdatedAt,
+		DisplayName:                       arg.DisplayName,
+		Description:                       arg.Description,
+		FilterRegexOperatingSystem:        arg.FilterRegexOperatingSystem,
+		FilterRegexOperatingSystemVersion: arg.FilterRegexOperatingSystemVersion,
+		FilterRegexArchitecture:           arg.FilterRegexArchitecture,
+		FilterRegexInstanceID:             arg.FilterRegexInstanceID,
+		TrackedExecutables:                arg.TrackedExecutables,
+	}
+	q.intelCohorts = append(q.intelCohorts, cohort)
+	return cohort, nil
 }
 
 func (q *FakeQuerier) UpsertIntelMachine(ctx context.Context, arg database.UpsertIntelMachineParams) (database.IntelMachine, error) {

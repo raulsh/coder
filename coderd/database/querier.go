@@ -59,6 +59,7 @@ type sqlcQuerier interface {
 	DeleteGitSSHKey(ctx context.Context, userID uuid.UUID) error
 	DeleteGroupByID(ctx context.Context, id uuid.UUID) error
 	DeleteGroupMemberFromGroup(ctx context.Context, arg DeleteGroupMemberFromGroupParams) error
+	DeleteIntelCohortsByIDs(ctx context.Context, dollar_1 []uuid.UUID) error
 	DeleteLicense(ctx context.Context, id int32) (int32, error)
 	DeleteOAuth2ProviderAppByID(ctx context.Context, id uuid.UUID) error
 	DeleteOAuth2ProviderAppCodeByID(ctx context.Context, id uuid.UUID) error
@@ -129,6 +130,7 @@ type sqlcQuerier interface {
 	GetGroupsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]Group, error)
 	GetHealthSettings(ctx context.Context) (string, error)
 	GetHungProvisionerJobs(ctx context.Context, updatedAt time.Time) ([]ProvisionerJob, error)
+	GetIntelCohortsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]IntelCohort, error)
 	// Obtains a list of cohorts that a user can track invocations for.
 	GetIntelCohortsMatchedByMachineIDs(ctx context.Context, ids []uuid.UUID) ([]GetIntelCohortsMatchedByMachineIDsRow, error)
 	GetJFrogXrayScanByWorkspaceAndAgentID(ctx context.Context, arg GetJFrogXrayScanByWorkspaceAndAgentIDParams) (JfrogXrayScan, error)
@@ -312,7 +314,6 @@ type sqlcQuerier interface {
 	InsertGitSSHKey(ctx context.Context, arg InsertGitSSHKeyParams) (GitSSHKey, error)
 	InsertGroup(ctx context.Context, arg InsertGroupParams) (Group, error)
 	InsertGroupMember(ctx context.Context, arg InsertGroupMemberParams) error
-	InsertIntelCohort(ctx context.Context, arg InsertIntelCohortParams) (IntelCohort, error)
 	// Insert many invocations using unnest
 	InsertIntelInvocations(ctx context.Context, arg InsertIntelInvocationsParams) error
 	InsertLicense(ctx context.Context, arg InsertLicenseParams) (License, error)
@@ -429,6 +430,7 @@ type sqlcQuerier interface {
 	// The functional values are immutable and controlled implicitly.
 	UpsertDefaultProxy(ctx context.Context, arg UpsertDefaultProxyParams) error
 	UpsertHealthSettings(ctx context.Context, value string) error
+	UpsertIntelCohort(ctx context.Context, arg UpsertIntelCohortParams) (IntelCohort, error)
 	UpsertIntelMachine(ctx context.Context, arg UpsertIntelMachineParams) (IntelMachine, error)
 	UpsertJFrogXrayScanByWorkspaceAndAgentID(ctx context.Context, arg UpsertJFrogXrayScanByWorkspaceAndAgentIDParams) error
 	UpsertLastUpdateCheck(ctx context.Context, value string) error

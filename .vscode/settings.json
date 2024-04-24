@@ -223,5 +223,6 @@
   // with VS Code.
   "typescript.tsdk": "./site/node_modules/typescript/lib",
   // Playwright tests in VSCode will open a browser to live "view" the test.
-  "playwright.reuseBrowser": true
+  "playwright.reuseBrowser": true,
+  "codeQL.githubDatabase.download": "never"
 }

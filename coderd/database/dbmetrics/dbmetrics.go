@@ -221,6 +221,13 @@ func (m metricsStore) DeleteGroupMemberFromGroup(ctx context.Context, arg databa
 	return err
 }
 
+func (m metricsStore) DeleteIntelCohortsByIDs(ctx context.Context, dollar_1 []uuid.UUID) error {
+	start := time.Now()
+	r0 := m.s.DeleteIntelCohortsByIDs(ctx, dollar_1)
+	m.queryLatencies.WithLabelValues("DeleteIntelCohortsByIDs").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m metricsStore) DeleteLicense(ctx context.Context, id int32) (int32, error) {
 	start := time.Now()
 	licenseID, err := m.s.DeleteLicense(ctx, id)
@@ -604,6 +611,13 @@ func (m metricsStore) GetHungProvisionerJobs(ctx context.Context, hungSince time
 	jobs, err := m.s.GetHungProvisionerJobs(ctx, hungSince)
 	m.queryLatencies.WithLabelValues("GetHungProvisionerJobs").Observe(time.Since(start).Seconds())
 	return jobs, err
+}
+
+func (m metricsStore) GetIntelCohortsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]database.IntelCohort, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetIntelCohortsByOrganizationID(ctx, organizationID)
+	m.queryLatencies.WithLabelValues("GetIntelCohortsByOrganizationID").Observe(time.Since(start).Seconds())
+	return r0, r1
 }
 
 func (m metricsStore) GetIntelCohortsMatchedByMachineIDs(ctx context.Context, ids []uuid.UUID) ([]database.GetIntelCohortsMatchedByMachineIDsRow, error) {
@@ -1516,13 +1530,6 @@ func (m metricsStore) InsertGroupMember(ctx context.Context, arg database.Insert
 	return err
 }
 
-func (m metricsStore) InsertIntelCohort(ctx context.Context, arg database.InsertIntelCohortParams) (database.IntelCohort, error) {
-	start := time.Now()
-	r0, r1 := m.s.InsertIntelCohort(ctx, arg)
-	m.queryLatencies.WithLabelValues("InsertIntelCohort").Observe(time.Since(start).Seconds())
-	return r0, r1
-}
-
 func (m metricsStore) InsertIntelInvocations(ctx context.Context, arg database.InsertIntelInvocationsParams) error {
 	start := time.Now()
 	r0 := m.s.InsertIntelInvocations(ctx, arg)
@@ -2228,6 +2235,13 @@ func (m metricsStore) UpsertHealthSettings(ctx context.Context, value string) er
 	r0 := m.s.UpsertHealthSettings(ctx, value)
 	m.queryLatencies.WithLabelValues("UpsertHealthSettings").Observe(time.Since(start).Seconds())
 	return r0
+}
+
+func (m metricsStore) UpsertIntelCohort(ctx context.Context, arg database.UpsertIntelCohortParams) (database.IntelCohort, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpsertIntelCohort(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpsertIntelCohort").Observe(time.Since(start).Seconds())
+	return r0, r1
 }
 
 func (m metricsStore) UpsertIntelMachine(ctx context.Context, arg database.UpsertIntelMachineParams) (database.IntelMachine, error) {

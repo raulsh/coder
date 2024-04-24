@@ -911,6 +911,10 @@ func (q *querier) DeleteGroupMemberFromGroup(ctx context.Context, arg database.D
 	return update(q.log, q.auth, fetch, q.db.DeleteGroupMemberFromGroup)(ctx, arg)
 }
 
+func (q *querier) DeleteIntelCohortsByIDs(ctx context.Context, dollar_1 []uuid.UUID) error {
+	panic("not implemented")
+}
+
 func (q *querier) DeleteLicense(ctx context.Context, id int32) (int32, error) {
 	err := deleteQ(q.log, q.auth, q.db.GetLicenseByID, func(ctx context.Context, id int32) error {
 		_, err := q.db.DeleteLicense(ctx, id)
@@ -1285,6 +1289,10 @@ func (q *querier) GetHungProvisionerJobs(ctx context.Context, hungSince time.Tim
 	// return nil, err
 	// }
 	return q.db.GetHungProvisionerJobs(ctx, hungSince)
+}
+
+func (q *querier) GetIntelCohortsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]database.IntelCohort, error) {
+	panic("not implemented")
 }
 
 func (q *querier) GetIntelCohortsMatchedByMachineIDs(ctx context.Context, ids []uuid.UUID) ([]database.GetIntelCohortsMatchedByMachineIDsRow, error) {
@@ -2410,10 +2418,6 @@ func (q *querier) InsertGroupMember(ctx context.Context, arg database.InsertGrou
 	return update(q.log, q.auth, fetch, q.db.InsertGroupMember)(ctx, arg)
 }
 
-func (q *querier) InsertIntelCohort(ctx context.Context, arg database.InsertIntelCohortParams) (database.IntelCohort, error) {
-	return insert(q.log, q.auth, rbac.ResourceGroup.InOrg(arg.OrganizationID), q.db.InsertIntelCohort)(ctx, arg)
-}
-
 func (q *querier) InsertIntelInvocations(ctx context.Context, arg database.InsertIntelInvocationsParams) error {
 	// No authz checks - it'd be too slow to check the
 	// authorization for each user and each machine.
@@ -3502,6 +3506,10 @@ func (q *querier) UpsertHealthSettings(ctx context.Context, value string) error 
 		return err
 	}
 	return q.db.UpsertHealthSettings(ctx, value)
+}
+
+func (q *querier) UpsertIntelCohort(ctx context.Context, arg database.UpsertIntelCohortParams) (database.IntelCohort, error) {
+	return insert(q.log, q.auth, rbac.ResourceGroup.InOrg(arg.OrganizationID), q.db.UpsertIntelCohort)(ctx, arg)
 }
 
 func (q *querier) UpsertIntelMachine(ctx context.Context, arg database.UpsertIntelMachineParams) (database.IntelMachine, error) {

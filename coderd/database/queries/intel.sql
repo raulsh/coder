@@ -1,6 +1,23 @@
--- name: InsertIntelCohort :one
-INSERT INTO intel_cohorts (id, organization_id, created_by, created_at, updated_at, display_name, description, filter_regex_operating_system, filter_regex_operating_system_version, filter_regex_architecture, filter_regex_instance_id, tracked_executables)
-	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *;
+-- name: UpsertIntelCohort :one
+INSERT INTO intel_cohorts (id, organization_id, created_by, created_at, updated_at, display_name, icon, description, filter_regex_operating_system, filter_regex_operating_system_version, filter_regex_architecture, filter_regex_instance_id, tracked_executables)
+	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+	ON CONFLICT (id) DO UPDATE SET
+		updated_at = $5,
+		display_name = $6,
+		icon = $7,
+		description = $8,
+		filter_regex_operating_system = $9,
+		filter_regex_operating_system_version = $10,
+		filter_regex_architecture = $11,
+		filter_regex_instance_id = $12,
+		tracked_executables = $13
+	RETURNING *;
+
+-- name: GetIntelCohortsByOrganizationID :many
+SELECT * FROM intel_cohorts WHERE organization_id = $1;
+
+-- name: DeleteIntelCohortsByIDs :exec
+DELETE FROM intel_cohorts WHERE id = ANY($1::uuid[]);
 
 -- name: UpsertIntelMachine :one
 INSERT INTO intel_machines (id, created_at, updated_at, instance_id, organization_id, user_id, ip_address, hostname, operating_system, operating_system_version, cpu_cores, memory_mb_total, architecture, daemon_version)
@@ -63,3 +80,15 @@ WHERE
     operating_system_version_match AND
     architecture_match AND
 	instance_id_match;
+
+-- name: GetConsistencyByIntelCohort :many
+SELECT
+    binary_path,
+    binary_args,
+    PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY duration_ms) AS median_duration
+FROM
+    intel_invocations
+GROUP BY
+    binary_path, binary_args
+ORDER BY
+    median_duration DESC;

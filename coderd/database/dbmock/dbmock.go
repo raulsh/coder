@@ -3174,19 +3174,19 @@ func (mr *MockStoreMockRecorder) InsertGroupMember(arg0, arg1 any) *gomock.Call 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertGroupMember", reflect.TypeOf((*MockStore)(nil).InsertGroupMember), arg0, arg1)
 }
 
-// InsertIntelCohort mocks base method.
-func (m *MockStore) InsertIntelCohort(arg0 context.Context, arg1 database.InsertIntelCohortParams) (database.IntelCohort, error) {
+// UpsertIntelCohort mocks base method.
+func (m *MockStore) UpsertIntelCohort(arg0 context.Context, arg1 database.UpsertIntelCohortParams) (database.IntelCohort, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "InsertIntelCohort", arg0, arg1)
+	ret := m.ctrl.Call(m, "UpsertIntelCohort", arg0, arg1)
 	ret0, _ := ret[0].(database.IntelCohort)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// InsertIntelCohort indicates an expected call of InsertIntelCohort.
-func (mr *MockStoreMockRecorder) InsertIntelCohort(arg0, arg1 any) *gomock.Call {
+// UpsertIntelCohort indicates an expected call of UpsertIntelCohort.
+func (mr *MockStoreMockRecorder) UpsertIntelCohort(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertIntelCohort", reflect.TypeOf((*MockStore)(nil).InsertIntelCohort), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertIntelCohort", reflect.TypeOf((*MockStore)(nil).UpsertIntelCohort), arg0, arg1)
 }
 
 // InsertIntelInvocations mocks base method.

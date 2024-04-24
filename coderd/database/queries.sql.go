@@ -2950,6 +2950,57 @@ func (q *sqlQuerier) UpsertTemplateUsageStats(ctx context.Context) error {
 	return err
 }
 
+const deleteIntelCohortsByIDs = `-- name: DeleteIntelCohortsByIDs :exec
+DELETE FROM intel_cohorts WHERE id = ANY($1::uuid[])
+`
+
+func (q *sqlQuerier) DeleteIntelCohortsByIDs(ctx context.Context, dollar_1 []uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteIntelCohortsByIDs, pq.Array(dollar_1))
+	return err
+}
+
+const getIntelCohortsByOrganizationID = `-- name: GetIntelCohortsByOrganizationID :many
+SELECT id, organization_id, created_by, created_at, updated_at, display_name, icon, description, filter_regex_operating_system, filter_regex_operating_system_version, filter_regex_architecture, filter_regex_git_remote_url, filter_regex_instance_id, tracked_executables FROM intel_cohorts WHERE organization_id = $1
+`
+
+func (q *sqlQuerier) GetIntelCohortsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]IntelCohort, error) {
+	rows, err := q.db.QueryContext(ctx, getIntelCohortsByOrganizationID, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []IntelCohort
+	for rows.Next() {
+		var i IntelCohort
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.CreatedBy,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DisplayName,
+			&i.Icon,
+			&i.Description,
+			&i.FilterRegexOperatingSystem,
+			&i.FilterRegexOperatingSystemVersion,
+			&i.FilterRegexArchitecture,
+			&i.FilterRegexGitRemoteUrl,
+			&i.FilterRegexInstanceID,
+			pq.Array(&i.TrackedExecutables),
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getIntelCohortsMatchedByMachineIDs = `-- name: GetIntelCohortsMatchedByMachineIDs :many
 WITH machines AS (
     SELECT id, created_at, updated_at, instance_id, organization_id, user_id, ip_address, hostname, operating_system, operating_system_version, cpu_cores, memory_mb_total, architecture, daemon_version, git_config_email, git_config_name FROM intel_machines WHERE id = ANY($1::uuid [])
@@ -3018,60 +3069,6 @@ func (q *sqlQuerier) GetIntelCohortsMatchedByMachineIDs(ctx context.Context, ids
 	return items, nil
 }
 
-const insertIntelCohort = `-- name: InsertIntelCohort :one
-INSERT INTO intel_cohorts (id, organization_id, created_by, created_at, updated_at, display_name, description, filter_regex_operating_system, filter_regex_operating_system_version, filter_regex_architecture, filter_regex_instance_id, tracked_executables)
-	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id, organization_id, created_by, created_at, updated_at, display_name, description, filter_regex_operating_system, filter_regex_operating_system_version, filter_regex_architecture, filter_regex_git_remote_url, filter_regex_instance_id, tracked_executables
-`
-
-type InsertIntelCohortParams struct {
-	ID                                uuid.UUID `db:"id" json:"id"`
-	OrganizationID                    uuid.UUID `db:"organization_id" json:"organization_id"`
-	CreatedBy                         uuid.UUID `db:"created_by" json:"created_by"`
-	CreatedAt                         time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt                         time.Time `db:"updated_at" json:"updated_at"`
-	DisplayName                       string    `db:"display_name" json:"display_name"`
-	Description                       string    `db:"description" json:"description"`
-	FilterRegexOperatingSystem        string    `db:"filter_regex_operating_system" json:"filter_regex_operating_system"`
-	FilterRegexOperatingSystemVersion string    `db:"filter_regex_operating_system_version" json:"filter_regex_operating_system_version"`
-	FilterRegexArchitecture           string    `db:"filter_regex_architecture" json:"filter_regex_architecture"`
-	FilterRegexInstanceID             string    `db:"filter_regex_instance_id" json:"filter_regex_instance_id"`
-	TrackedExecutables                []string  `db:"tracked_executables" json:"tracked_executables"`
-}
-
-func (q *sqlQuerier) InsertIntelCohort(ctx context.Context, arg InsertIntelCohortParams) (IntelCohort, error) {
-	row := q.db.QueryRowContext(ctx, insertIntelCohort,
-		arg.ID,
-		arg.OrganizationID,
-		arg.CreatedBy,
-		arg.CreatedAt,
-		arg.UpdatedAt,
-		arg.DisplayName,
-		arg.Description,
-		arg.FilterRegexOperatingSystem,
-		arg.FilterRegexOperatingSystemVersion,
-		arg.FilterRegexArchitecture,
-		arg.FilterRegexInstanceID,
-		pq.Array(arg.TrackedExecutables),
-	)
-	var i IntelCohort
-	err := row.Scan(
-		&i.ID,
-		&i.OrganizationID,
-		&i.CreatedBy,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.DisplayName,
-		&i.Description,
-		&i.FilterRegexOperatingSystem,
-		&i.FilterRegexOperatingSystemVersion,
-		&i.FilterRegexArchitecture,
-		&i.FilterRegexGitRemoteUrl,
-		&i.FilterRegexInstanceID,
-		pq.Array(&i.TrackedExecutables),
-	)
-	return i, err
-}
-
 const insertIntelInvocations = `-- name: InsertIntelInvocations :exec
 INSERT INTO intel_invocations (
 	created_at, machine_id, user_id, id, binary_hash, binary_path, binary_args,
@@ -3125,6 +3122,74 @@ func (q *sqlQuerier) InsertIntelInvocations(ctx context.Context, arg InsertIntel
 		pq.Array(arg.DurationMs),
 	)
 	return err
+}
+
+const upsertIntelCohort = `-- name: UpsertIntelCohort :one
+INSERT INTO intel_cohorts (id, organization_id, created_by, created_at, updated_at, display_name, icon, description, filter_regex_operating_system, filter_regex_operating_system_version, filter_regex_architecture, filter_regex_instance_id, tracked_executables)
+	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+	ON CONFLICT (id) DO UPDATE SET
+		updated_at = $5,
+		display_name = $6,
+		icon = $7,
+		description = $8,
+		filter_regex_operating_system = $9,
+		filter_regex_operating_system_version = $10,
+		filter_regex_architecture = $11,
+		filter_regex_instance_id = $12,
+		tracked_executables = $13
+	RETURNING id, organization_id, created_by, created_at, updated_at, display_name, icon, description, filter_regex_operating_system, filter_regex_operating_system_version, filter_regex_architecture, filter_regex_git_remote_url, filter_regex_instance_id, tracked_executables
+`
+
+type UpsertIntelCohortParams struct {
+	ID                                uuid.UUID `db:"id" json:"id"`
+	OrganizationID                    uuid.UUID `db:"organization_id" json:"organization_id"`
+	CreatedBy                         uuid.UUID `db:"created_by" json:"created_by"`
+	CreatedAt                         time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt                         time.Time `db:"updated_at" json:"updated_at"`
+	DisplayName                       string    `db:"display_name" json:"display_name"`
+	Icon                              string    `db:"icon" json:"icon"`
+	Description                       string    `db:"description" json:"description"`
+	FilterRegexOperatingSystem        string    `db:"filter_regex_operating_system" json:"filter_regex_operating_system"`
+	FilterRegexOperatingSystemVersion string    `db:"filter_regex_operating_system_version" json:"filter_regex_operating_system_version"`
+	FilterRegexArchitecture           string    `db:"filter_regex_architecture" json:"filter_regex_architecture"`
+	FilterRegexInstanceID             string    `db:"filter_regex_instance_id" json:"filter_regex_instance_id"`
+	TrackedExecutables                []string  `db:"tracked_executables" json:"tracked_executables"`
+}
+
+func (q *sqlQuerier) UpsertIntelCohort(ctx context.Context, arg UpsertIntelCohortParams) (IntelCohort, error) {
+	row := q.db.QueryRowContext(ctx, upsertIntelCohort,
+		arg.ID,
+		arg.OrganizationID,
+		arg.CreatedBy,
+		arg.CreatedAt,
+		arg.UpdatedAt,
+		arg.DisplayName,
+		arg.Icon,
+		arg.Description,
+		arg.FilterRegexOperatingSystem,
+		arg.FilterRegexOperatingSystemVersion,
+		arg.FilterRegexArchitecture,
+		arg.FilterRegexInstanceID,
+		pq.Array(arg.TrackedExecutables),
+	)
+	var i IntelCohort
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.CreatedBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DisplayName,
+		&i.Icon,
+		&i.Description,
+		&i.FilterRegexOperatingSystem,
+		&i.FilterRegexOperatingSystemVersion,
+		&i.FilterRegexArchitecture,
+		&i.FilterRegexGitRemoteUrl,
+		&i.FilterRegexInstanceID,
+		pq.Array(&i.TrackedExecutables),
+	)
+	return i, err
 }
 
 const upsertIntelMachine = `-- name: UpsertIntelMachine :one

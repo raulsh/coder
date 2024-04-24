@@ -19,6 +19,7 @@ import (
 func main() {
 	runtime.LockOSThread()
 	runtime.GOMAXPROCS(1)
+
 	err := run(context.Background())
 	if err != nil && os.Getenv("CODER_INTEL_INVOKE_DEBUG") != "" {
 		_, _ = fmt.Printf("error: %v\n", err)

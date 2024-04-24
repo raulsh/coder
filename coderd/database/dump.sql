@@ -502,6 +502,7 @@ CREATE TABLE intel_cohorts (
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
     display_name text NOT NULL,
+    icon character varying(256) DEFAULT ''::character varying NOT NULL,
     description text NOT NULL,
     filter_regex_operating_system character varying(255) DEFAULT '.*'::character varying NOT NULL,
     filter_regex_operating_system_version character varying(255) DEFAULT '.*'::character varying NOT NULL,
