@@ -152,6 +152,9 @@ type data struct {
 	gitSSHKey                     []database.GitSSHKey
 	groupMembers                  []database.GroupMember
 	groups                        []database.Group
+	intelCohorts                  []database.IntelCohort
+	intelMachines                 []database.IntelMachine
+	intelInvocations              []database.IntelInvocation
 	jfrogXRayScans                []database.JfrogXrayScan
 	licenses                      []database.License
 	oauth2ProviderApps            []database.OAuth2ProviderApp
@@ -2420,8 +2423,51 @@ func (q *FakeQuerier) GetHungProvisionerJobs(_ context.Context, hungSince time.T
 	return hungJobs, nil
 }
 
-func (q *FakeQuerier) GetIntelCohortsMatchedByMachineIDs(ctx context.Context, ids []uuid.UUID) ([]database.GetIntelCohortsMatchedByMachineIDsRow, error) {
-	panic("not implemented")
+func (q *FakeQuerier) GetIntelCohortsMatchedByMachineIDs(_ context.Context, ids []uuid.UUID) ([]database.GetIntelCohortsMatchedByMachineIDsRow, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	machines := make([]database.IntelMachine, 0)
+	for _, m := range q.intelMachines {
+		if slices.Contains(ids, m.ID) {
+			machines = append(machines, m)
+		}
+	}
+
+	rows := make([]database.GetIntelCohortsMatchedByMachineIDsRow, 0)
+	for _, cohort := range q.intelCohorts {
+		filterOS, err := regexp.CompilePOSIX(cohort.FilterRegexOperatingSystem)
+		if err != nil {
+			return nil, err
+		}
+		filterOSVersion, err := regexp.CompilePOSIX(cohort.FilterRegexOperatingSystemVersion)
+		if err != nil {
+			return nil, err
+		}
+		filterArch, err := regexp.CompilePOSIX(cohort.FilterRegexArchitecture)
+		if err != nil {
+			return nil, err
+		}
+		filterInstanceID, err := regexp.CompilePOSIX(cohort.FilterRegexInstanceID)
+		if err != nil {
+			return nil, err
+		}
+		for _, machine := range machines {
+			row := database.GetIntelCohortsMatchedByMachineIDsRow{
+				ID:                   cohort.ID,
+				TrackedExecutables:   cohort.TrackedExecutables,
+				MachineID:            machine.ID,
+				OperatingSystemMatch: filterOS.MatchString(machine.OperatingSystem),
+				ArchitectureMatch:    filterArch.MatchString(machine.Architecture),
+				InstanceIDMatch:      filterInstanceID.MatchString(machine.InstanceID),
+			}
+			if machine.OperatingSystemVersion.Valid {
+				row.OperatingSystemVersionMatch = filterOSVersion.MatchString(machine.OperatingSystemVersion.String)
+			}
+			rows = append(rows, row)
+		}
+	}
+	return rows, nil
 }
 
 func (q *FakeQuerier) GetJFrogXrayScanByWorkspaceAndAgentID(_ context.Context, arg database.GetJFrogXrayScanByWorkspaceAndAgentIDParams) (database.JfrogXrayScan, error) {
@@ -5999,22 +6045,59 @@ func (q *FakeQuerier) InsertGroupMember(_ context.Context, arg database.InsertGr
 	return nil
 }
 
-func (q *FakeQuerier) InsertIntelCohort(ctx context.Context, arg database.InsertIntelCohortParams) (database.IntelCohort, error) {
+func (q *FakeQuerier) InsertIntelCohort(_ context.Context, arg database.InsertIntelCohortParams) (database.IntelCohort, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
-		return err
+		return database.IntelCohort{}, err
 	}
 
-	panic("not implemented")
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	cohort := database.IntelCohort{
+		ID:                                arg.ID,
+		OrganizationID:                    arg.OrganizationID,
+		CreatedBy:                         arg.CreatedBy,
+		CreatedAt:                         arg.CreatedAt,
+		UpdatedAt:                         arg.UpdatedAt,
+		DisplayName:                       arg.DisplayName,
+		Description:                       arg.Description,
+		FilterRegexOperatingSystem:        arg.FilterRegexOperatingSystem,
+		FilterRegexOperatingSystemVersion: arg.FilterRegexOperatingSystemVersion,
+		FilterRegexArchitecture:           arg.FilterRegexArchitecture,
+		FilterRegexInstanceID:             arg.FilterRegexInstanceID,
+		TrackedExecutables:                arg.TrackedExecutables,
+	}
+	q.intelCohorts = append(q.intelCohorts, cohort)
+	return cohort, nil
 }
 
-func (q *FakeQuerier) InsertIntelInvocations(ctx context.Context, arg database.InsertIntelInvocationsParams) error {
+func (q *FakeQuerier) InsertIntelInvocations(_ context.Context, arg database.InsertIntelInvocationsParams) error {
 	err := validateDatabaseType(arg)
 	if err != nil {
 		return err
 	}
 
-	panic("not implemented")
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+	var binaryArgs []json.RawMessage
+	_ = json.Unmarshal(arg.BinaryArgs, &binaryArgs)
+	for i, id := range arg.ID {
+		q.intelInvocations = append(q.intelInvocations, database.IntelInvocation{
+			ID:               id,
+			CreatedAt:        arg.CreatedAt,
+			MachineID:        arg.MachineID,
+			UserID:           arg.UserID,
+			BinaryHash:       arg.BinaryHash[i],
+			BinaryPath:       arg.BinaryPath[i],
+			BinaryArgs:       binaryArgs[i],
+			BinaryVersion:    arg.BinaryVersion[i],
+			WorkingDirectory: arg.WorkingDirectory[i],
+			GitRemoteUrl:     arg.GitRemoteUrl[i],
+			DurationMs:       arg.DurationMs[i],
+		})
+	}
+	return nil
 }
 
 func (q *FakeQuerier) InsertLicense(
@@ -8438,8 +8521,8 @@ func (q *FakeQuerier) UpsertDefaultProxy(_ context.Context, arg database.UpsertD
 }
 
 func (q *FakeQuerier) UpsertHealthSettings(_ context.Context, data string) error {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
 
 	q.healthSettings = []byte(data)
 	return nil
@@ -8451,7 +8534,43 @@ func (q *FakeQuerier) UpsertIntelMachine(ctx context.Context, arg database.Upser
 		return database.IntelMachine{}, err
 	}
 
-	panic("not implemented")
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i, machine := range q.intelMachines {
+		if machine.UserID == arg.UserID && machine.InstanceID == arg.InstanceID {
+			machine.UpdatedAt = arg.UpdatedAt
+			machine.IPAddress = arg.IPAddress
+			machine.Hostname = arg.Hostname
+			machine.OperatingSystem = arg.OperatingSystem
+			machine.OperatingSystemVersion = arg.OperatingSystemVersion
+			machine.CPUCores = arg.CPUCores
+			machine.MemoryMBTotal = arg.MemoryMBTotal
+			machine.Architecture = arg.Architecture
+			machine.DaemonVersion = arg.DaemonVersion
+			q.intelMachines[i] = machine
+			return machine, nil
+		}
+	}
+
+	machine := database.IntelMachine{
+		ID:                     arg.ID,
+		CreatedAt:              arg.CreatedAt,
+		UpdatedAt:              arg.UpdatedAt,
+		InstanceID:             arg.InstanceID,
+		OrganizationID:         arg.OrganizationID,
+		UserID:                 arg.UserID,
+		IPAddress:              arg.IPAddress,
+		Hostname:               arg.Hostname,
+		OperatingSystem:        arg.OperatingSystem,
+		OperatingSystemVersion: arg.OperatingSystemVersion,
+		CPUCores:               arg.CPUCores,
+		MemoryMBTotal:          arg.MemoryMBTotal,
+		Architecture:           arg.Architecture,
+		DaemonVersion:          arg.DaemonVersion,
+	}
+	q.intelMachines = append(q.intelMachines, machine)
+	return machine, nil
 }
 
 func (q *FakeQuerier) UpsertJFrogXrayScanByWorkspaceAndAgentID(_ context.Context, arg database.UpsertJFrogXrayScanByWorkspaceAndAgentIDParams) error {

@@ -2,7 +2,8 @@ package main
 
 import (
 	"context"
-	"net"
+	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -10,8 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"storj.io/drpc/drpcconn"
-	"tailscale.com/safesocket"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/inteld/proto"
 )
@@ -19,28 +19,17 @@ import (
 func main() {
 	runtime.LockOSThread()
 	runtime.GOMAXPROCS(1)
-	_ = run(context.Background())
+	err := run(context.Background())
+	if err != nil && os.Getenv("CODER_INTEL_INVOKE_DEBUG") != "" {
+		_, _ = fmt.Printf("error: %v\n", err)
+		os.Exit(1)
+	}
 }
 
 func run(ctx context.Context) error {
-	// go = os.Args[0]
-	//
-
-	// start := time.Now()
-
-	// addr := os.Getenv("CODER_INTEL_DAEMON_ADDRESS")
-	// if addr == "" {
-	// 	addr = "localhost:13337"
-	// }
-
-	safesocket.Connect(safesocket.DefaultConnectionStrategy("asdasd"))
-
-	c, _ := net.Dial("tcp", "localhost:3000")
-
-	// ctx, cancelFunc := context.WithCancel(context.Background())
-
 	pathParts := filepath.SplitList(os.Getenv("PATH"))
-	currentPath, err := exec.LookPath(os.Args[0])
+	baseName := filepath.Base(os.Args[0])
+	currentPath, err := exec.LookPath(baseName)
 	if err != nil {
 		return err
 	}
@@ -51,37 +40,50 @@ func run(ctx context.Context) error {
 			break
 		}
 	}
-	os.Setenv("PATH", strings.Join(pathParts, string(filepath.ListSeparator)))
-	currentPath, err = exec.LookPath(os.Args[0])
+	err = os.Setenv("PATH", strings.Join(pathParts, string(filepath.ListSeparator)))
 	if err != nil {
 		return err
+	}
+	currentPath, err = exec.LookPath(baseName)
+	if err != nil {
+		return err
+	}
+	currentPath, err = filepath.Abs(currentPath)
+	if err != nil {
+		return err
+	}
+	currentExec, err := os.Executable()
+	if err != nil {
+		return err
+	}
+	if currentPath == currentExec {
+		return xerrors.New("supposed to be linked")
 	}
 	wd, err := os.Getwd()
 	if err != nil {
 		return err
 	}
-
-	start := time.Now()
+	//nolint:gosec
 	cmd := exec.CommandContext(ctx, os.Args[0], os.Args[1:]...)
 	cmd.Stdout = os.Stdout
 	cmd.Stdin = os.Stdin
 	cmd.Stderr = os.Stderr
+	start := time.Now()
 	err = cmd.Run()
+	end := time.Now()
 	exitCode := 0
 	if err != nil {
-		if e, ok := err.(*exec.ExitError); ok {
-			exitCode = e.ExitCode()
+		var exitError *exec.ExitError
+		if errors.As(err, &exitError) {
+			exitCode = exitError.ExitCode()
 		}
 	}
 
-	client := proto.NewDRPCIntelClientClient(drpcconn.New(c))
-	_, err = client.ReportInvocation(ctx, &proto.ReportInvocationRequest{
+	return proto.ReportInvocation(&proto.ReportInvocationRequest{
 		ExecutablePath:   currentPath,
 		Arguments:        os.Args[1:],
-		DurationMs:       time.Since(start).Milliseconds(),
+		DurationMs:       end.Sub(start).Milliseconds(),
 		ExitCode:         int32(exitCode),
 		WorkingDirectory: wd,
 	})
-
-	return nil
 }

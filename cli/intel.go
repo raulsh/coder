@@ -3,8 +3,10 @@ package cli
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 
 	"github.com/spf13/afero"
 	"golang.org/x/xerrors"
@@ -77,17 +79,40 @@ func (r *RootCmd) intelDaemonStart() *serpent.Command {
 				defer closeLogger()
 			}
 
-			logger.Info(ctx, "starting intel daemon")
+			logger.Info(ctx, "starting intel daemon", slog.F("invoke_directory", invokeDirectory))
 
 			srv := inteld.New(inteld.Options{
-				Dialer: func(ctx context.Context) (proto.DRPCIntelDaemonClient, error) {
-					return client.ServeIntelDaemon(ctx, codersdk.ServeIntelDaemonRequest{})
+				Dialer: func(ctx context.Context, hostInfo codersdk.IntelDaemonHostInfo) (proto.DRPCIntelDaemonClient, error) {
+					return client.ServeIntelDaemon(ctx, codersdk.ServeIntelDaemonRequest{
+						IntelDaemonHostInfo: hostInfo,
+					})
 				},
-				Logger:          logger,
-				Filesystem:      afero.NewOsFs(),
-				InvokeBinary:    "/tmp/bypass",
+				Logger:     logger,
+				Filesystem: afero.NewOsFs(),
+				InvokeBinaryDownloader: func(ctx context.Context, etag string) (*http.Response, error) {
+					binPath := fmt.Sprintf("/bin/coder-intel-invoke-%s-%s", runtime.GOOS, runtime.GOARCH)
+					if runtime.GOOS == "windows" {
+						binPath += ".exe"
+					}
+					binURL, err := client.URL.Parse(binPath)
+					if err != nil {
+						return nil, err
+					}
+					req, err := http.NewRequestWithContext(ctx, http.MethodGet, binURL.String(), nil)
+					if err != nil {
+						return nil, err
+					}
+					return client.HTTPClient.Do(req)
+				},
 				InvokeDirectory: invokeDirectory,
 			})
+			defer srv.Close()
+
+			closeListen, err := proto.ListenForInvocations(srv.ReportInvocation)
+			if err != nil {
+				return xerrors.Errorf("listen for invocations: %w", err)
+			}
+			defer closeListen.Close()
 
 			waitForReporting := false
 			var exitErr error
@@ -109,6 +134,11 @@ func (r *RootCmd) intelDaemonStart() *serpent.Command {
 			}
 			// TODO: Make this work!
 			_ = waitForReporting
+
+			err = closeListen.Close()
+			if err != nil {
+				return xerrors.Errorf("close listen: %w", err)
+			}
 
 			err = srv.Close()
 			if err != nil {

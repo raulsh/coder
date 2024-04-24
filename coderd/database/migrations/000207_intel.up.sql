@@ -7,10 +7,11 @@ CREATE TABLE intel_cohorts (
     display_name TEXT NOT NULL,
     description TEXT NOT NULL,
 
-    filter_regex_operating_system VARCHAR(255),
-    filter_regex_operating_system_version VARCHAR(255),
-    filter_regex_architecture VARCHAR(255),
-    filter_regex_git_remote_url VARCHAR(255),
+    filter_regex_operating_system VARCHAR(255) NOT NULL DEFAULT '.*',
+    filter_regex_operating_system_version VARCHAR(255) NOT NULL DEFAULT '.*',
+    filter_regex_architecture VARCHAR(255) NOT NULL DEFAULT '.*',
+    filter_regex_git_remote_url VARCHAR(255) NOT NULL DEFAULT '.*',
+	filter_regex_instance_id VARCHAR(255) NOT NULL DEFAULT '.*',
 
     tracked_executables TEXT[] NOT NULL
 );
@@ -32,7 +33,7 @@ CREATE TABLE intel_machines (
     daemon_version VARCHAR(255) NOT NULL,
     git_config_email VARCHAR(255),
     git_config_name VARCHAR(255),
-    tags VARCHAR(64)[]
+	UNIQUE (user_id, instance_id)
 );
 
 COMMENT ON COLUMN intel_machines.operating_system IS 'GOOS';
@@ -41,16 +42,15 @@ COMMENT ON COLUMN intel_machines.architecture IS 'GOARCH. e.g. amd64';
 COMMENT ON COLUMN intel_machines.daemon_version IS 'Version of the daemon running on the machine';
 COMMENT ON COLUMN intel_machines.git_config_email IS 'git config --get user.email';
 COMMENT ON COLUMN intel_machines.git_config_name IS 'git config --get user.name';
-COMMENT ON COLUMN intel_machines.tags IS 'Arbitrary user-defined tags. e.g. "coder-v1" or "coder-v2"';
 
 CREATE TABLE intel_invocations (
-    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    id uuid NOT NULL,
 	created_at TIMESTAMPTZ NOT NULL,
-    machine_id UUID NOT NULL REFERENCES intel_machines(id) ON DELETE CASCADE,
-    user_id UUID NOT NULL,
+    machine_id uuid NOT NULL REFERENCES intel_machines(id) ON DELETE CASCADE,
+    user_id uuid NOT NULL,
     binary_hash TEXT NOT NULL,
     binary_path TEXT NOT NULL,
-    binary_args TEXT[] NOT NULL,
+    binary_args jsonb NOT NULL,
     binary_version TEXT NOT NULL,
     working_directory TEXT NOT NULL,
     git_remote_url TEXT NOT NULL,

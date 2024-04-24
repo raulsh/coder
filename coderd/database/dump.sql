@@ -503,10 +503,11 @@ CREATE TABLE intel_cohorts (
     updated_at timestamp with time zone NOT NULL,
     display_name text NOT NULL,
     description text NOT NULL,
-    filter_regex_operating_system character varying(255),
-    filter_regex_operating_system_version character varying(255),
-    filter_regex_architecture character varying(255),
-    filter_regex_git_remote_url character varying(255),
+    filter_regex_operating_system character varying(255) DEFAULT '.*'::character varying NOT NULL,
+    filter_regex_operating_system_version character varying(255) DEFAULT '.*'::character varying NOT NULL,
+    filter_regex_architecture character varying(255) DEFAULT '.*'::character varying NOT NULL,
+    filter_regex_git_remote_url character varying(255) DEFAULT '.*'::character varying NOT NULL,
+    filter_regex_instance_id character varying(255) DEFAULT '.*'::character varying NOT NULL,
     tracked_executables text[] NOT NULL
 );
 
@@ -524,13 +525,13 @@ CREATE TABLE intel_git_commits (
 );
 
 CREATE TABLE intel_invocations (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
     machine_id uuid NOT NULL,
     user_id uuid NOT NULL,
     binary_hash text NOT NULL,
     binary_path text NOT NULL,
-    binary_args text[] NOT NULL,
+    binary_args jsonb NOT NULL,
     binary_version text NOT NULL,
     working_directory text NOT NULL,
     git_remote_url text NOT NULL,
@@ -561,8 +562,7 @@ CREATE TABLE intel_machines (
     architecture character varying(255) NOT NULL,
     daemon_version character varying(255) NOT NULL,
     git_config_email character varying(255),
-    git_config_name character varying(255),
-    tags character varying(64)[]
+    git_config_name character varying(255)
 );
 
 COMMENT ON COLUMN intel_machines.operating_system IS 'GOOS';
@@ -576,8 +576,6 @@ COMMENT ON COLUMN intel_machines.daemon_version IS 'Version of the daemon runnin
 COMMENT ON COLUMN intel_machines.git_config_email IS 'git config --get user.email';
 
 COMMENT ON COLUMN intel_machines.git_config_name IS 'git config --get user.name';
-
-COMMENT ON COLUMN intel_machines.tags IS 'Arbitrary user-defined tags. e.g. "coder-v1" or "coder-v2"';
 
 CREATE TABLE jfrog_xray_scans (
     agent_id uuid NOT NULL,
@@ -1542,14 +1540,14 @@ ALTER TABLE ONLY intel_cohorts
 ALTER TABLE ONLY intel_git_commits
     ADD CONSTRAINT intel_git_commits_pkey PRIMARY KEY (id);
 
-ALTER TABLE ONLY intel_invocations
-    ADD CONSTRAINT intel_invocations_pkey PRIMARY KEY (id);
-
 ALTER TABLE ONLY intel_machine_executables
     ADD CONSTRAINT intel_machine_executables_pkey PRIMARY KEY (machine_id, user_id, hash);
 
 ALTER TABLE ONLY intel_machines
     ADD CONSTRAINT intel_machines_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY intel_machines
+    ADD CONSTRAINT intel_machines_user_id_instance_id_key UNIQUE (user_id, instance_id);
 
 ALTER TABLE ONLY jfrog_xray_scans
     ADD CONSTRAINT jfrog_xray_scans_pkey PRIMARY KEY (agent_id, workspace_id);

@@ -696,6 +696,16 @@
           "path": "cli/groups_list.md"
         },
         {
+          "title": "inteld",
+          "description": "Manage the Intel Daemon",
+          "path": "cli/inteld.md"
+        },
+        {
+          "title": "inteld start",
+          "description": "Start the Intel Daemon",
+          "path": "cli/inteld_start.md"
+        },
+        {
           "title": "licenses",
           "description": "Add, delete, and list licenses",
           "path": "cli/licenses.md"

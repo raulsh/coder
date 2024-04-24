@@ -2952,47 +2952,38 @@ func (q *sqlQuerier) UpsertTemplateUsageStats(ctx context.Context) error {
 
 const getIntelCohortsMatchedByMachineIDs = `-- name: GetIntelCohortsMatchedByMachineIDs :many
 WITH machines AS (
-    SELECT id, created_at, updated_at, instance_id, organization_id, user_id, ip_address, hostname, operating_system, operating_system_version, cpu_cores, memory_mb_total, architecture, daemon_version, git_config_email, git_config_name, tags FROM intel_machines WHERE ids = ANY($1::uuid [])
+    SELECT id, created_at, updated_at, instance_id, organization_id, user_id, ip_address, hostname, operating_system, operating_system_version, cpu_cores, memory_mb_total, architecture, daemon_version, git_config_email, git_config_name FROM intel_machines WHERE id = ANY($1::uuid [])
 ),
 matches AS (
     SELECT
 		m.id machine_id,
-        c.id, c.organization_id, c.created_by, c.created_at, c.updated_at, c.display_name, c.description, c.filter_regex_operating_system, c.filter_regex_operating_system_version, c.filter_regex_architecture, c.filter_regex_git_remote_url, c.tracked_executables,
-        (c.filter_regex_operating_system IS NULL OR c.filter_regex_operating_system ~ m.operating_system) AS operating_system_match,
-        (c.filter_regex_operating_system_version IS NULL OR c.filter_regex_operating_system_version ~ m.operating_system_version) AS operating_system_version_match,
-        (c.filter_regex_architecture IS NULL OR c.filter_regex_architecture ~ m.architecture) AS architecture_match,
-        (c.filter_regex_git_remote_url IS NULL OR c.filter_regex_git_remote_url ~ i.git_remote_url) AS git_remote_url_match
+		c.id,
+        c.tracked_executables,
+        (c.filter_regex_operating_system ~ m.operating_system)::boolean AS operating_system_match,
+        (c.filter_regex_operating_system_version ~ m.operating_system_version)::boolean AS operating_system_version_match,
+        (c.filter_regex_architecture ~ m.architecture)::boolean AS architecture_match,
+        (c.filter_regex_instance_id ~ m.instance_id)::boolean AS instance_id_match
     FROM intel_cohorts c
     CROSS JOIN machines m
 )
 SELECT
-    machine_id, id, organization_id, created_by, created_at, updated_at, display_name, description, filter_regex_operating_system, filter_regex_operating_system_version, filter_regex_architecture, filter_regex_git_remote_url, tracked_executables, operating_system_match, operating_system_version_match, architecture_match, git_remote_url_match
+    machine_id, id, tracked_executables, operating_system_match, operating_system_version_match, architecture_match, instance_id_match
 FROM matches
 WHERE
     operating_system_match AND
     operating_system_version_match AND
     architecture_match AND
-    git_remote_url_match
+	instance_id_match
 `
 
 type GetIntelCohortsMatchedByMachineIDsRow struct {
-	MachineID                         uuid.UUID      `db:"machine_id" json:"machine_id"`
-	ID                                uuid.UUID      `db:"id" json:"id"`
-	OrganizationID                    uuid.UUID      `db:"organization_id" json:"organization_id"`
-	CreatedBy                         uuid.UUID      `db:"created_by" json:"created_by"`
-	CreatedAt                         time.Time      `db:"created_at" json:"created_at"`
-	UpdatedAt                         time.Time      `db:"updated_at" json:"updated_at"`
-	DisplayName                       string         `db:"display_name" json:"display_name"`
-	Description                       string         `db:"description" json:"description"`
-	FilterRegexOperatingSystem        sql.NullString `db:"filter_regex_operating_system" json:"filter_regex_operating_system"`
-	FilterRegexOperatingSystemVersion sql.NullString `db:"filter_regex_operating_system_version" json:"filter_regex_operating_system_version"`
-	FilterRegexArchitecture           sql.NullString `db:"filter_regex_architecture" json:"filter_regex_architecture"`
-	FilterRegexGitRemoteUrl           sql.NullString `db:"filter_regex_git_remote_url" json:"filter_regex_git_remote_url"`
-	TrackedExecutables                []string       `db:"tracked_executables" json:"tracked_executables"`
-	OperatingSystemMatch              sql.NullBool   `db:"operating_system_match" json:"operating_system_match"`
-	OperatingSystemVersionMatch       sql.NullBool   `db:"operating_system_version_match" json:"operating_system_version_match"`
-	ArchitectureMatch                 sql.NullBool   `db:"architecture_match" json:"architecture_match"`
-	GitRemoteUrlMatch                 sql.NullBool   `db:"git_remote_url_match" json:"git_remote_url_match"`
+	MachineID                   uuid.UUID `db:"machine_id" json:"machine_id"`
+	ID                          uuid.UUID `db:"id" json:"id"`
+	TrackedExecutables          []string  `db:"tracked_executables" json:"tracked_executables"`
+	OperatingSystemMatch        bool      `db:"operating_system_match" json:"operating_system_match"`
+	OperatingSystemVersionMatch bool      `db:"operating_system_version_match" json:"operating_system_version_match"`
+	ArchitectureMatch           bool      `db:"architecture_match" json:"architecture_match"`
+	InstanceIDMatch             bool      `db:"instance_id_match" json:"instance_id_match"`
 }
 
 // Obtains a list of cohorts that a user can track invocations for.
@@ -3008,21 +2999,11 @@ func (q *sqlQuerier) GetIntelCohortsMatchedByMachineIDs(ctx context.Context, ids
 		if err := rows.Scan(
 			&i.MachineID,
 			&i.ID,
-			&i.OrganizationID,
-			&i.CreatedBy,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.DisplayName,
-			&i.Description,
-			&i.FilterRegexOperatingSystem,
-			&i.FilterRegexOperatingSystemVersion,
-			&i.FilterRegexArchitecture,
-			&i.FilterRegexGitRemoteUrl,
 			pq.Array(&i.TrackedExecutables),
 			&i.OperatingSystemMatch,
 			&i.OperatingSystemVersionMatch,
 			&i.ArchitectureMatch,
-			&i.GitRemoteUrlMatch,
+			&i.InstanceIDMatch,
 		); err != nil {
 			return nil, err
 		}
@@ -3038,23 +3019,23 @@ func (q *sqlQuerier) GetIntelCohortsMatchedByMachineIDs(ctx context.Context, ids
 }
 
 const insertIntelCohort = `-- name: InsertIntelCohort :one
-INSERT INTO intel_cohorts (id, organization_id, created_by, created_at, updated_at, display_name, description, filter_regex_operating_system, filter_regex_operating_system_version, filter_regex_architecture, filter_regex_git_remote_url, tracked_executables)
-	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id, organization_id, created_by, created_at, updated_at, display_name, description, filter_regex_operating_system, filter_regex_operating_system_version, filter_regex_architecture, filter_regex_git_remote_url, tracked_executables
+INSERT INTO intel_cohorts (id, organization_id, created_by, created_at, updated_at, display_name, description, filter_regex_operating_system, filter_regex_operating_system_version, filter_regex_architecture, filter_regex_instance_id, tracked_executables)
+	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id, organization_id, created_by, created_at, updated_at, display_name, description, filter_regex_operating_system, filter_regex_operating_system_version, filter_regex_architecture, filter_regex_git_remote_url, filter_regex_instance_id, tracked_executables
 `
 
 type InsertIntelCohortParams struct {
-	ID                                uuid.UUID      `db:"id" json:"id"`
-	OrganizationID                    uuid.UUID      `db:"organization_id" json:"organization_id"`
-	CreatedBy                         uuid.UUID      `db:"created_by" json:"created_by"`
-	CreatedAt                         time.Time      `db:"created_at" json:"created_at"`
-	UpdatedAt                         time.Time      `db:"updated_at" json:"updated_at"`
-	DisplayName                       string         `db:"display_name" json:"display_name"`
-	Description                       string         `db:"description" json:"description"`
-	FilterRegexOperatingSystem        sql.NullString `db:"filter_regex_operating_system" json:"filter_regex_operating_system"`
-	FilterRegexOperatingSystemVersion sql.NullString `db:"filter_regex_operating_system_version" json:"filter_regex_operating_system_version"`
-	FilterRegexArchitecture           sql.NullString `db:"filter_regex_architecture" json:"filter_regex_architecture"`
-	FilterRegexGitRemoteUrl           sql.NullString `db:"filter_regex_git_remote_url" json:"filter_regex_git_remote_url"`
-	TrackedExecutables                []string       `db:"tracked_executables" json:"tracked_executables"`
+	ID                                uuid.UUID `db:"id" json:"id"`
+	OrganizationID                    uuid.UUID `db:"organization_id" json:"organization_id"`
+	CreatedBy                         uuid.UUID `db:"created_by" json:"created_by"`
+	CreatedAt                         time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt                         time.Time `db:"updated_at" json:"updated_at"`
+	DisplayName                       string    `db:"display_name" json:"display_name"`
+	Description                       string    `db:"description" json:"description"`
+	FilterRegexOperatingSystem        string    `db:"filter_regex_operating_system" json:"filter_regex_operating_system"`
+	FilterRegexOperatingSystemVersion string    `db:"filter_regex_operating_system_version" json:"filter_regex_operating_system_version"`
+	FilterRegexArchitecture           string    `db:"filter_regex_architecture" json:"filter_regex_architecture"`
+	FilterRegexInstanceID             string    `db:"filter_regex_instance_id" json:"filter_regex_instance_id"`
+	TrackedExecutables                []string  `db:"tracked_executables" json:"tracked_executables"`
 }
 
 func (q *sqlQuerier) InsertIntelCohort(ctx context.Context, arg InsertIntelCohortParams) (IntelCohort, error) {
@@ -3069,7 +3050,7 @@ func (q *sqlQuerier) InsertIntelCohort(ctx context.Context, arg InsertIntelCohor
 		arg.FilterRegexOperatingSystem,
 		arg.FilterRegexOperatingSystemVersion,
 		arg.FilterRegexArchitecture,
-		arg.FilterRegexGitRemoteUrl,
+		arg.FilterRegexInstanceID,
 		pq.Array(arg.TrackedExecutables),
 	)
 	var i IntelCohort
@@ -3085,6 +3066,7 @@ func (q *sqlQuerier) InsertIntelCohort(ctx context.Context, arg InsertIntelCohor
 		&i.FilterRegexOperatingSystemVersion,
 		&i.FilterRegexArchitecture,
 		&i.FilterRegexGitRemoteUrl,
+		&i.FilterRegexInstanceID,
 		pq.Array(&i.TrackedExecutables),
 	)
 	return i, err
@@ -3092,46 +3074,48 @@ func (q *sqlQuerier) InsertIntelCohort(ctx context.Context, arg InsertIntelCohor
 
 const insertIntelInvocations = `-- name: InsertIntelInvocations :exec
 INSERT INTO intel_invocations (
-	id, created_at, machine_id, user_id, binary_hash, binary_path, binary_args,
+	created_at, machine_id, user_id, id, binary_hash, binary_path, binary_args,
 	binary_version, working_directory, git_remote_url, duration_ms)
 SELECT
-	unnest($1 :: uuid[]) as id,
-	$2 :: timestamptz as created_at,
-	$3 :: uuid as machine_id,
-	$4 :: uuid as user_id,
-	unnest($5 :: text[]) as binary_hash,
-	unnest($6 :: text[]) as binary_path,
-	unnest($7 :: text[][]) as binary_args,
-	unnest($8 :: text[]) as binary_version,
-	unnest($9 :: text[]) as working_directory,
-	unnest($10 :: text[]) as git_remote_url,
-	unnest($11 :: int[]) as duration_ms
+	$1 :: timestamptz as created_at,
+	$2 :: uuid as machine_id,
+	$3 :: uuid as user_id,
+	unnest($4 :: uuid[ ]) as id,
+	unnest($5 :: text[ ]) as binary_hash,
+	unnest($6 :: text[ ]) as binary_path,
+	-- This has to be jsonb because PostgreSQL does not support parsing
+	-- multi-dimensional multi-length arrays!
+	jsonb_array_elements($7 :: jsonb) as binary_args,
+	unnest($8 :: text[ ]) as binary_version,
+	unnest($9 :: text[ ]) as working_directory,
+	unnest($10 :: text[ ]) as git_remote_url,
+	unnest($11 :: int[ ]) as duration_ms
 `
 
 type InsertIntelInvocationsParams struct {
-	ID               []uuid.UUID `db:"id" json:"id"`
-	CreatedAt        time.Time   `db:"created_at" json:"created_at"`
-	MachineID        uuid.UUID   `db:"machine_id" json:"machine_id"`
-	UserID           uuid.UUID   `db:"user_id" json:"user_id"`
-	BinaryHash       []string    `db:"binary_hash" json:"binary_hash"`
-	BinaryPath       []string    `db:"binary_path" json:"binary_path"`
-	BinaryArgs       [][]string  `db:"binary_args" json:"binary_args"`
-	BinaryVersion    []string    `db:"binary_version" json:"binary_version"`
-	WorkingDirectory []string    `db:"working_directory" json:"working_directory"`
-	GitRemoteUrl     []string    `db:"git_remote_url" json:"git_remote_url"`
-	DurationMs       []int32     `db:"duration_ms" json:"duration_ms"`
+	CreatedAt        time.Time       `db:"created_at" json:"created_at"`
+	MachineID        uuid.UUID       `db:"machine_id" json:"machine_id"`
+	UserID           uuid.UUID       `db:"user_id" json:"user_id"`
+	ID               []uuid.UUID     `db:"id" json:"id"`
+	BinaryHash       []string        `db:"binary_hash" json:"binary_hash"`
+	BinaryPath       []string        `db:"binary_path" json:"binary_path"`
+	BinaryArgs       json.RawMessage `db:"binary_args" json:"binary_args"`
+	BinaryVersion    []string        `db:"binary_version" json:"binary_version"`
+	WorkingDirectory []string        `db:"working_directory" json:"working_directory"`
+	GitRemoteUrl     []string        `db:"git_remote_url" json:"git_remote_url"`
+	DurationMs       []int32         `db:"duration_ms" json:"duration_ms"`
 }
 
 // Insert many invocations using unnest
 func (q *sqlQuerier) InsertIntelInvocations(ctx context.Context, arg InsertIntelInvocationsParams) error {
 	_, err := q.db.ExecContext(ctx, insertIntelInvocations,
-		pq.Array(arg.ID),
 		arg.CreatedAt,
 		arg.MachineID,
 		arg.UserID,
+		pq.Array(arg.ID),
 		pq.Array(arg.BinaryHash),
 		pq.Array(arg.BinaryPath),
-		pq.Array(arg.BinaryArgs),
+		arg.BinaryArgs,
 		pq.Array(arg.BinaryVersion),
 		pq.Array(arg.WorkingDirectory),
 		pq.Array(arg.GitRemoteUrl),
@@ -3141,8 +3125,8 @@ func (q *sqlQuerier) InsertIntelInvocations(ctx context.Context, arg InsertIntel
 }
 
 const upsertIntelMachine = `-- name: UpsertIntelMachine :one
-INSERT INTO intel_machines (id, created_at, updated_at, instance_id, organization_id, user_id, ip_address, hostname, operating_system, operating_system_version, cpu_cores, memory_mb_total, architecture, daemon_version, tags)
-	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+INSERT INTO intel_machines (id, created_at, updated_at, instance_id, organization_id, user_id, ip_address, hostname, operating_system, operating_system_version, cpu_cores, memory_mb_total, architecture, daemon_version)
+	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
 	ON CONFLICT (user_id, instance_id) DO UPDATE SET
 		updated_at = $3,
 		ip_address = $7,
@@ -3152,9 +3136,8 @@ INSERT INTO intel_machines (id, created_at, updated_at, instance_id, organizatio
 		cpu_cores = $11,
 		memory_mb_total = $12,
 		architecture = $13,
-		daemon_version = $14,
-		tags = $15
-	RETURNING id, created_at, updated_at, instance_id, organization_id, user_id, ip_address, hostname, operating_system, operating_system_version, cpu_cores, memory_mb_total, architecture, daemon_version, git_config_email, git_config_name, tags
+		daemon_version = $14
+	RETURNING id, created_at, updated_at, instance_id, organization_id, user_id, ip_address, hostname, operating_system, operating_system_version, cpu_cores, memory_mb_total, architecture, daemon_version, git_config_email, git_config_name
 `
 
 type UpsertIntelMachineParams struct {
@@ -3168,11 +3151,10 @@ type UpsertIntelMachineParams struct {
 	Hostname               string         `db:"hostname" json:"hostname"`
 	OperatingSystem        string         `db:"operating_system" json:"operating_system"`
 	OperatingSystemVersion sql.NullString `db:"operating_system_version" json:"operating_system_version"`
-	CpuCores               int32          `db:"cpu_cores" json:"cpu_cores"`
-	MemoryMbTotal          int32          `db:"memory_mb_total" json:"memory_mb_total"`
+	CPUCores               int32          `db:"cpu_cores" json:"cpu_cores"`
+	MemoryMBTotal          int32          `db:"memory_mb_total" json:"memory_mb_total"`
 	Architecture           string         `db:"architecture" json:"architecture"`
 	DaemonVersion          string         `db:"daemon_version" json:"daemon_version"`
-	Tags                   []string       `db:"tags" json:"tags"`
 }
 
 func (q *sqlQuerier) UpsertIntelMachine(ctx context.Context, arg UpsertIntelMachineParams) (IntelMachine, error) {
@@ -3187,11 +3169,10 @@ func (q *sqlQuerier) UpsertIntelMachine(ctx context.Context, arg UpsertIntelMach
 		arg.Hostname,
 		arg.OperatingSystem,
 		arg.OperatingSystemVersion,
-		arg.CpuCores,
-		arg.MemoryMbTotal,
+		arg.CPUCores,
+		arg.MemoryMBTotal,
 		arg.Architecture,
 		arg.DaemonVersion,
-		pq.Array(arg.Tags),
 	)
 	var i IntelMachine
 	err := row.Scan(
@@ -3205,13 +3186,12 @@ func (q *sqlQuerier) UpsertIntelMachine(ctx context.Context, arg UpsertIntelMach
 		&i.Hostname,
 		&i.OperatingSystem,
 		&i.OperatingSystemVersion,
-		&i.CpuCores,
-		&i.MemoryMbTotal,
+		&i.CPUCores,
+		&i.MemoryMBTotal,
 		&i.Architecture,
 		&i.DaemonVersion,
 		&i.GitConfigEmail,
 		&i.GitConfigName,
-		pq.Array(&i.Tags),
 	)
 	return i, err
 }

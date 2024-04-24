@@ -3,6 +3,8 @@ package database
 import (
 	"database/sql/driver"
 	"encoding/json"
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -111,4 +113,49 @@ func (m *StringMapOfInt) Scan(src interface{}) error {
 
 func (m StringMapOfInt) Value() (driver.Value, error) {
 	return json.Marshal(m)
+}
+
+type StringaArray [][]string
+
+func (s *StringaArray) Scan(src interface{}) error {
+	if src == nil {
+		return nil
+	}
+	switch src := src.(type) {
+	case []byte:
+		err := json.Unmarshal(src, s)
+		if err != nil {
+			return err
+		}
+	default:
+		return xerrors.Errorf("unsupported Scan, storing driver.Value type %T into type %T", src, s)
+	}
+	return nil
+}
+
+func (s StringaArray) Value() (driver.Value, error) {
+	fmt.Printf("Calling custom!\n")
+	var b strings.Builder
+	b.WriteString("{")
+
+	for i, arr := range s {
+		if i > 0 {
+			b.WriteString(",")
+		}
+		b.WriteString("{")
+		for j, str := range arr {
+			if j > 0 {
+				b.WriteString(",")
+			}
+			// Properly escape string literals
+			escaped := strings.ReplaceAll(str, "\"", "\\\"")
+			escaped = strings.ReplaceAll(escaped, ",", "\\,")
+			b.WriteString(fmt.Sprintf("%q", escaped))
+		}
+		b.WriteString("}")
+	}
+
+	b.WriteString("}")
+	fmt.Printf("Writing %q\n", b.String())
+	return b.String(), nil
 }

@@ -81,6 +81,7 @@ DOCKER_ARCHES := amd64 arm64 armv7
 # Computed variables based on the above.
 CODER_SLIM_BINARIES      := $(addprefix build/coder-slim_$(VERSION)_,$(OS_ARCHES))
 CODER_FAT_BINARIES       := $(addprefix build/coder_$(VERSION)_,$(OS_ARCHES))
+CODER_INTEL_BINARIES     := $(addprefix build/coder-intel-invoke_$(VERSION)_,$(OS_ARCHES))
 CODER_ALL_BINARIES       := $(CODER_SLIM_BINARIES) $(CODER_FAT_BINARIES)
 CODER_TAR_GZ_ARCHIVES    := $(foreach os_arch, $(ARCHIVE_TAR_GZ), build/coder_$(VERSION)_$(os_arch).tar.gz)
 CODER_ZIP_ARCHIVES       := $(foreach os_arch, $(ARCHIVE_ZIP), build/coder_$(VERSION)_$(os_arch).zip)
@@ -92,6 +93,7 @@ CODER_MAIN_IMAGE         := build/coder_$(VERSION)_linux.tag
 
 CODER_SLIM_NOVERSION_BINARIES     := $(addprefix build/coder-slim_,$(OS_ARCHES))
 CODER_FAT_NOVERSION_BINARIES      := $(addprefix build/coder_,$(OS_ARCHES))
+CODER_INTEL_NOVERSION_BINARIES    := $(addprefix build/coder-intel-invoke_,$(OS_ARCHES))
 CODER_ALL_NOVERSION_IMAGES        := $(foreach arch, $(DOCKER_ARCHES), build/coder_linux_$(arch).tag) build/coder_linux.tag
 CODER_ALL_NOVERSION_IMAGES_PUSHED := $(addprefix push/, $(CODER_ALL_NOVERSION_IMAGES))
 
@@ -124,15 +126,15 @@ build-fat build-full build: $(CODER_FAT_BINARIES)
 release: $(CODER_FAT_BINARIES) $(CODER_ALL_ARCHIVES) $(CODER_ALL_PACKAGES) $(CODER_ARCH_IMAGES) build/coder_helm_$(VERSION).tgz
 .PHONY: release
 
-build/coder-slim_$(VERSION)_checksums.sha1: site/out/bin/coder.sha1
+build/coder-embed_$(VERSION)_checksums.sha1: site/out/bin/coder.sha1
 	cp "$<" "$@"
 
-site/out/bin/coder.sha1: $(CODER_SLIM_BINARIES)
+site/out/bin/coder.sha1: $(CODER_SLIM_BINARIES) $(CODER_INTEL_BINARIES)
 	pushd ./site/out/bin
 		openssl dgst -r -sha1 coder-* | tee coder.sha1
 	popd
 
-build/coder-slim_$(VERSION).tar: build/coder-slim_$(VERSION)_checksums.sha1 $(CODER_SLIM_BINARIES)
+build/coder-embed_$(VERSION).tar: build/coder-embed_$(VERSION)_checksums.sha1 $(CODER_SLIM_BINARIES) $(CODER_INTEL_BINARIES)
 	pushd ./site/out/bin
 		tar cf "../../../build/$(@F)" coder-*
 	popd
@@ -140,16 +142,16 @@ build/coder-slim_$(VERSION).tar: build/coder-slim_$(VERSION)_checksums.sha1 $(CO
 	# delete the uncompressed binaries from the embedded dir
 	rm -f site/out/bin/coder-*
 
-site/out/bin/coder.tar.zst: build/coder-slim_$(VERSION).tar.zst
+site/out/bin/coder.tar.zst: build/coder-embed_$(VERSION).tar.zst
 	cp "$<" "$@"
 
-build/coder-slim_$(VERSION).tar.zst: build/coder-slim_$(VERSION).tar
+build/coder-embed_$(VERSION).tar.zst: build/coder-embed_$(VERSION).tar
 	zstd $(ZSTDFLAGS) \
 		--force \
 		--long \
 		--no-progress \
-		-o "build/coder-slim_$(VERSION).tar.zst" \
-		"build/coder-slim_$(VERSION).tar"
+		-o "build/coder-embed_$(VERSION).tar.zst" \
+		"build/coder-embed_$(VERSION).tar"
 
 # Redirect from version-less targets to the versioned ones. There is a similar
 # target for slim binaries below.
@@ -167,6 +169,15 @@ $(CODER_FAT_NOVERSION_BINARIES): build/coder_%: build/coder_$(VERSION)_%
 #   make build/coder-slim_linux_amd64
 #   make build/coder-slim_windows_amd64.exe
 $(CODER_SLIM_NOVERSION_BINARIES): build/coder-slim_%: build/coder-slim_$(VERSION)_%
+	rm -f "$@"
+	ln "$<" "$@"
+
+# Same as above, but for intel binaries.
+#
+# Called like this:
+#   make build/coder-intel-invoke_linux_amd64
+#   make build/coder-intel-invoke_windows_amd64.exe
+$(CODER_INTEL_NOVERSION_BINARIES): build/coder-intel-invoke_%: build/coder-intel-invoke_$(VERSION)_%
 	rm -f "$@"
 	ln "$<" "$@"
 
@@ -193,6 +204,29 @@ define get-mode-os-arch-ext =
 		ext=""
 	fi
 endef
+
+$(CODER_INTEL_BINARIES): go.mod go.sum cmd/coder-intel-invoke/main.go
+	$(get-mode-os-arch-ext)
+	if [[ "$$os" == "windows" ]] && [[ "$$ext" != exe ]]; then
+		echo "ERROR: Windows binaries must have an .exe extension." 1>&2
+		exit 1
+	fi
+
+	# Determine GOARM.
+	goarm=""
+	if [[ "$$arch" == "arm" ]]; then
+		goarm="7"
+	elif [[ "$$arch" == "armv"* ]] || [[ "$$arch" == "arm64v"* ]]; then
+		goarm="$${arch//*v/}"
+		arch="$${arch//v*/}"
+	fi
+
+	GOOS=$$os GOARCH=$$arch GOARM=$$goarm go build -o "$@" -ldflags "-s -w" ./cmd/coder-intel-invoke
+	dot_ext=""
+	if [[ "$$ext" != "" ]]; then
+		dot_ext=".$$ext"
+	fi
+	cp "$@" "./site/out/bin/coder-intel-invoke-$$os-$$arch$$dot_ext"
 
 # This task handles all builds, for both "fat" and "slim" binaries. It parses
 # the target name to get the metadata for the build, so it must be specified in

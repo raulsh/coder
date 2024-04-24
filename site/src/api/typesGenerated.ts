@@ -610,6 +610,17 @@ export interface HealthcheckConfig {
   readonly threshold_database: number;
 }
 
+// From codersdk/intel.go
+export interface IntelDaemonHostInfo {
+  readonly instance_id: string;
+  readonly hostname: string;
+  readonly operating_system: string;
+  readonly operating_system_version: string;
+  readonly architecture: string;
+  readonly cpu_cores: number;
+  readonly memory_total_mb: number;
+}
+
 // From codersdk/workspaceagents.go
 export interface IssueReconnectingPTYSignedTokenRequest {
   readonly url: string;
@@ -994,6 +1005,11 @@ export interface SSHConfig {
 export interface SSHConfigResponse {
   readonly hostname_prefix: string;
   readonly ssh_config_options: Record<string, string>;
+}
+
+// From codersdk/intel.go
+export interface ServeIntelDaemonRequest extends IntelDaemonHostInfo {
+  readonly organization: string;
 }
 
 // From codersdk/serversentevents.go

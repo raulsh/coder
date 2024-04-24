@@ -73,20 +73,12 @@ service IntelDaemon {
 	rpc ReportPath(ReportPathRequest) returns (Empty);
 }
 
-// Client messages!
-
+// ReportInvocationRequest is sent as bytes for speed from
+// the slim invoke binary to the daemon.
 message ReportInvocationRequest {
 	string executable_path = 1;
 	repeated string arguments = 2;
 	int64 duration_ms = 3;
 	int32 exit_code = 4;
 	string working_directory = 5;
-}
-
-// IntelClient is provided by inteld to clients that want
-// to report insights. Clients report through the daemon
-// to ensure that the insights are stored and processed
-// in a consistent and timely manner.
-service IntelClient {
-	rpc ReportInvocation(ReportInvocationRequest) returns (Empty);
 }

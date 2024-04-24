@@ -27,6 +27,7 @@ Coder — A tool for provisioning self-hosted development environments with Terr
 | ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------- |
 | [<code>dotfiles</code>](./cli/dotfiles.md)             | Personalize your workspace by applying a canonical dotfiles repository                                |
 | [<code>external-auth</code>](./cli/external-auth.md)   | Manage external authentication                                                                        |
+| [<code>inteld</code>](./cli/inteld.md)                 | Manage the Intel Daemon                                                                               |
 | [<code>login</code>](./cli/login.md)                   | Authenticate with Coder deployment                                                                    |
 | [<code>logout</code>](./cli/logout.md)                 | Unauthenticate your local session                                                                     |
 | [<code>netcheck</code>](./cli/netcheck.md)             | Print network debug information for DERP and STUN                                                     |

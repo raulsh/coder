@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/cookiejar"
+	"strconv"
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/yamux"
@@ -21,14 +22,13 @@ type IntelDaemonHostInfo struct {
 	// InstanceID is a self-reported unique identifier for
 	// the machine. If one cannot be found, a random ID
 	// will be used.
-	InstanceID             string   `json:"instance_id"`
-	Hostname               string   `json:"hostname"`
-	OperatingSystem        string   `json:"operating_system"`
-	OperatingSystemVersion string   `json:"operating_system_version"`
-	Architecture           string   `json:"architecture"`
-	CPUCores               uint16   `json:"cpu_cores"`
-	MemoryTotalMB          uint64   `json:"memory_total_mb"`
-	Tags                   []string `json:"tags"`
+	InstanceID             string `json:"instance_id"`
+	Hostname               string `json:"hostname"`
+	OperatingSystem        string `json:"operating_system"`
+	OperatingSystemVersion string `json:"operating_system_version"`
+	Architecture           string `json:"architecture"`
+	CPUCores               uint16 `json:"cpu_cores"`
+	MemoryTotalMB          uint64 `json:"memory_total_mb"`
 }
 
 type ServeIntelDaemonRequest struct {
@@ -53,10 +53,9 @@ func (c *Client) ServeIntelDaemon(ctx context.Context, req ServeIntelDaemonReque
 	query.Add("operating_system", req.OperatingSystem)
 	query.Add("operating_system_version", req.OperatingSystemVersion)
 	query.Add("architecture", req.Architecture)
-	query.Add("cpu_cores", fmt.Sprint(req.CPUCores))
-	query.Add("memory_total_mb", fmt.Sprint(req.MemoryTotalMB))
-	query["tags"] = req.Tags
-
+	query.Add("cpu_cores", strconv.Itoa(int(req.CPUCores)))
+	query.Add("memory_total_mb", strconv.Itoa(int(req.MemoryTotalMB)))
+	serverURL.RawQuery = query.Encode()
 	httpClient := &http.Client{
 		Transport: c.HTTPClient.Transport,
 	}

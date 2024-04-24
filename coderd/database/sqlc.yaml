@@ -65,6 +65,8 @@ sql:
           api_version: APIVersion
           avatar_url: AvatarURL
           created_by_avatar_url: CreatedByAvatarURL
+          cpu_cores: CPUCores
+          memory_mb_total: MemoryMBTotal
           dbcrypt_key: DBCryptKey
           session_count_vscode: SessionCountVSCode
           session_count_jetbrains: SessionCountJetBrains

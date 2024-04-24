@@ -2,6 +2,7 @@ package inteldserver
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"sync"
 	"time"
@@ -89,24 +90,28 @@ func (s *server) invocationQueueLoop() {
 	defer s.closeWaitGroup.Done()
 	for {
 		err := s.invocationQueue.startFlushLoop(s.closeContext, func(i []*proto.Invocation) error {
-			ids := make([]uuid.UUID, 0, len(i))
+			ids := make([]uuid.UUID, 0)
 			binaryHashes := make([]string, 0, len(i))
 			binaryPaths := make([]string, 0, len(i))
-			binaryArgs := make([][]string, 0, len(i))
+			binaryArgs := make([]json.RawMessage, 0, len(i))
 			binaryVersions := make([]string, 0, len(i))
 			workingDirs := make([]string, 0, len(i))
 			gitRemoteURLs := make([]string, 0, len(i))
 			durationsMS := make([]int32, 0, len(i))
+
 			for _, invocation := range i {
 				ids = append(ids, uuid.New())
 				binaryHashes = append(binaryHashes, invocation.Executable.Hash)
 				binaryPaths = append(binaryPaths, invocation.Executable.Path)
-				binaryArgs = append(binaryArgs, invocation.Arguments)
+				argsData, _ := json.Marshal(invocation.Arguments)
+				binaryArgs = append(binaryArgs, argsData)
 				binaryVersions = append(binaryVersions, invocation.Executable.Version)
 				workingDirs = append(workingDirs, invocation.WorkingDirectory)
 				gitRemoteURLs = append(gitRemoteURLs, invocation.GitRemoteUrl)
 				durationsMS = append(durationsMS, int32(invocation.DurationMs))
 			}
+
+			binaryArgsData, _ := json.Marshal(binaryArgs)
 			err := s.Database.InsertIntelInvocations(s.closeContext, database.InsertIntelInvocationsParams{
 				ID:               ids,
 				CreatedAt:        dbtime.Now(),
@@ -114,7 +119,7 @@ func (s *server) invocationQueueLoop() {
 				UserID:           s.UserID,
 				BinaryHash:       binaryHashes,
 				BinaryPath:       binaryPaths,
-				BinaryArgs:       binaryArgs,
+				BinaryArgs:       binaryArgsData,
 				BinaryVersion:    binaryVersions,
 				WorkingDirectory: workingDirs,
 				GitRemoteUrl:     gitRemoteURLs,
@@ -122,7 +127,10 @@ func (s *server) invocationQueueLoop() {
 			})
 			if err != nil {
 				s.Logger.Error(s.closeContext, "write invocations", slog.Error(err))
-				return err
+				// Just ignore the failure and ignore the invocations.
+				// It's not a big deal... the bigger deal is keeping
+				// too big of a queue and failing.
+				return nil
 			}
 			s.Logger.Info(s.closeContext, "invocations flushed", slog.F("count", len(i)))
 			return nil
@@ -133,7 +141,6 @@ func (s *server) invocationQueueLoop() {
 				return
 			}
 			s.Logger.Warn(s.closeContext, "failed to write invocations", slog.Error(err))
-			return
 		}
 	}
 }

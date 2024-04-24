@@ -2,8 +2,10 @@ package inteld
 
 import (
 	"context"
+	"crypto/sha1"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"os/exec"
@@ -30,19 +32,21 @@ import (
 
 type Dialer func(ctx context.Context, hostInfo codersdk.IntelDaemonHostInfo) (proto.DRPCIntelDaemonClient, error)
 
+type InvokeBinaryDownloader func(ctx context.Context, etag string) (*http.Response, error)
+
 type Options struct {
 	// Dialer connects the daemon to a client.
 	Dialer Dialer
 
 	Filesystem afero.Fs
 
-	// InvokeBinary is the path to the binary that will be
-	// associated with aliased commands.
-	InvokeBinary string
-
 	// InvokeDirectory is the directory where binaries are aliased
 	// to and overridden in the $PATH so they can be man-in-the-middled.
 	InvokeDirectory string
+
+	// InvokeBinaryDownloader is a function that downloads the invoke binary.
+	// It will be downloaded into the invoke directory.
+	InvokeBinaryDownloader InvokeBinaryDownloader
 
 	// InvocationFlushInterval is the interval at which invocations
 	// are flushed to the server.
@@ -62,17 +66,17 @@ func New(opts Options) *API {
 		opts.Filesystem = afero.NewOsFs()
 	}
 	closeContext, closeCancel := context.WithCancel(context.Background())
-	invocationQueue := newInvocationQueue(opts.InvocationFlushInterval)
+	invocationQueue := newInvocationQueue(opts.InvocationFlushInterval, opts.Logger)
 	api := &API{
-		clientDialer:    opts.Dialer,
-		clientChan:      make(chan proto.DRPCIntelDaemonClient),
-		closeContext:    closeContext,
-		closeCancel:     closeCancel,
-		filesystem:      opts.Filesystem,
-		logger:          opts.Logger,
-		invokeDirectory: opts.InvokeDirectory,
-		invokeBinary:    opts.InvokeBinary,
-		invocationQueue: invocationQueue,
+		clientDialer:           opts.Dialer,
+		clientChan:             make(chan proto.DRPCIntelDaemonClient),
+		closeContext:           closeContext,
+		closeCancel:            closeCancel,
+		filesystem:             opts.Filesystem,
+		logger:                 opts.Logger,
+		invokeDirectory:        opts.InvokeDirectory,
+		invokeBinaryDownloader: opts.InvokeBinaryDownloader,
+		invocationQueue:        invocationQueue,
 	}
 	api.closeWaitGroup.Add(3)
 	go api.invocationQueueLoop()
@@ -83,10 +87,11 @@ func New(opts Options) *API {
 
 // API serves an instance of the intel daemon.
 type API struct {
-	filesystem      afero.Fs
-	invokeBinary    string
-	invokeDirectory string
-	invocationQueue *invocationQueue
+	filesystem             afero.Fs
+	invokeDirectory        string
+	invocationQueue        *invocationQueue
+	invokeBinaryPathChan   chan string
+	invokeBinaryDownloader InvokeBinaryDownloader
 
 	clientDialer   Dialer
 	clientChan     chan proto.DRPCIntelDaemonClient
@@ -107,7 +112,8 @@ func (a *API) invocationQueueLoop() {
 		err := a.invocationQueue.startSendLoop(a.closeContext, func(i []*proto.Invocation) error {
 			client, ok := a.client()
 			if !ok {
-				return xerrors.New("no client available")
+				// If no client is available, we shouldn't try to retry. We're shutting down!
+				return nil
 			}
 			_, err := client.RecordInvocation(a.closeContext, &proto.RecordInvocationRequest{
 				Invocations: i,
@@ -124,11 +130,65 @@ func (a *API) invocationQueueLoop() {
 	}
 }
 
+// downloadInvokeBinary downloads the binary to the provided path.
+// If the binary already exists at the path, it is hashed to ensure
+// it is up-to-date with ETag.
+func (a *API) downloadInvokeBinary(invokeBinaryPath string) error {
+	_, err := os.Stat(invokeBinaryPath)
+	existingSha1 := ""
+	if err == nil {
+		file, err := a.filesystem.Open(invokeBinaryPath)
+		if err != nil {
+			return xerrors.Errorf("unable to open invoke binary: %w", err)
+		}
+		defer file.Close()
+		//nolint:gosec // this is what our etag uses
+		hash := sha1.New()
+		_, err = io.Copy(hash, file)
+		if err != nil {
+			return xerrors.Errorf("unable to hash invoke binary: %w", err)
+		}
+		existingSha1 = fmt.Sprintf("%x", hash.Sum(nil))
+	}
+	resp, err := a.invokeBinaryDownloader(a.closeContext, existingSha1)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusNotModified {
+		return nil
+	}
+	if resp.StatusCode != http.StatusOK {
+		return xerrors.Errorf("unexpected status code: %d", resp.StatusCode)
+	}
+	err = a.filesystem.MkdirAll(filepath.Dir(invokeBinaryPath), 0755)
+	if err != nil {
+		return xerrors.Errorf("unable to create invoke binary directory: %w", err)
+	}
+	_ = a.filesystem.Remove(invokeBinaryPath)
+	file, err := a.filesystem.Create(invokeBinaryPath)
+	if err != nil {
+		return xerrors.Errorf("unable to create invoke binary: %w", err)
+	}
+	defer file.Close()
+	_, err = io.Copy(file, resp.Body)
+	if err != nil {
+		return xerrors.Errorf("unable to write invoke binary: %w", err)
+	}
+	err = a.filesystem.Chmod(invokeBinaryPath, 0755)
+	if err != nil {
+		return xerrors.Errorf("unable to chmod invoke binary: %w", err)
+	}
+	return nil
+}
+
 // listenLoop starts a loop that listens for messages from the system.
 func (a *API) listenLoop() {
 	defer a.logger.Debug(a.closeContext, "system loop exited")
 	defer a.closeWaitGroup.Done()
-	for {
+
+	// Wrapped in a retry in case recv ends super quickly for any reason!
+	for retrier := retry.New(50*time.Millisecond, 10*time.Second); retrier.Wait(a.closeContext); {
 		client, ok := a.client()
 		if !ok {
 			a.logger.Debug(a.closeContext, "shut down before client (re) connected")
@@ -154,10 +214,7 @@ func (a *API) listenLoop() {
 			},
 		})
 		if err != nil {
-			if errors.Is(err, context.Canceled) ||
-				errors.Is(err, yamux.ErrSessionShutdown) {
-				continue
-			}
+			continue
 		}
 		a.systemRecvLoop(system)
 	}
@@ -204,11 +261,21 @@ func (a *API) trackExecutables(binaryNames []string) error {
 	if err != nil {
 		return err
 	}
+	invokeBinary, valid := a.invokeBinaryPath()
+	if !valid {
+		// If there isn't an invoke binary, we shouldn't set up any symlinks!
+		return nil
+	}
 	for _, file := range files {
 		// Clear out the directory to remove old filenames.
 		// Don't do this for the global dir because it makes
 		// debugging harder.
-		err = a.filesystem.Remove(filepath.Join(a.invokeDirectory, file.Name()))
+		filePath := filepath.Join(a.invokeDirectory, file.Name())
+		if filePath == invokeBinary {
+			// Don't remove this bad boy!
+			continue
+		}
+		err = a.filesystem.Remove(filePath)
 		if err != nil {
 			return err
 		}
@@ -222,7 +289,7 @@ func (a *API) trackExecutables(binaryNames []string) error {
 		return xerrors.New("filesystem does not support symlinks")
 	}
 	for _, binaryName := range binaryNames {
-		err = linker.SymlinkIfPossible(a.invokeBinary, filepath.Join(a.invokeDirectory, binaryName))
+		err = linker.SymlinkIfPossible(invokeBinary, filepath.Join(a.invokeDirectory, binaryName))
 		if err != nil {
 			return err
 		}
@@ -263,6 +330,10 @@ func (a *API) connectLoop() {
 		CPUCores:               uint16(runtime.NumCPU()),
 		MemoryTotalMB:          memoryTotal,
 	}
+	invokeBinaryPath := filepath.Join(a.invokeDirectory, "coder-intel-invoke")
+	if runtime.GOOS == "windows" {
+		invokeBinaryPath += ".exe"
+	}
 connectLoop:
 	for retrier := retry.New(50*time.Millisecond, 10*time.Second); retrier.Wait(a.closeContext); {
 		a.logger.Debug(a.closeContext, "dialing coderd")
@@ -284,6 +355,12 @@ connectLoop:
 			continue
 		}
 		a.logger.Info(a.closeContext, "successfully connected to coderd")
+		err = a.downloadInvokeBinary(invokeBinaryPath)
+		if err != nil {
+			a.logger.Warn(a.closeContext, "unable to download invoke binary", slog.Error(err))
+			continue
+		}
+		a.logger.Info(a.closeContext, "successfully obtained invoke binary")
 		retrier.Reset()
 
 		// serve the client until we are closed or it disconnects
@@ -297,6 +374,8 @@ connectLoop:
 				continue connectLoop
 			case a.clientChan <- client:
 				continue
+			case a.invokeBinaryPathChan <- invokeBinaryPath:
+				continue
 			}
 		}
 	}
@@ -309,6 +388,15 @@ func (a *API) client() (proto.DRPCIntelDaemonClient, bool) {
 		return nil, false
 	case client := <-a.clientChan:
 		return client, true
+	}
+}
+
+func (a *API) invokeBinaryPath() (string, bool) {
+	select {
+	case <-a.closeContext.Done():
+		return "", false
+	case invokeBinary := <-a.invokeBinaryPathChan:
+		return invokeBinary, true
 	}
 }
 
@@ -350,20 +438,18 @@ func fetchFromGitConfig(property string) (string, error) {
 	return strings.TrimSpace(string(output)), nil
 }
 
-var _ proto.DRPCIntelClientServer = (*API)(nil)
-
 // ReportInvocation is called by the client to report an invocation.
-func (a *API) ReportInvocation(_ context.Context, req *proto.ReportInvocationRequest) (*proto.Empty, error) {
+func (a *API) ReportInvocation(req *proto.ReportInvocationRequest) {
 	a.invocationQueue.enqueue(req)
-	return &proto.Empty{}, nil
 }
 
-func newInvocationQueue(flushInterval time.Duration) *invocationQueue {
+func newInvocationQueue(flushInterval time.Duration, logger slog.Logger) *invocationQueue {
 	return &invocationQueue{
 		Cond:           sync.NewCond(&sync.Mutex{}),
 		flushInterval:  flushInterval,
 		binaryCache:    tlru.New[string, *proto.Executable](tlru.ConstantCost, 1000),
 		gitRemoteCache: tlru.New[string, string](tlru.ConstantCost, 1000),
+		logger:         logger,
 	}
 }
 
@@ -417,9 +503,20 @@ func (i *invocationQueue) enqueue(req *proto.ReportInvocationRequest) {
 			cmd.Dir = req.WorkingDirectory
 			out, err := cmd.Output()
 			if err != nil {
+				var exitError *exec.ExitError
+				if errors.As(err, &exitError) {
+					// We probably just weren't inside a git dir!
+					// This result should still be cached.
+					if exitError.ExitCode() == 128 {
+						return "", nil
+					}
+				}
 				return "", err
 			}
-			return strings.TrimSpace(string(out)), nil
+			url := strings.TrimSpace(string(out))
+			i.logger.Info(context.Background(),
+				"cached git remote", slog.F("url", url), slog.F("working_dir", req.WorkingDirectory))
+			return url, nil
 		}, time.Hour)
 		if err != nil {
 			// This isn't worth failing the execution on, but is an issue
@@ -431,6 +528,9 @@ func (i *invocationQueue) enqueue(req *proto.ReportInvocationRequest) {
 	i.L.Lock()
 	defer i.L.Unlock()
 	i.queue = append(i.queue, inv)
+	if len(i.queue)%10 == 0 {
+		i.logger.Info(context.Background(), "invocation queue length", slog.F("count", len(i.queue)))
+	}
 	i.Broadcast()
 }
 
@@ -472,7 +572,9 @@ func (i *invocationQueue) startSendLoop(ctx context.Context, flush func([]*proto
 		queue := i.queue[:]
 		i.flushRequested = false
 		i.L.Unlock()
+		i.logger.Info(ctx, "flushing invocations", slog.F("count", len(queue)))
 		err := flush(queue)
+		i.logger.Info(ctx, "flushed invocations", slog.F("count", len(queue)), slog.Error(err))
 		i.L.Lock()
 		if err != nil {
 			return xerrors.Errorf("failed to flush invocations: %w", err)

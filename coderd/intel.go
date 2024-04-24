@@ -54,7 +54,6 @@ func (api *API) intelDaemonServe(rw http.ResponseWriter, r *http.Request) {
 		OperatingSystem:        query.Get("operating_system"),
 		OperatingSystemVersion: query.Get("operating_system_version"),
 		Architecture:           query.Get("architecture"),
-		Tags:                   query["tags"],
 		CPUCores:               uint16(cpuCores),
 		MemoryTotalMB:          memoryTotalMB,
 	}
@@ -86,11 +85,10 @@ func (api *API) intelDaemonServe(rw http.ResponseWriter, r *http.Request) {
 			String: hostInfo.OperatingSystemVersion,
 			Valid:  hostInfo.OperatingSystemVersion != "",
 		},
-		CpuCores:      int32(hostInfo.CPUCores),
-		MemoryMbTotal: int32(hostInfo.MemoryTotalMB),
+		CPUCores:      int32(hostInfo.CPUCores),
+		MemoryMBTotal: int32(hostInfo.MemoryTotalMB),
 		Architecture:  hostInfo.Architecture,
 		DaemonVersion: "",
-		Tags:          hostInfo.Tags,
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -168,7 +166,7 @@ func (api *API) intelDaemonServe(rw http.ResponseWriter, r *http.Request) {
 	})
 	err = server.Serve(ctx, session)
 	srvCancel()
-	logger.Info(ctx, "provisioner daemon disconnected", slog.Error(err))
+	logger.Info(ctx, "intel daemon disconnected", slog.Error(err))
 	if err != nil && !xerrors.Is(err, io.EOF) {
 		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("serve: %s", err))
 		return
