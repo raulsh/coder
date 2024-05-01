@@ -5,7 +5,6 @@ CREATE TABLE intel_cohorts (
     created_at TIMESTAMPTZ NOT NULL,
     updated_at TIMESTAMPTZ NOT NULL,
 	name TEXT NOT NULL,
-    display_name TEXT NOT NULL,
     icon character varying(256) DEFAULT ''::character varying NOT NULL,
     description TEXT NOT NULL,
 
@@ -14,8 +13,9 @@ CREATE TABLE intel_cohorts (
     regex_operating_system_version VARCHAR(255) NOT NULL DEFAULT '.*',
     regex_architecture VARCHAR(255) NOT NULL DEFAULT '.*',
 	regex_instance_id VARCHAR(255) NOT NULL DEFAULT '.*',
+    tracked_executables TEXT[] NOT NULL,
 
-    tracked_executables TEXT[] NOT NULL
+	UNIQUE(organization_id, name)
 );
 
 CREATE INDEX idx_intel_cohorts_id ON intel_cohorts (id);

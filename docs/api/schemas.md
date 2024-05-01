@@ -1402,6 +1402,34 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `name`            | string  | false    |              |             |
 | `quota_allowance` | integer | false    |              |             |
 
+## codersdk.CreateIntelCohortRequest
+
+```json
+{
+  "description": "string",
+  "icon": "string",
+  "name": "string",
+  "regex_filters": {
+    "architecture": "string",
+    "instance_id": "string",
+    "operating_system": "string",
+    "operating_system_platform": "string",
+    "operating_system_version": "string"
+  },
+  "tracked_executables": ["string"]
+}
+```
+
+### Properties
+
+| Name                  | Type                                                                 | Required | Restrictions | Description |
+| --------------------- | -------------------------------------------------------------------- | -------- | ------------ | ----------- |
+| `description`         | string                                                               | false    |              |             |
+| `icon`                | string                                                               | false    |              |             |
+| `name`                | string                                                               | true     |              |             |
+| `regex_filters`       | [codersdk.IntelCohortRegexFilters](#codersdkintelcohortregexfilters) | false    |              |             |
+| `tracked_executables` | array of string                                                      | false    |              |             |
+
 ## codersdk.CreateOrganizationRequest
 
 ```json
@@ -3106,6 +3134,66 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | ------ |
 | `day`  |
 | `week` |
+
+## codersdk.IntelCohort
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "created_by": "string",
+  "description": "string",
+  "icon": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "regex_filters": {
+    "architecture": "string",
+    "instance_id": "string",
+    "operating_system": "string",
+    "operating_system_platform": "string",
+    "operating_system_version": "string"
+  },
+  "tracked_executables": ["string"],
+  "updated_at": "2019-08-24T14:15:22Z"
+}
+```
+
+### Properties
+
+| Name                  | Type                                                                 | Required | Restrictions | Description |
+| --------------------- | -------------------------------------------------------------------- | -------- | ------------ | ----------- |
+| `created_at`          | string                                                               | false    |              |             |
+| `created_by`          | string                                                               | false    |              |             |
+| `description`         | string                                                               | false    |              |             |
+| `icon`                | string                                                               | false    |              |             |
+| `id`                  | string                                                               | false    |              |             |
+| `name`                | string                                                               | false    |              |             |
+| `organization_id`     | string                                                               | false    |              |             |
+| `regex_filters`       | [codersdk.IntelCohortRegexFilters](#codersdkintelcohortregexfilters) | false    |              |             |
+| `tracked_executables` | array of string                                                      | false    |              |             |
+| `updated_at`          | string                                                               | false    |              |             |
+
+## codersdk.IntelCohortRegexFilters
+
+```json
+{
+  "architecture": "string",
+  "instance_id": "string",
+  "operating_system": "string",
+  "operating_system_platform": "string",
+  "operating_system_version": "string"
+}
+```
+
+### Properties
+
+| Name                        | Type   | Required | Restrictions | Description |
+| --------------------------- | ------ | -------- | ------------ | ----------- |
+| `architecture`              | string | false    |              |             |
+| `instance_id`               | string | false    |              |             |
+| `operating_system`          | string | false    |              |             |
+| `operating_system_platform` | string | false    |              |             |
+| `operating_system_version`  | string | false    |              |             |
 
 ## codersdk.IntelMachine
 

@@ -613,7 +613,7 @@ func (m metricsStore) GetHungProvisionerJobs(ctx context.Context, hungSince time
 	return jobs, err
 }
 
-func (m metricsStore) GetIntelCohortsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]database.IntelCohort, error) {
+func (m metricsStore) GetIntelCohortsByOrganizationID(ctx context.Context, organizationID database.GetIntelCohortsByOrganizationIDParams) ([]database.IntelCohort, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetIntelCohortsByOrganizationID(ctx, organizationID)
 	m.queryLatencies.WithLabelValues("GetIntelCohortsByOrganizationID").Observe(time.Since(start).Seconds())

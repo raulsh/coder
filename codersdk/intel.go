@@ -48,7 +48,6 @@ func (i *IntelCohortRegexFilters) Normalize() {
 
 type IntelCohortMetadata struct {
 	Name               string   `json:"name"`
-	DisplayName        string   `json:"display_name"`
 	Icon               string   `json:"icon"`
 	Description        string   `json:"description"`
 	TrackedExecutables []string `json:"tracked_executables"`
@@ -58,8 +57,8 @@ type IntelCohort struct {
 	ID             uuid.UUID               `json:"id" format:"uuid"`
 	OrganizationID uuid.UUID               `json:"organization_id" format:"uuid"`
 	CreatedBy      uuid.UUID               `json:"created_by"`
-	CreatedAt      int64                   `json:"created_at" format:"date-time"`
-	UpdatedAt      int64                   `json:"updated_at" format:"date-time"`
+	CreatedAt      time.Time               `json:"created_at" format:"date-time"`
+	UpdatedAt      time.Time               `json:"updated_at" format:"date-time"`
 	RegexFilters   IntelCohortRegexFilters `json:"regex_filters"`
 
 	IntelCohortMetadata
@@ -77,8 +76,7 @@ type IntelDaemonHostInfo struct {
 
 type ServeIntelDaemonRequest struct {
 	IntelDaemonHostInfo
-	InstanceID   string    `json:"instance_id"`
-	Organization uuid.UUID `json:"organization" format:"uuid"`
+	InstanceID string `json:"instance_id"`
 }
 
 type IntelMachine struct {
@@ -97,11 +95,54 @@ type IntelMachine struct {
 	Architecture            string    `json:"architecture"`
 }
 
+func (c *Client) IntelCohorts(ctx context.Context, organizationID uuid.UUID) ([]IntelCohort, error) {
+	orgParam := organizationID.String()
+	if organizationID == uuid.Nil {
+		orgParam = DefaultOrganization
+	}
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/organizations/%s/intel/cohorts", orgParam), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+	var cohorts []IntelCohort
+	return cohorts, json.NewDecoder(res.Body).Decode(&cohorts)
+}
+
+// CreateIntelCohortRequest is the request to create a new cohort.
+type CreateIntelCohortRequest struct {
+	Name               string                   `json:"name" validate:"required"`
+	Icon               string                   `json:"icon"`
+	Description        string                   `json:"description"`
+	TrackedExecutables []string                 `json:"tracked_executables"`
+	RegexFilters       *IntelCohortRegexFilters `json:"regex_filters"`
+}
+
+// CreateIntelCohort creates a new cohort.
+func (c *Client) CreateIntelCohort(ctx context.Context, organizationID uuid.UUID, req CreateIntelCohortRequest) (IntelCohort, error) {
+	orgParam := organizationID.String()
+	if organizationID == uuid.Nil {
+		orgParam = DefaultOrganization
+	}
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/organizations/%s/intel/cohorts", orgParam), req)
+	if err != nil {
+		return IntelCohort{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusCreated {
+		return IntelCohort{}, ReadBodyAsError(res)
+	}
+	var cohort IntelCohort
+	return cohort, json.NewDecoder(res.Body).Decode(&cohort)
+}
+
 type IntelMachinesRequest struct {
-	OrganizationID uuid.UUID               `json:"organization_id" format:"uuid"`
-	RegexFilters   IntelCohortRegexFilters `json:"regex_filters"`
-	Offset         int                     `json:"offset,omitempty" typescript:"-"`
-	Limit          int                     `json:"limit,omitempty" typescript:"-"`
+	RegexFilters IntelCohortRegexFilters `json:"regex_filters"`
+	Offset       int                     `json:"offset,omitempty" typescript:"-"`
+	Limit        int                     `json:"limit,omitempty" typescript:"-"`
 }
 
 type IntelMachinesResponse struct {
@@ -111,9 +152,9 @@ type IntelMachinesResponse struct {
 
 // IntelMachines returns a set of machines that matches the filters provided.
 // It will return all machines if no filters are provided.
-func (c *Client) IntelMachines(ctx context.Context, req IntelMachinesRequest) (IntelMachinesResponse, error) {
-	orgParam := req.OrganizationID.String()
-	if req.OrganizationID == uuid.Nil {
+func (c *Client) IntelMachines(ctx context.Context, organizationID uuid.UUID, req IntelMachinesRequest) (IntelMachinesResponse, error) {
+	orgParam := organizationID.String()
+	if organizationID == uuid.Nil {
 		orgParam = DefaultOrganization
 	}
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/organizations/%s/intel/machines", orgParam), nil,
@@ -137,9 +178,9 @@ func (c *Client) IntelMachines(ctx context.Context, req IntelMachinesRequest) (I
 }
 
 // ServeIntelDaemon returns the gRPC service for an intel daemon.
-func (c *Client) ServeIntelDaemon(ctx context.Context, req ServeIntelDaemonRequest) (proto.DRPCIntelDaemonClient, error) {
-	orgParam := req.Organization.String()
-	if req.Organization == uuid.Nil {
+func (c *Client) ServeIntelDaemon(ctx context.Context, organizationID uuid.UUID, req ServeIntelDaemonRequest) (proto.DRPCIntelDaemonClient, error) {
+	orgParam := organizationID.String()
+	if organizationID == uuid.Nil {
 		orgParam = DefaultOrganization
 	}
 	serverURL, err := c.URL.Parse(fmt.Sprintf("/api/v2/organizations/%s/intel/serve", orgParam))

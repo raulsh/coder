@@ -592,7 +592,6 @@ func IntelCohort(t testing.TB, db database.Store, orig database.IntelCohort) dat
 		Name:                         takeFirst(orig.Name, namesgenerator.GetRandomName(1)),
 		OrganizationID:               takeFirst(orig.OrganizationID, uuid.New()),
 		CreatedBy:                    takeFirst(orig.CreatedBy, uuid.New()),
-		DisplayName:                  takeFirst(orig.DisplayName, namesgenerator.GetRandomName(1)),
 		Icon:                         takeFirst(orig.Icon, ""),
 		Description:                  takeFirst(orig.Description, ""),
 		RegexOperatingSystem:         takeFirst(orig.RegexOperatingSystem, ".*"),

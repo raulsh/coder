@@ -3,6 +3,7 @@ package coderd
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -46,14 +47,18 @@ func (api *API) intelReport(rw http.ResponseWriter, r *http.Request) {
 		}
 		req.CohortIDs = append(req.CohortIDs, cohortID)
 	}
-	var err error
-	req.StartsAt, err = time.Parse(q.Get("starts_at"), time.DateOnly)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Invalid starts_at.",
-			Detail:  err.Error(),
-		})
-		return
+	// Default to the beginning of time?
+	rawStartsAt := q.Get("starts_at")
+	if rawStartsAt != "" {
+		var err error
+		req.StartsAt, err = time.Parse(q.Get("starts_at"), time.DateOnly)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid starts_at.",
+				Detail:  err.Error(),
+			})
+			return
+		}
 	}
 
 	var eg errgroup.Group
@@ -185,7 +190,7 @@ func (api *API) intelReport(rw http.ResponseWriter, r *http.Request) {
 		}
 		return nil
 	})
-	err = eg.Wait()
+	err := eg.Wait()
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error getting intel report.",
@@ -262,7 +267,9 @@ func (api *API) intelCohorts(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	organization := httpmw.OrganizationParam(r)
 
-	cohorts, err := api.Database.GetIntelCohortsByOrganizationID(ctx, organization.ID)
+	cohorts, err := api.Database.GetIntelCohortsByOrganizationID(ctx, database.GetIntelCohortsByOrganizationIDParams{
+		OrganizationID: organization.ID,
+	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error getting intel cohorts.",
@@ -270,10 +277,97 @@ func (api *API) intelCohorts(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-
-	_ = cohorts
+	httpapi.Write(ctx, rw, http.StatusOK, convertIntelCohorts(cohorts))
 }
 
+// postIntelCohorts creates a new intel cohort.
+//
+// @Summary Create intel cohort
+// @ID create-intel-cohort
+// @Security CoderSessionToken
+// @Tags Intel
+// @Param organization path string true "Organization ID" format(uuid)
+// @Param request body codersdk.CreateIntelCohortRequest true "Create intel cohort request"
+// @Success 201 {object} codersdk.IntelCohort
+// @Router /organizations/{organization}/intel/cohorts [post]
+func (api *API) postIntelCohorts(rw http.ResponseWriter, r *http.Request) {
+	organization := httpmw.OrganizationParam(r)
+	apiKey := httpmw.APIKey(r)
+	ctx := r.Context()
+
+	var req codersdk.CreateIntelCohortRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+	if req.RegexFilters == nil {
+		req.RegexFilters = &codersdk.IntelCohortRegexFilters{}
+	}
+	if req.TrackedExecutables == nil {
+		req.TrackedExecutables = []string{}
+	}
+	// Ensure defaults to match any exist!
+	req.RegexFilters.Normalize()
+
+	cohort, err := api.Database.UpsertIntelCohort(ctx, database.UpsertIntelCohortParams{
+		ID:                           uuid.New(),
+		OrganizationID:               organization.ID,
+		CreatedBy:                    apiKey.UserID,
+		CreatedAt:                    dbtime.Now(),
+		UpdatedAt:                    dbtime.Now(),
+		Name:                         req.Name,
+		Icon:                         req.Icon,
+		Description:                  req.Description,
+		TrackedExecutables:           req.TrackedExecutables,
+		RegexOperatingSystem:         req.RegexFilters.OperatingSystem,
+		RegexOperatingSystemPlatform: req.RegexFilters.OperatingSystemPlatform,
+		RegexOperatingSystemVersion:  req.RegexFilters.OperatingSystemVersion,
+		RegexArchitecture:            req.RegexFilters.Architecture,
+		RegexInstanceID:              req.RegexFilters.InstanceID,
+	})
+	if err != nil {
+		if database.IsUniqueViolation(err, database.UniqueIntelCohortsOrganizationIDNameKey) {
+			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+				Message: fmt.Sprintf("A cohort with name %q already exists.", req.Name),
+				Validations: []codersdk.ValidationError{{
+					Field:  "name",
+					Detail: "This value is already in use and should be unique.",
+				}},
+			})
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error creating intel cohort.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	httpapi.Write(ctx, rw, http.StatusCreated, convertIntelCohorts([]database.IntelCohort{cohort})[0])
+}
+
+func (api *API) deleteIntelCohort(rw http.ResponseWriter, r *http.Request) {
+
+}
+
+func (api *API) patchIntelCohort(rw http.ResponseWriter, r *http.Request) {
+
+}
+
+// Serves the intel daemon protobuf API over a WebSocket.
+//
+// @Summary Serve intel daemon
+// @ID serve-intel-daemon
+// @Security CoderSessionToken
+// @Tags Intel
+// @Param organization path string true "Organization ID" format(uuid)
+// @Param instance_id query string true "Instance ID"
+// @Param cpu_cores query int false "Number of CPU cores"
+// @Param memory_total_mb query int false "Total memory in MB"
+// @Param hostname query string false "Hostname"
+// @Param operating_system query string false "Operating system"
+// @Param operating_system_version query string false "Operating system version"
+// @Param architecture query string false "Architecture"
+// @success 101
+// @Router /organizations/{organization}/intel/serve [get]
 func (api *API) intelDaemonServe(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
@@ -424,6 +518,33 @@ func convertIntelMachines(machines []database.IntelMachine) []codersdk.IntelMach
 			CPUCores:                uint16(machine.CPUCores),
 			MemoryMBTotal:           uint64(machine.MemoryMBTotal),
 			Architecture:            machine.Architecture,
+		}
+	}
+	return converted
+}
+
+func convertIntelCohorts(cohorts []database.IntelCohort) []codersdk.IntelCohort {
+	converted := make([]codersdk.IntelCohort, len(cohorts))
+	for i, cohort := range cohorts {
+		converted[i] = codersdk.IntelCohort{
+			ID:             cohort.ID,
+			OrganizationID: cohort.OrganizationID,
+			CreatedBy:      cohort.CreatedBy,
+			UpdatedAt:      cohort.UpdatedAt,
+			RegexFilters: codersdk.IntelCohortRegexFilters{
+				OperatingSystem:         cohort.RegexOperatingSystem,
+				OperatingSystemPlatform: cohort.RegexOperatingSystemPlatform,
+				OperatingSystemVersion:  cohort.RegexOperatingSystemVersion,
+				Architecture:            cohort.RegexArchitecture,
+				InstanceID:              cohort.RegexInstanceID,
+			},
+			CreatedAt: cohort.CreatedAt,
+			IntelCohortMetadata: codersdk.IntelCohortMetadata{
+				Name:               cohort.Name,
+				Icon:               cohort.Icon,
+				Description:        cohort.Description,
+				TrackedExecutables: cohort.TrackedExecutables,
+			},
 		}
 	}
 	return converted

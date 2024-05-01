@@ -130,7 +130,7 @@ type sqlcQuerier interface {
 	GetGroupsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]Group, error)
 	GetHealthSettings(ctx context.Context) (string, error)
 	GetHungProvisionerJobs(ctx context.Context, updatedAt time.Time) ([]ProvisionerJob, error)
-	GetIntelCohortsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]IntelCohort, error)
+	GetIntelCohortsByOrganizationID(ctx context.Context, arg GetIntelCohortsByOrganizationIDParams) ([]IntelCohort, error)
 	// Obtains a list of cohorts that a user can track invocations for.
 	GetIntelCohortsMatchedByMachineIDs(ctx context.Context, ids []uuid.UUID) ([]GetIntelCohortsMatchedByMachineIDsRow, error)
 	GetIntelMachinesMatchingFilters(ctx context.Context, arg GetIntelMachinesMatchingFiltersParams) ([]GetIntelMachinesMatchingFiltersRow, error)
@@ -436,6 +436,9 @@ type sqlcQuerier interface {
 	UpsertDefaultProxy(ctx context.Context, arg UpsertDefaultProxyParams) error
 	UpsertHealthSettings(ctx context.Context, value string) error
 	UpsertIntelCohort(ctx context.Context, arg UpsertIntelCohortParams) (IntelCohort, error)
+	// Delete all invocations after summarizing.
+	// If there are invocations that are not in a cohort,
+	// they must be purged!
 	UpsertIntelInvocationSummaries(ctx context.Context) error
 	UpsertIntelMachine(ctx context.Context, arg UpsertIntelMachineParams) (IntelMachine, error)
 	UpsertJFrogXrayScanByWorkspaceAndAgentID(ctx context.Context, arg UpsertJFrogXrayScanByWorkspaceAndAgentIDParams) error

@@ -1,22 +1,21 @@
 -- name: UpsertIntelCohort :one
-INSERT INTO intel_cohorts (id, organization_id, created_by, created_at, updated_at, name, display_name, icon, description, regex_operating_system, regex_operating_system_platform, regex_operating_system_version, regex_architecture, regex_instance_id, tracked_executables)
-	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+INSERT INTO intel_cohorts (id, organization_id, created_by, created_at, updated_at, name, icon, description, regex_operating_system, regex_operating_system_platform, regex_operating_system_version, regex_architecture, regex_instance_id, tracked_executables)
+	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
 	ON CONFLICT (id) DO UPDATE SET
 		updated_at = $5,
 		name = $6,
-		display_name = $7,
-		icon = $8,
-		description = $9,
-		regex_operating_system = $10,
-		regex_operating_system_platform = $11,
-		regex_operating_system_version = $12,
-		regex_architecture = $13,
-		regex_instance_id = $14,
-		tracked_executables = $15
+		icon = $7,
+		description = $8,
+		regex_operating_system = $9,
+		regex_operating_system_platform = $10,
+		regex_operating_system_version = $11,
+		regex_architecture = $12,
+		regex_instance_id = $13,
+		tracked_executables = $14
 	RETURNING *;
 
 -- name: GetIntelCohortsByOrganizationID :many
-SELECT * FROM intel_cohorts WHERE organization_id = $1;
+SELECT * FROM intel_cohorts WHERE organization_id = $1 AND (@name IS NULL OR name = @name);
 
 -- name: DeleteIntelCohortsByIDs :exec
 DELETE FROM intel_cohorts WHERE id = ANY(@cohort_ids::uuid[]);
@@ -201,8 +200,10 @@ saved AS (
         median_duration_ms
     FROM aggregated
 )
-DELETE FROM intel_invocations
-WHERE id IN (SELECT id FROM invocations_with_cohorts);
+-- Delete all invocations after summarizing.
+-- If there are invocations that are not in a cohort,
+-- they must be purged!
+DELETE FROM intel_invocations;
 
 -- name: GetIntelReportGitRemotes :many
 -- Get the total amount of time spent invoking commands

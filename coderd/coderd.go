@@ -840,7 +840,18 @@ func New(options *Options) *API {
 				r.Route("/intel", func(r chi.Router) {
 					r.Get("/serve", api.intelDaemonServe)
 					r.Get("/machines", api.intelMachines)
-					r.Get("/cohorts", api.intelCohorts)
+					r.Route("/cohorts", func(r chi.Router) {
+						r.Get("/", api.intelCohorts)
+						r.Post("/", api.postIntelCohorts)
+						r.Route("/{cohort}", func(r chi.Router) {
+							r.Use(
+								httpmw.ExtractIntelCohortParam(options.Database),
+							)
+							r.Patch("/", api.patchIntelCohort)
+							r.Delete("/", api.deleteIntelCohort)
+						})
+					})
+
 					r.Get("/report", api.intelReport)
 				})
 			})

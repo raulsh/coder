@@ -1954,6 +1954,115 @@
         }
       }
     },
+    "/organizations/{organization}/intel/cohorts": {
+      "post": {
+        "security": [
+          {
+            "CoderSessionToken": []
+          }
+        ],
+        "tags": ["Intel"],
+        "summary": "Create intel cohort",
+        "operationId": "create-intel-cohort",
+        "parameters": [
+          {
+            "type": "string",
+            "format": "uuid",
+            "description": "Organization ID",
+            "name": "organization",
+            "in": "path",
+            "required": true
+          },
+          {
+            "description": "Create intel cohort request",
+            "name": "request",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/codersdk.CreateIntelCohortRequest"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created",
+            "schema": {
+              "$ref": "#/definitions/codersdk.IntelCohort"
+            }
+          }
+        }
+      }
+    },
+    "/organizations/{organization}/intel/serve": {
+      "get": {
+        "security": [
+          {
+            "CoderSessionToken": []
+          }
+        ],
+        "tags": ["Intel"],
+        "summary": "Serve intel daemon",
+        "operationId": "serve-intel-daemon",
+        "parameters": [
+          {
+            "type": "string",
+            "format": "uuid",
+            "description": "Organization ID",
+            "name": "organization",
+            "in": "path",
+            "required": true
+          },
+          {
+            "type": "string",
+            "description": "Instance ID",
+            "name": "instance_id",
+            "in": "query",
+            "required": true
+          },
+          {
+            "type": "integer",
+            "description": "Number of CPU cores",
+            "name": "cpu_cores",
+            "in": "query"
+          },
+          {
+            "type": "integer",
+            "description": "Total memory in MB",
+            "name": "memory_total_mb",
+            "in": "query"
+          },
+          {
+            "type": "string",
+            "description": "Hostname",
+            "name": "hostname",
+            "in": "query"
+          },
+          {
+            "type": "string",
+            "description": "Operating system",
+            "name": "operating_system",
+            "in": "query"
+          },
+          {
+            "type": "string",
+            "description": "Operating system version",
+            "name": "operating_system_version",
+            "in": "query"
+          },
+          {
+            "type": "string",
+            "description": "Architecture",
+            "name": "architecture",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "101": {
+            "description": "Switching Protocols"
+          }
+        }
+      }
+    },
     "/organizations/{organization}/members/roles": {
       "get": {
         "security": [
@@ -7927,6 +8036,30 @@
         }
       }
     },
+    "codersdk.CreateIntelCohortRequest": {
+      "type": "object",
+      "required": ["name"],
+      "properties": {
+        "description": {
+          "type": "string"
+        },
+        "icon": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "regex_filters": {
+          "$ref": "#/definitions/codersdk.IntelCohortRegexFilters"
+        },
+        "tracked_executables": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
     "codersdk.CreateOrganizationRequest": {
       "type": "object",
       "required": ["name"],
@@ -9040,6 +9173,68 @@
         "InsightsReportIntervalDay",
         "InsightsReportIntervalWeek"
       ]
+    },
+    "codersdk.IntelCohort": {
+      "type": "object",
+      "properties": {
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "created_by": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "icon": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "name": {
+          "type": "string"
+        },
+        "organization_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "regex_filters": {
+          "$ref": "#/definitions/codersdk.IntelCohortRegexFilters"
+        },
+        "tracked_executables": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "codersdk.IntelCohortRegexFilters": {
+      "type": "object",
+      "properties": {
+        "architecture": {
+          "type": "string"
+        },
+        "instance_id": {
+          "type": "string"
+        },
+        "operating_system": {
+          "type": "string"
+        },
+        "operating_system_platform": {
+          "type": "string"
+        },
+        "operating_system_version": {
+          "type": "string"
+        }
+      }
     },
     "codersdk.IntelMachine": {
       "type": "object",

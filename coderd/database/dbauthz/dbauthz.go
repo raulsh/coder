@@ -1291,8 +1291,9 @@ func (q *querier) GetHungProvisionerJobs(ctx context.Context, hungSince time.Tim
 	return q.db.GetHungProvisionerJobs(ctx, hungSince)
 }
 
-func (q *querier) GetIntelCohortsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]database.IntelCohort, error) {
-	panic("not implemented")
+func (q *querier) GetIntelCohortsByOrganizationID(ctx context.Context, req database.GetIntelCohortsByOrganizationIDParams) ([]database.IntelCohort, error) {
+	// TODO: Do this
+	return q.db.GetIntelCohortsByOrganizationID(ctx, req)
 }
 
 func (q *querier) GetIntelCohortsMatchedByMachineIDs(ctx context.Context, ids []uuid.UUID) ([]database.GetIntelCohortsMatchedByMachineIDsRow, error) {
@@ -1306,12 +1307,14 @@ func (q *querier) GetIntelMachinesMatchingFilters(ctx context.Context, arg datab
 	return q.db.GetIntelMachinesMatchingFilters(ctx, arg)
 }
 
-func (q *querier) GetIntelReportCommands(ctx context.Context, startsAt database.GetIntelReportCommandsParams) ([]database.GetIntelReportCommandsRow, error) {
-	panic("not implemented")
+func (q *querier) GetIntelReportCommands(ctx context.Context, arg database.GetIntelReportCommandsParams) ([]database.GetIntelReportCommandsRow, error) {
+	// No authz checks possible. It's too weird
+	return q.db.GetIntelReportCommands(ctx, arg)
 }
 
-func (q *querier) GetIntelReportGitRemotes(ctx context.Context, startsAt database.GetIntelReportGitRemotesParams) ([]database.GetIntelReportGitRemotesRow, error) {
-	panic("not implemented")
+func (q *querier) GetIntelReportGitRemotes(ctx context.Context, arg database.GetIntelReportGitRemotesParams) ([]database.GetIntelReportGitRemotesRow, error) {
+	// No authz checks possible. It's too weird
+	return q.db.GetIntelReportGitRemotes(ctx, arg)
 }
 
 func (q *querier) GetJFrogXrayScanByWorkspaceAndAgentID(ctx context.Context, arg database.GetJFrogXrayScanByWorkspaceAndAgentIDParams) (database.JfrogXrayScan, error) {
@@ -3526,7 +3529,10 @@ func (q *querier) UpsertIntelCohort(ctx context.Context, arg database.UpsertInte
 }
 
 func (q *querier) UpsertIntelInvocationSummaries(ctx context.Context) error {
-	panic("not implemented")
+	if err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.UpsertIntelInvocationSummaries(ctx)
 }
 
 func (q *querier) UpsertIntelMachine(ctx context.Context, arg database.UpsertIntelMachineParams) (database.IntelMachine, error) {

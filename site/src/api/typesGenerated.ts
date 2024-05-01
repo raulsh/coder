@@ -223,7 +223,16 @@ export interface CreateGroupRequest {
   readonly quota_allowance: number;
 }
 
-// From codersdk/organizations.go
+// From codersdk/intel.go
+export interface CreateIntelCohortRequest {
+  readonly name: string;
+  readonly icon: string;
+  readonly description: string;
+  readonly tracked_executables: readonly string[];
+  readonly regex_filters?: IntelCohortRegexFilters;
+}
+
+// From codersdk/users.go
 export interface CreateOrganizationRequest {
   readonly name: string;
 }
@@ -615,15 +624,14 @@ export interface IntelCohort extends IntelCohortMetadata {
   readonly id: string;
   readonly organization_id: string;
   readonly created_by: string;
-  readonly created_at: number;
-  readonly updated_at: number;
+  readonly created_at: string;
+  readonly updated_at: string;
   readonly regex_filters: IntelCohortRegexFilters;
 }
 
 // From codersdk/intel.go
 export interface IntelCohortMetadata {
   readonly name: string;
-  readonly display_name: string;
   readonly icon: string;
   readonly description: string;
   readonly tracked_executables: readonly string[];
@@ -668,7 +676,6 @@ export interface IntelMachine {
 
 // From codersdk/intel.go
 export interface IntelMachinesRequest {
-  readonly organization_id: string;
   readonly regex_filters: IntelCohortRegexFilters;
 }
 
@@ -1109,7 +1116,6 @@ export interface SSHConfigResponse {
 // From codersdk/intel.go
 export interface ServeIntelDaemonRequest extends IntelDaemonHostInfo {
   readonly instance_id: string;
-  readonly organization: string;
 }
 
 // From codersdk/serversentevents.go

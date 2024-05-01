@@ -1866,7 +1866,6 @@ type IntelCohort struct {
 	CreatedAt                    time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt                    time.Time `db:"updated_at" json:"updated_at"`
 	Name                         string    `db:"name" json:"name"`
-	DisplayName                  string    `db:"display_name" json:"display_name"`
 	Icon                         string    `db:"icon" json:"icon"`
 	Description                  string    `db:"description" json:"description"`
 	RegexOperatingSystem         string    `db:"regex_operating_system" json:"regex_operating_system"`

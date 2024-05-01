@@ -1199,7 +1199,7 @@ func (mr *MockStoreMockRecorder) GetHungProvisionerJobs(arg0, arg1 any) *gomock.
 }
 
 // GetIntelCohortsByOrganizationID mocks base method.
-func (m *MockStore) GetIntelCohortsByOrganizationID(arg0 context.Context, arg1 uuid.UUID) ([]database.IntelCohort, error) {
+func (m *MockStore) GetIntelCohortsByOrganizationID(arg0 context.Context, arg1 database.GetIntelCohortsByOrganizationIDParams) ([]database.IntelCohort, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetIntelCohortsByOrganizationID", arg0, arg1)
 	ret0, _ := ret[0].([]database.IntelCohort)

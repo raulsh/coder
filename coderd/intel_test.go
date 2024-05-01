@@ -15,9 +15,9 @@ func TestIntelMachines(t *testing.T) {
 	t.Run("Empty", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
-		coderdtest.CreateFirstUser(t, client)
+		user := coderdtest.CreateFirstUser(t, client)
 
-		res, err := client.IntelMachines(context.Background(), codersdk.IntelMachinesRequest{})
+		res, err := client.IntelMachines(context.Background(), user.OrganizationID, codersdk.IntelMachinesRequest{})
 		require.NoError(t, err)
 		require.Len(t, res.IntelMachines, 0)
 		require.Equal(t, res.Count, 0)
@@ -25,15 +25,15 @@ func TestIntelMachines(t *testing.T) {
 	t.Run("Single", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
-		coderdtest.CreateFirstUser(t, client)
+		user := coderdtest.CreateFirstUser(t, client)
 		ctx := context.Background()
-		intelClient, err := client.ServeIntelDaemon(ctx, codersdk.ServeIntelDaemonRequest{
+		intelClient, err := client.ServeIntelDaemon(ctx, user.OrganizationID, codersdk.ServeIntelDaemonRequest{
 			InstanceID: "test",
 		})
 		require.NoError(t, err)
 		defer intelClient.DRPCConn().Close()
 
-		res, err := client.IntelMachines(context.Background(), codersdk.IntelMachinesRequest{})
+		res, err := client.IntelMachines(context.Background(), user.OrganizationID, codersdk.IntelMachinesRequest{})
 		require.NoError(t, err)
 		require.Len(t, res.IntelMachines, 1)
 		require.Equal(t, res.Count, 1)
@@ -41,9 +41,9 @@ func TestIntelMachines(t *testing.T) {
 	t.Run("Filtered", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
-		coderdtest.CreateFirstUser(t, client)
+		user := coderdtest.CreateFirstUser(t, client)
 		ctx := context.Background()
-		firstClient, err := client.ServeIntelDaemon(ctx, codersdk.ServeIntelDaemonRequest{
+		firstClient, err := client.ServeIntelDaemon(ctx, user.OrganizationID, codersdk.ServeIntelDaemonRequest{
 			IntelDaemonHostInfo: codersdk.IntelDaemonHostInfo{
 				OperatingSystem: "linux",
 			},
@@ -51,7 +51,7 @@ func TestIntelMachines(t *testing.T) {
 		})
 		require.NoError(t, err)
 		defer firstClient.DRPCConn().Close()
-		secondClient, err := client.ServeIntelDaemon(ctx, codersdk.ServeIntelDaemonRequest{
+		secondClient, err := client.ServeIntelDaemon(ctx, user.OrganizationID, codersdk.ServeIntelDaemonRequest{
 			IntelDaemonHostInfo: codersdk.IntelDaemonHostInfo{
 				OperatingSystem: "windows",
 			},
@@ -60,7 +60,7 @@ func TestIntelMachines(t *testing.T) {
 		require.NoError(t, err)
 		defer secondClient.DRPCConn().Close()
 
-		res, err := client.IntelMachines(context.Background(), codersdk.IntelMachinesRequest{
+		res, err := client.IntelMachines(context.Background(), user.OrganizationID, codersdk.IntelMachinesRequest{
 			RegexFilters: codersdk.IntelCohortRegexFilters{
 				OperatingSystem: "windows",
 			},
@@ -69,5 +69,20 @@ func TestIntelMachines(t *testing.T) {
 		require.Len(t, res.IntelMachines, 1)
 		require.Equal(t, res.Count, 1)
 		require.Equal(t, res.IntelMachines[0].OperatingSystem, "windows")
+	})
+}
+
+func TestIntelCohorts(t *testing.T) {
+	t.Parallel()
+	t.Run("Create", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		ctx := context.Background()
+		cohort, err := client.CreateIntelCohort(ctx, user.OrganizationID, codersdk.CreateIntelCohortRequest{
+			Name: "example",
+		})
+		require.NoError(t, err)
+		require.Equal(t, cohort.Name, "example")
 	})
 }

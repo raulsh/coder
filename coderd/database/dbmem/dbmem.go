@@ -2439,8 +2439,34 @@ func (q *FakeQuerier) GetHungProvisionerJobs(_ context.Context, hungSince time.T
 	return hungJobs, nil
 }
 
-func (q *FakeQuerier) GetIntelCohortsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]database.IntelCohort, error) {
-	panic("not implemented")
+func (q *FakeQuerier) GetIntelCohortsByOrganizationID(_ context.Context, req database.GetIntelCohortsByOrganizationIDParams) ([]database.IntelCohort, error) {
+	err := validateDatabaseType(req)
+	if err != nil {
+		return nil, err
+	}
+
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	cohorts := make([]database.IntelCohort, 0)
+	for _, cohort := range q.intelCohorts {
+		if cohort.OrganizationID != req.OrganizationID {
+			continue
+		}
+		if req.Name == nil {
+			cohorts = append(cohorts, cohort)
+			continue
+		}
+		name, ok := req.Name.(string)
+		if !ok {
+			return nil, xerrors.Errorf("invalid type for name: %T", req.Name)
+		}
+		if cohort.Name != name {
+			continue
+		}
+		cohorts = append(cohorts, cohort)
+	}
+	return cohorts, nil
 }
 
 func (q *FakeQuerier) GetIntelCohortsMatchedByMachineIDs(_ context.Context, ids []uuid.UUID) ([]database.GetIntelCohortsMatchedByMachineIDsRow, error) {
@@ -8722,7 +8748,6 @@ func (q *FakeQuerier) UpsertIntelCohort(_ context.Context, arg database.UpsertIn
 			continue
 		}
 		cohort.UpdatedAt = arg.UpdatedAt
-		cohort.DisplayName = arg.DisplayName
 		cohort.Description = arg.Description
 		cohort.RegexOperatingSystem = arg.RegexOperatingSystem
 		cohort.RegexOperatingSystemPlatform = arg.RegexOperatingSystemPlatform
@@ -8743,7 +8768,6 @@ func (q *FakeQuerier) UpsertIntelCohort(_ context.Context, arg database.UpsertIn
 		CreatedBy:                    arg.CreatedBy,
 		CreatedAt:                    arg.CreatedAt,
 		UpdatedAt:                    arg.UpdatedAt,
-		DisplayName:                  arg.DisplayName,
 		Description:                  arg.Description,
 		RegexOperatingSystem:         arg.RegexOperatingSystem,
 		RegexOperatingSystemPlatform: arg.RegexOperatingSystemPlatform,
@@ -8888,14 +8912,10 @@ func (q *FakeQuerier) UpsertIntelInvocationSummaries(_ context.Context) error {
 		}
 		summary.MedianDurationMs = medianFloat64s(wrapperSummary.DurationMS)
 		q.intelInvocationSummaries = append(q.intelInvocationSummaries, summary)
-
-		// Remove invocations that have been compressed
-		for id := range wrapperSummary.InvocationIDs {
-			q.intelInvocations = slices.DeleteFunc(q.intelInvocations, func(invocation database.IntelInvocation) bool {
-				return invocation.ID == id
-			})
-		}
 	}
+	// Delete all invocations because they should have been processed!
+	q.intelInvocations = make([]database.IntelInvocation, 0)
+
 	return nil
 }
 

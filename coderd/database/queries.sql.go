@@ -2960,11 +2960,16 @@ func (q *sqlQuerier) DeleteIntelCohortsByIDs(ctx context.Context, cohortIds []uu
 }
 
 const getIntelCohortsByOrganizationID = `-- name: GetIntelCohortsByOrganizationID :many
-SELECT id, organization_id, created_by, created_at, updated_at, name, display_name, icon, description, regex_operating_system, regex_operating_system_platform, regex_operating_system_version, regex_architecture, regex_instance_id, tracked_executables FROM intel_cohorts WHERE organization_id = $1
+SELECT id, organization_id, created_by, created_at, updated_at, name, icon, description, regex_operating_system, regex_operating_system_platform, regex_operating_system_version, regex_architecture, regex_instance_id, tracked_executables FROM intel_cohorts WHERE organization_id = $1 AND ($2 IS NULL OR name = $2)
 `
 
-func (q *sqlQuerier) GetIntelCohortsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]IntelCohort, error) {
-	rows, err := q.db.QueryContext(ctx, getIntelCohortsByOrganizationID, organizationID)
+type GetIntelCohortsByOrganizationIDParams struct {
+	OrganizationID uuid.UUID   `db:"organization_id" json:"organization_id"`
+	Name           interface{} `db:"name" json:"name"`
+}
+
+func (q *sqlQuerier) GetIntelCohortsByOrganizationID(ctx context.Context, arg GetIntelCohortsByOrganizationIDParams) ([]IntelCohort, error) {
+	rows, err := q.db.QueryContext(ctx, getIntelCohortsByOrganizationID, arg.OrganizationID, arg.Name)
 	if err != nil {
 		return nil, err
 	}
@@ -2979,7 +2984,6 @@ func (q *sqlQuerier) GetIntelCohortsByOrganizationID(ctx context.Context, organi
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.Name,
-			&i.DisplayName,
 			&i.Icon,
 			&i.Description,
 			&i.RegexOperatingSystem,
@@ -3140,7 +3144,8 @@ SELECT
   binary_args,
   SUM(total_invocations) AS total_invocations,
   PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY median_duration_ms) AS median_duration_ms,
-
+  -- We have to convert to text here because Go cannot scan
+  -- an array of jsonb.
   array_agg(working_directories):: text [] AS aggregated_working_directories,
   array_agg(binary_paths):: text [] AS aggregated_binary_paths,
   array_agg(git_remote_urls):: text [] AS aggregated_git_remote_urls,
@@ -3336,21 +3341,20 @@ func (q *sqlQuerier) InsertIntelInvocations(ctx context.Context, arg InsertIntel
 }
 
 const upsertIntelCohort = `-- name: UpsertIntelCohort :one
-INSERT INTO intel_cohorts (id, organization_id, created_by, created_at, updated_at, name, display_name, icon, description, regex_operating_system, regex_operating_system_platform, regex_operating_system_version, regex_architecture, regex_instance_id, tracked_executables)
-	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+INSERT INTO intel_cohorts (id, organization_id, created_by, created_at, updated_at, name, icon, description, regex_operating_system, regex_operating_system_platform, regex_operating_system_version, regex_architecture, regex_instance_id, tracked_executables)
+	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
 	ON CONFLICT (id) DO UPDATE SET
 		updated_at = $5,
 		name = $6,
-		display_name = $7,
-		icon = $8,
-		description = $9,
-		regex_operating_system = $10,
-		regex_operating_system_platform = $11,
-		regex_operating_system_version = $12,
-		regex_architecture = $13,
-		regex_instance_id = $14,
-		tracked_executables = $15
-	RETURNING id, organization_id, created_by, created_at, updated_at, name, display_name, icon, description, regex_operating_system, regex_operating_system_platform, regex_operating_system_version, regex_architecture, regex_instance_id, tracked_executables
+		icon = $7,
+		description = $8,
+		regex_operating_system = $9,
+		regex_operating_system_platform = $10,
+		regex_operating_system_version = $11,
+		regex_architecture = $12,
+		regex_instance_id = $13,
+		tracked_executables = $14
+	RETURNING id, organization_id, created_by, created_at, updated_at, name, icon, description, regex_operating_system, regex_operating_system_platform, regex_operating_system_version, regex_architecture, regex_instance_id, tracked_executables
 `
 
 type UpsertIntelCohortParams struct {
@@ -3360,7 +3364,6 @@ type UpsertIntelCohortParams struct {
 	CreatedAt                    time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt                    time.Time `db:"updated_at" json:"updated_at"`
 	Name                         string    `db:"name" json:"name"`
-	DisplayName                  string    `db:"display_name" json:"display_name"`
 	Icon                         string    `db:"icon" json:"icon"`
 	Description                  string    `db:"description" json:"description"`
 	RegexOperatingSystem         string    `db:"regex_operating_system" json:"regex_operating_system"`
@@ -3379,7 +3382,6 @@ func (q *sqlQuerier) UpsertIntelCohort(ctx context.Context, arg UpsertIntelCohor
 		arg.CreatedAt,
 		arg.UpdatedAt,
 		arg.Name,
-		arg.DisplayName,
 		arg.Icon,
 		arg.Description,
 		arg.RegexOperatingSystem,
@@ -3397,7 +3399,6 @@ func (q *sqlQuerier) UpsertIntelCohort(ctx context.Context, arg UpsertIntelCohor
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Name,
-		&i.DisplayName,
 		&i.Icon,
 		&i.Description,
 		&i.RegexOperatingSystem,
@@ -3520,9 +3521,11 @@ saved AS (
     FROM aggregated
 )
 DELETE FROM intel_invocations
-WHERE id IN (SELECT id FROM invocations_with_cohorts)
 `
 
+// Delete all invocations after summarizing.
+// If there are invocations that are not in a cohort,
+// they must be purged!
 func (q *sqlQuerier) UpsertIntelInvocationSummaries(ctx context.Context) error {
 	_, err := q.db.ExecContext(ctx, upsertIntelInvocationSummaries)
 	return err
