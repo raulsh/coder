@@ -59,7 +59,7 @@ type sqlcQuerier interface {
 	DeleteGitSSHKey(ctx context.Context, userID uuid.UUID) error
 	DeleteGroupByID(ctx context.Context, id uuid.UUID) error
 	DeleteGroupMemberFromGroup(ctx context.Context, arg DeleteGroupMemberFromGroupParams) error
-	DeleteIntelCohortsByIDs(ctx context.Context, dollar_1 []uuid.UUID) error
+	DeleteIntelCohortsByIDs(ctx context.Context, cohortIds []uuid.UUID) error
 	DeleteLicense(ctx context.Context, id int32) (int32, error)
 	DeleteOAuth2ProviderAppByID(ctx context.Context, id uuid.UUID) error
 	DeleteOAuth2ProviderAppCodeByID(ctx context.Context, id uuid.UUID) error
@@ -106,7 +106,6 @@ type sqlcQuerier interface {
 	// This function returns roles for authorization purposes. Implied member roles
 	// are included.
 	GetAuthorizationUserRoles(ctx context.Context, userID uuid.UUID) (GetAuthorizationUserRolesRow, error)
-	GetConsistencyByIntelCohort(ctx context.Context) ([]GetConsistencyByIntelCohortRow, error)
 	GetDBCryptKeys(ctx context.Context) ([]DBCryptKey, error)
 	GetDERPMeshKey(ctx context.Context) (string, error)
 	GetDefaultOrganization(ctx context.Context) (Organization, error)
@@ -134,7 +133,6 @@ type sqlcQuerier interface {
 	GetIntelCohortsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]IntelCohort, error)
 	// Obtains a list of cohorts that a user can track invocations for.
 	GetIntelCohortsMatchedByMachineIDs(ctx context.Context, ids []uuid.UUID) ([]GetIntelCohortsMatchedByMachineIDsRow, error)
-	GetIntelInvocationSummaries(ctx context.Context) ([]IntelInvocationSummary, error)
 	GetIntelMachinesMatchingFilters(ctx context.Context, arg GetIntelMachinesMatchingFiltersParams) ([]GetIntelMachinesMatchingFiltersRow, error)
 	GetIntelReportCommands(ctx context.Context, arg GetIntelReportCommandsParams) ([]GetIntelReportCommandsRow, error)
 	// Get the total amount of time spent invoking commands

@@ -584,6 +584,103 @@ func WorkspaceProxy(t testing.TB, db database.Store, orig database.WorkspaceProx
 	return proxy, secret
 }
 
+func IntelCohort(t testing.TB, db database.Store, orig database.IntelCohort) database.IntelCohort {
+	cohort, err := db.UpsertIntelCohort(genCtx, database.UpsertIntelCohortParams{
+		ID:                           takeFirst(orig.ID, uuid.New()),
+		CreatedAt:                    takeFirst(orig.CreatedAt, dbtime.Now()),
+		UpdatedAt:                    takeFirst(orig.UpdatedAt, dbtime.Now()),
+		Name:                         takeFirst(orig.Name, namesgenerator.GetRandomName(1)),
+		OrganizationID:               takeFirst(orig.OrganizationID, uuid.New()),
+		CreatedBy:                    takeFirst(orig.CreatedBy, uuid.New()),
+		DisplayName:                  takeFirst(orig.DisplayName, namesgenerator.GetRandomName(1)),
+		Icon:                         takeFirst(orig.Icon, ""),
+		Description:                  takeFirst(orig.Description, ""),
+		RegexOperatingSystem:         takeFirst(orig.RegexOperatingSystem, ".*"),
+		RegexOperatingSystemVersion:  takeFirst(orig.RegexOperatingSystemVersion, ".*"),
+		RegexOperatingSystemPlatform: takeFirst(orig.RegexOperatingSystemPlatform, ".*"),
+		RegexArchitecture:            takeFirst(orig.RegexArchitecture, ".*"),
+		RegexInstanceID:              takeFirst(orig.RegexInstanceID, ".*"),
+		TrackedExecutables:           takeFirstSlice(orig.TrackedExecutables, []string{}),
+	})
+	require.NoError(t, err, "insert cohort")
+	return cohort
+}
+
+func IntelMachine(t testing.TB, db database.Store, orig database.IntelMachine) database.IntelMachine {
+	if !orig.IPAddress.Valid {
+		orig.IPAddress = pqtype.Inet{
+			IPNet: net.IPNet{
+				IP:   net.IPv4(127, 0, 0, 1),
+				Mask: net.IPv4Mask(255, 255, 255, 255),
+			},
+			Valid: true,
+		}
+	}
+	machine, err := db.UpsertIntelMachine(genCtx, database.UpsertIntelMachineParams{
+		ID:                      takeFirst(orig.ID, uuid.New()),
+		UserID:                  takeFirst(orig.UserID, uuid.New()),
+		CreatedAt:               takeFirst(orig.CreatedAt, dbtime.Now()),
+		UpdatedAt:               takeFirst(orig.UpdatedAt, dbtime.Now()),
+		OrganizationID:          takeFirst(orig.OrganizationID, uuid.New()),
+		OperatingSystem:         takeFirst(orig.OperatingSystem, "linux"),
+		OperatingSystemVersion:  takeFirst(orig.OperatingSystemVersion, "1.0"),
+		OperatingSystemPlatform: takeFirst(orig.OperatingSystemPlatform, "linux"),
+		Architecture:            takeFirst(orig.Architecture, "amd64"),
+		InstanceID:              takeFirst(orig.InstanceID, "i-123456"),
+		Hostname:                takeFirst(orig.Hostname, "hostname"),
+		CPUCores:                takeFirst(orig.CPUCores, 1),
+		MemoryMBTotal:           takeFirst(orig.MemoryMBTotal, 1024),
+		DaemonVersion:           takeFirst(orig.DaemonVersion, "1.0.0"),
+		IPAddress:               orig.IPAddress,
+	})
+	require.NoError(t, err, "insert machine")
+	return machine
+}
+
+func IntelInvocations(t testing.TB, db database.Store, orig database.IntelInvocation, count int) {
+	ids := make([]uuid.UUID, 0)
+	binaryNames := make([]string, 0, count)
+	binaryHashes := make([]string, 0, count)
+	binaryPaths := make([]string, 0, count)
+	binaryArgs := make([]json.RawMessage, 0, count)
+	binaryVersions := make([]string, 0, count)
+	workingDirs := make([]string, 0, count)
+	gitRemoteURLs := make([]string, 0, count)
+	exitCodes := make([]int32, 0, count)
+	durationsMS := make([]float64, 0, count)
+
+	for z := 0; z < count; z++ {
+		ids = append(ids, uuid.New())
+
+		binaryNames = append(binaryNames, orig.BinaryName)
+		binaryHashes = append(binaryHashes, orig.BinaryHash)
+		binaryPaths = append(binaryPaths, orig.BinaryPath)
+		binaryArgs = append(binaryArgs, orig.BinaryArgs)
+		binaryVersions = append(binaryVersions, orig.BinaryVersion)
+		workingDirs = append(workingDirs, orig.WorkingDirectory)
+		gitRemoteURLs = append(gitRemoteURLs, orig.GitRemoteUrl)
+		exitCodes = append(exitCodes, orig.ExitCode)
+		durationsMS = append(durationsMS, orig.DurationMs)
+	}
+	binaryArgsData, _ := json.Marshal(binaryArgs)
+	err := db.InsertIntelInvocations(context.Background(), database.InsertIntelInvocationsParams{
+		CreatedAt:        takeFirst(orig.CreatedAt, dbtime.Now()),
+		MachineID:        takeFirst(orig.MachineID, uuid.New()),
+		UserID:           takeFirst(orig.UserID, uuid.New()),
+		ID:               ids,
+		BinaryName:       binaryNames,
+		BinaryHash:       binaryHashes,
+		BinaryPath:       binaryPaths,
+		BinaryArgs:       binaryArgsData,
+		BinaryVersion:    binaryVersions,
+		WorkingDirectory: workingDirs,
+		GitRemoteUrl:     gitRemoteURLs,
+		ExitCode:         exitCodes,
+		DurationMs:       durationsMS,
+	})
+	require.NoError(t, err)
+}
+
 func File(t testing.TB, db database.Store, orig database.File) database.File {
 	file, err := db.InsertFile(genCtx, database.InsertFileParams{
 		ID:        takeFirst(orig.ID, uuid.New()),

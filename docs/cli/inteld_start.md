@@ -75,6 +75,6 @@ The directory where binaries are aliased to and overridden in the $PATH so they 
 | ----------- | --------------------------------------------- |
 | Type        | <code>string</code>                           |
 | Environment | <code>$CODER_INTEL_DAEMON_INSTANCE_ID</code>  |
-| Default     | <code>521a9a1a77a34604bbdece92a9ac815d</code> |
+| Default     | <code>a1acbdbfe2274834a19f3682db50dc2c</code> |
 
 The instance ID of the machine running the intel daemon. This is used to identify the machine.

@@ -19,7 +19,7 @@ INSERT INTO intel_cohorts (id, organization_id, created_by, created_at, updated_
 SELECT * FROM intel_cohorts WHERE organization_id = $1;
 
 -- name: DeleteIntelCohortsByIDs :exec
-DELETE FROM intel_cohorts WHERE id = ANY($1::uuid[]);
+DELETE FROM intel_cohorts WHERE id = ANY(@cohort_ids::uuid[]);
 
 -- name: UpsertIntelMachine :one
 INSERT INTO intel_machines (id, created_at, updated_at, instance_id, organization_id, user_id, ip_address, hostname, operating_system, operating_system_platform, operating_system_version, cpu_cores, memory_mb_total, architecture, daemon_version)
@@ -57,7 +57,7 @@ SELECT
 	unnest(@working_directory :: text[ ]) as working_directory,
 	unnest(@git_remote_url :: text[ ]) as git_remote_url,
 	unnest(@exit_code :: int [ ]) as exit_code,
-	unnest(@duration_ms :: int[ ]) as duration_ms;
+	unnest(@duration_ms :: float[ ]) as duration_ms;
 
 -- name: GetIntelCohortsMatchedByMachineIDs :many
 -- Obtains a list of cohorts that a user can track invocations for.
@@ -92,25 +92,13 @@ WITH filtered_machines AS (
 )
 SELECT tm.count, sqlc.embed(intel_machines) FROM paginated_machines AS intel_machines CROSS JOIN total_machines as tm;
 
--- name: GetConsistencyByIntelCohort :many
-SELECT
-    binary_path,
-    binary_args,
-    PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY duration_ms) AS median_duration
-FROM
-    intel_invocations
-GROUP BY
-    binary_path, binary_args
-ORDER BY
-    median_duration DESC;
-
 -- name: UpsertIntelInvocationSummaries :exec
 WITH machine_cohorts AS (
     SELECT
         m.id AS machine_id,
         c.id AS cohort_id
     FROM intel_machines m
-    JOIN intel_cohorts c ON
+    LEFT JOIN intel_cohorts c ON
         m.operating_system ~ c.regex_operating_system AND
         m.operating_system_platform ~ c.regex_operating_system_platform AND
         m.operating_system_version ~ c.regex_operating_system_version AND
@@ -216,9 +204,6 @@ saved AS (
 DELETE FROM intel_invocations
 WHERE id IN (SELECT id FROM invocations_with_cohorts);
 
--- name: GetIntelInvocationSummaries :many
-SELECT * FROM intel_invocation_summaries;
-
 -- name: GetIntelReportGitRemotes :many
 -- Get the total amount of time spent invoking commands
 -- in the directories of a given git remote URL.
@@ -235,7 +220,7 @@ FROM
 WHERE
   starts_at >= @starts_at
 AND
-  (CARDINALITY(@cohort_ids :: uuid []) = 0 OR cohort_id = ANY(@cohort_ids :: uuid []))
+  (cohort_id = ANY(@cohort_ids :: uuid []))
 GROUP BY
   starts_at,
   ends_at,
@@ -261,6 +246,6 @@ FROM
 WHERE
 	starts_at >= @starts_at
 AND
-	(CARDINALITY(@cohort_ids :: uuid []) = 0 OR cohort_id = ANY(@cohort_ids :: uuid []))
+  (cohort_id = ANY(@cohort_ids :: uuid []))
 GROUP BY
   starts_at, ends_at, cohort_id, binary_name, binary_args;

@@ -59,7 +59,7 @@ CREATE UNLOGGED TABLE intel_invocations (
     working_directory TEXT NOT NULL,
     git_remote_url TEXT NOT NULL,
 	exit_code INT NOT NULL,
-    duration_ms INT NOT NULL
+    duration_ms FLOAT NOT NULL
 );
 
 CREATE INDEX idx_intel_invocations_id ON intel_invocations (id);
@@ -86,6 +86,6 @@ CREATE TABLE intel_invocation_summaries (
   exit_codes jsonb NOT NULL,
   unique_machines BIGINT NOT NULL,
   total_invocations BIGINT NOT NULL,
-  median_duration_ms BIGINT NOT NULL
+  median_duration_ms FLOAT NOT NULL
 );
 

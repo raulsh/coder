@@ -2954,51 +2954,9 @@ const deleteIntelCohortsByIDs = `-- name: DeleteIntelCohortsByIDs :exec
 DELETE FROM intel_cohorts WHERE id = ANY($1::uuid[])
 `
 
-func (q *sqlQuerier) DeleteIntelCohortsByIDs(ctx context.Context, dollar_1 []uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, deleteIntelCohortsByIDs, pq.Array(dollar_1))
+func (q *sqlQuerier) DeleteIntelCohortsByIDs(ctx context.Context, cohortIds []uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteIntelCohortsByIDs, pq.Array(cohortIds))
 	return err
-}
-
-const getConsistencyByIntelCohort = `-- name: GetConsistencyByIntelCohort :many
-SELECT
-    binary_path,
-    binary_args,
-    PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY duration_ms) AS median_duration
-FROM
-    intel_invocations
-GROUP BY
-    binary_path, binary_args
-ORDER BY
-    median_duration DESC
-`
-
-type GetConsistencyByIntelCohortRow struct {
-	BinaryPath     string          `db:"binary_path" json:"binary_path"`
-	BinaryArgs     json.RawMessage `db:"binary_args" json:"binary_args"`
-	MedianDuration float64         `db:"median_duration" json:"median_duration"`
-}
-
-func (q *sqlQuerier) GetConsistencyByIntelCohort(ctx context.Context) ([]GetConsistencyByIntelCohortRow, error) {
-	rows, err := q.db.QueryContext(ctx, getConsistencyByIntelCohort)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []GetConsistencyByIntelCohortRow
-	for rows.Next() {
-		var i GetConsistencyByIntelCohortRow
-		if err := rows.Scan(&i.BinaryPath, &i.BinaryArgs, &i.MedianDuration); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
 }
 
 const getIntelCohortsByOrganizationID = `-- name: GetIntelCohortsByOrganizationID :many
@@ -3077,47 +3035,6 @@ func (q *sqlQuerier) GetIntelCohortsMatchedByMachineIDs(ctx context.Context, ids
 	for rows.Next() {
 		var i GetIntelCohortsMatchedByMachineIDsRow
 		if err := rows.Scan(&i.MachineID, &i.ID, pq.Array(&i.TrackedExecutables)); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getIntelInvocationSummaries = `-- name: GetIntelInvocationSummaries :many
-SELECT id, cohort_id, starts_at, ends_at, binary_name, binary_args, binary_paths, working_directories, git_remote_urls, exit_codes, unique_machines, total_invocations, median_duration_ms FROM intel_invocation_summaries
-`
-
-func (q *sqlQuerier) GetIntelInvocationSummaries(ctx context.Context) ([]IntelInvocationSummary, error) {
-	rows, err := q.db.QueryContext(ctx, getIntelInvocationSummaries)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []IntelInvocationSummary
-	for rows.Next() {
-		var i IntelInvocationSummary
-		if err := rows.Scan(
-			&i.ID,
-			&i.CohortID,
-			&i.StartsAt,
-			&i.EndsAt,
-			&i.BinaryName,
-			&i.BinaryArgs,
-			&i.BinaryPaths,
-			&i.WorkingDirectories,
-			&i.GitRemoteUrls,
-			&i.ExitCodes,
-			&i.UniqueMachines,
-			&i.TotalInvocations,
-			&i.MedianDurationMs,
-		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -3233,7 +3150,7 @@ FROM
 WHERE
 	starts_at >= $1
 AND
-	(CARDINALITY($2 :: uuid []) = 0 OR cohort_id = ANY($2 :: uuid []))
+  (cohort_id = ANY($2 :: uuid []))
 GROUP BY
   starts_at, ends_at, cohort_id, binary_name, binary_args
 `
@@ -3306,7 +3223,7 @@ FROM
 WHERE
   starts_at >= $1
 AND
-  (CARDINALITY($2 :: uuid []) = 0 OR cohort_id = ANY($2 :: uuid []))
+  (cohort_id = ANY($2 :: uuid []))
 GROUP BY
   starts_at,
   ends_at,
@@ -3379,7 +3296,7 @@ SELECT
 	unnest($10 :: text[ ]) as working_directory,
 	unnest($11 :: text[ ]) as git_remote_url,
 	unnest($12 :: int [ ]) as exit_code,
-	unnest($13 :: int[ ]) as duration_ms
+	unnest($13 :: float[ ]) as duration_ms
 `
 
 type InsertIntelInvocationsParams struct {
@@ -3395,7 +3312,7 @@ type InsertIntelInvocationsParams struct {
 	WorkingDirectory []string        `db:"working_directory" json:"working_directory"`
 	GitRemoteUrl     []string        `db:"git_remote_url" json:"git_remote_url"`
 	ExitCode         []int32         `db:"exit_code" json:"exit_code"`
-	DurationMs       []int32         `db:"duration_ms" json:"duration_ms"`
+	DurationMs       []float64       `db:"duration_ms" json:"duration_ms"`
 }
 
 // Insert many invocations using unnest
@@ -3499,7 +3416,7 @@ WITH machine_cohorts AS (
         m.id AS machine_id,
         c.id AS cohort_id
     FROM intel_machines m
-    JOIN intel_cohorts c ON
+    LEFT JOIN intel_cohorts c ON
         m.operating_system ~ c.regex_operating_system AND
         m.operating_system_platform ~ c.regex_operating_system_platform AND
         m.operating_system_version ~ c.regex_operating_system_version AND

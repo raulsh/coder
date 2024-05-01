@@ -883,21 +883,6 @@ func (mr *MockStoreMockRecorder) GetAuthorizedWorkspaces(arg0, arg1, arg2 any) *
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAuthorizedWorkspaces", reflect.TypeOf((*MockStore)(nil).GetAuthorizedWorkspaces), arg0, arg1, arg2)
 }
 
-// GetConsistencyByIntelCohort mocks base method.
-func (m *MockStore) GetConsistencyByIntelCohort(arg0 context.Context) ([]database.GetConsistencyByIntelCohortRow, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetConsistencyByIntelCohort", arg0)
-	ret0, _ := ret[0].([]database.GetConsistencyByIntelCohortRow)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetConsistencyByIntelCohort indicates an expected call of GetConsistencyByIntelCohort.
-func (mr *MockStoreMockRecorder) GetConsistencyByIntelCohort(arg0 any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetConsistencyByIntelCohort", reflect.TypeOf((*MockStore)(nil).GetConsistencyByIntelCohort), arg0)
-}
-
 // GetDBCryptKeys mocks base method.
 func (m *MockStore) GetDBCryptKeys(arg0 context.Context) ([]database.DBCryptKey, error) {
 	m.ctrl.T.Helper()
@@ -1241,21 +1226,6 @@ func (m *MockStore) GetIntelCohortsMatchedByMachineIDs(arg0 context.Context, arg
 func (mr *MockStoreMockRecorder) GetIntelCohortsMatchedByMachineIDs(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetIntelCohortsMatchedByMachineIDs", reflect.TypeOf((*MockStore)(nil).GetIntelCohortsMatchedByMachineIDs), arg0, arg1)
-}
-
-// GetIntelInvocationSummaries mocks base method.
-func (m *MockStore) GetIntelInvocationSummaries(arg0 context.Context) ([]database.IntelInvocationSummary, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetIntelInvocationSummaries", arg0)
-	ret0, _ := ret[0].([]database.IntelInvocationSummary)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetIntelInvocationSummaries indicates an expected call of GetIntelInvocationSummaries.
-func (mr *MockStoreMockRecorder) GetIntelInvocationSummaries(arg0 any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetIntelInvocationSummaries", reflect.TypeOf((*MockStore)(nil).GetIntelInvocationSummaries), arg0)
 }
 
 // GetIntelMachinesMatchingFilters mocks base method.

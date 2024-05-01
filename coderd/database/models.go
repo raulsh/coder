@@ -1890,7 +1890,7 @@ type IntelInvocation struct {
 	WorkingDirectory string          `db:"working_directory" json:"working_directory"`
 	GitRemoteUrl     string          `db:"git_remote_url" json:"git_remote_url"`
 	ExitCode         int32           `db:"exit_code" json:"exit_code"`
-	DurationMs       int32           `db:"duration_ms" json:"duration_ms"`
+	DurationMs       float64         `db:"duration_ms" json:"duration_ms"`
 }
 
 type IntelInvocationSummary struct {
@@ -1906,7 +1906,7 @@ type IntelInvocationSummary struct {
 	ExitCodes          json.RawMessage `db:"exit_codes" json:"exit_codes"`
 	UniqueMachines     int64           `db:"unique_machines" json:"unique_machines"`
 	TotalInvocations   int64           `db:"total_invocations" json:"total_invocations"`
-	MedianDurationMs   int64           `db:"median_duration_ms" json:"median_duration_ms"`
+	MedianDurationMs   float64         `db:"median_duration_ms" json:"median_duration_ms"`
 }
 
 type IntelMachine struct {

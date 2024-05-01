@@ -1158,10 +1158,6 @@ func (q *querier) GetAuthorizationUserRoles(ctx context.Context, userID uuid.UUI
 	return q.db.GetAuthorizationUserRoles(ctx, userID)
 }
 
-func (q *querier) GetConsistencyByIntelCohort(ctx context.Context) ([]database.GetConsistencyByIntelCohortRow, error) {
-	panic("not implemented")
-}
-
 func (q *querier) GetDBCryptKeys(ctx context.Context) ([]database.DBCryptKey, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return nil, err
@@ -1303,11 +1299,6 @@ func (q *querier) GetIntelCohortsMatchedByMachineIDs(ctx context.Context, ids []
 	// No authz checks - it'd be too slow to check the
 	// authorization for each user and each machine.
 	return q.db.GetIntelCohortsMatchedByMachineIDs(ctx, ids)
-}
-
-func (q *querier) GetIntelInvocationSummaries(ctx context.Context) ([]database.IntelInvocationSummary, error) {
-	// No authz checks - it'd be too slow
-	return q.db.GetIntelInvocationSummaries(ctx)
 }
 
 func (q *querier) GetIntelMachinesMatchingFilters(ctx context.Context, arg database.GetIntelMachinesMatchingFiltersParams) ([]database.GetIntelMachinesMatchingFiltersRow, error) {

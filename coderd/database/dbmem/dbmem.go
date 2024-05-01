@@ -10,6 +10,7 @@ import (
 	"reflect"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -155,6 +156,7 @@ type data struct {
 	intelCohorts                  []database.IntelCohort
 	intelMachines                 []database.IntelMachine
 	intelInvocations              []database.IntelInvocation
+	intelInvocationSummaries      []database.IntelInvocationSummary
 	jfrogXRayScans                []database.JfrogXrayScan
 	licenses                      []database.License
 	oauth2ProviderApps            []database.OAuth2ProviderApp
@@ -903,6 +905,17 @@ func (q *FakeQuerier) getLatestWorkspaceAppByTemplateIDUserIDSlugNoLock(ctx cont
 	return database.WorkspaceApp{}, sql.ErrNoRows
 }
 
+func medianFloat64s(a []float64) float64 {
+	sort.Float64s(a)
+	if len(a) == 1 {
+		return a[0]
+	} else if len(a)%2 == 0 {
+		return (a[len(a)/2-1] + a[len(a)/2]) / 2
+	} else {
+		return a[len(a)/2]
+	}
+}
+
 func (*FakeQuerier) AcquireLock(_ context.Context, _ int64) error {
 	return xerrors.New("AcquireLock must only be called within a transaction")
 }
@@ -1341,7 +1354,7 @@ func (q *FakeQuerier) DeleteGroupMemberFromGroup(_ context.Context, arg database
 	return nil
 }
 
-func (q *FakeQuerier) DeleteIntelCohortsByIDs(ctx context.Context, dollar_1 []uuid.UUID) error {
+func (q *FakeQuerier) DeleteIntelCohortsByIDs(ctx context.Context, cohortIDs []uuid.UUID) error {
 	panic("not implemented")
 }
 
@@ -2018,10 +2031,6 @@ func (q *FakeQuerier) GetAuthorizationUserRoles(_ context.Context, userID uuid.U
 	}, nil
 }
 
-func (q *FakeQuerier) GetConsistencyByIntelCohort(ctx context.Context) ([]database.GetConsistencyByIntelCohortRow, error) {
-	panic("not implemented")
-}
-
 func (q *FakeQuerier) GetDBCryptKeys(_ context.Context) ([]database.DBCryptKey, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -2494,10 +2503,6 @@ func (q *FakeQuerier) GetIntelCohortsMatchedByMachineIDs(_ context.Context, ids 
 	return rows, nil
 }
 
-func (q *FakeQuerier) GetIntelInvocationSummaries(ctx context.Context) ([]database.IntelInvocationSummary, error) {
-	panic("not implemented")
-}
-
 func (q *FakeQuerier) GetIntelMachinesMatchingFilters(_ context.Context, arg database.GetIntelMachinesMatchingFiltersParams) ([]database.GetIntelMachinesMatchingFiltersRow, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
@@ -2516,7 +2521,9 @@ func (q *FakeQuerier) GetIntelMachinesMatchingFilters(_ context.Context, arg dat
 		return nil, err
 	}
 	filterOSPlatform, err := regexp.CompilePOSIX(arg.RegexOperatingSystemPlatform)
-
+	if err != nil {
+		return nil, err
+	}
 	filterArch, err := regexp.CompilePOSIX(arg.RegexArchitecture)
 	if err != nil {
 		return nil, err
@@ -2560,12 +2567,113 @@ func (q *FakeQuerier) GetIntelMachinesMatchingFilters(_ context.Context, arg dat
 	return machines, nil
 }
 
-func (q *FakeQuerier) GetIntelReportCommands(ctx context.Context, startsAt database.GetIntelReportCommandsParams) ([]database.GetIntelReportCommandsRow, error) {
-	panic("not implemented")
+func (q *FakeQuerier) GetIntelReportCommands(ctx context.Context, arg database.GetIntelReportCommandsParams) ([]database.GetIntelReportCommandsRow, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return nil, err
+	}
+
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	commandKey := func(summary database.IntelInvocationSummary) string {
+		return fmt.Sprintf("%s-%s-%s-%s-%s", summary.StartsAt, summary.EndsAt, summary.CohortID, summary.BinaryName, summary.BinaryArgs)
+	}
+	commands := map[string]database.GetIntelReportCommandsRow{}
+	commandMedianDurations := map[string][]float64{}
+	for _, summary := range q.intelInvocationSummaries {
+		if summary.StartsAt.Before(arg.StartsAt) {
+			continue
+		}
+		if len(arg.CohortIds) > 0 && !slices.Contains(arg.CohortIds, summary.CohortID) {
+			continue
+		}
+		key := commandKey(summary)
+		command, ok := commands[key]
+		if !ok {
+			command = database.GetIntelReportCommandsRow{
+				StartsAt:   summary.StartsAt,
+				EndsAt:     summary.EndsAt,
+				CohortID:   summary.CohortID,
+				BinaryName: summary.BinaryName,
+				BinaryArgs: summary.BinaryArgs,
+			}
+		}
+		command.TotalInvocations += summary.TotalInvocations
+		command.AggregatedBinaryPaths = append(command.AggregatedBinaryPaths, summary.BinaryPaths)
+		command.AggregatedExitCodes = append(command.AggregatedExitCodes, summary.ExitCodes)
+		command.AggregatedGitRemoteUrls = append(command.AggregatedGitRemoteUrls, summary.GitRemoteUrls)
+		command.AggregatedWorkingDirectories = append(command.AggregatedWorkingDirectories, summary.WorkingDirectories)
+		commandMedianDurations[key] = append(commandMedianDurations[key], summary.MedianDurationMs)
+		commands[key] = command
+	}
+
+	rows := make([]database.GetIntelReportCommandsRow, 0, len(commands))
+	for key, command := range commands {
+		durations, ok := commandMedianDurations[key]
+		if !ok {
+			continue
+		}
+		command.MedianDurationMs = medianFloat64s(durations)
+		rows = append(rows, command)
+	}
+	return rows, nil
 }
 
-func (q *FakeQuerier) GetIntelReportGitRemotes(ctx context.Context, startsAt database.GetIntelReportGitRemotesParams) ([]database.GetIntelReportGitRemotesRow, error) {
-	panic("not implemented")
+func (q *FakeQuerier) GetIntelReportGitRemotes(_ context.Context, opts database.GetIntelReportGitRemotesParams) ([]database.GetIntelReportGitRemotesRow, error) {
+	err := validateDatabaseType(opts)
+	if err != nil {
+		return nil, err
+	}
+
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	remoteKey := func(summary database.IntelInvocationSummary, remoteURL string) string {
+		return fmt.Sprintf("%s-%s-%s-%s", summary.StartsAt, summary.EndsAt, summary.CohortID, remoteURL)
+	}
+	remotes := map[string]database.GetIntelReportGitRemotesRow{}
+	remoteMedianDurations := map[string][]float64{}
+	for _, summary := range q.intelInvocationSummaries {
+		if summary.StartsAt.Before(opts.StartsAt) {
+			continue
+		}
+		if len(opts.CohortIds) > 0 && !slices.Contains(opts.CohortIds, summary.CohortID) {
+			continue
+		}
+		// Maps remote URLs to invocation counts
+		gitRemoteURLs := map[string]int{}
+		err = json.Unmarshal(summary.GitRemoteUrls, &gitRemoteURLs)
+		if err != nil {
+			return nil, err
+		}
+		for remoteURL, invocations := range gitRemoteURLs {
+			key := remoteKey(summary, remoteURL)
+			remote, ok := remotes[key]
+			if !ok {
+				remote = database.GetIntelReportGitRemotesRow{
+					StartsAt:     summary.StartsAt,
+					EndsAt:       summary.EndsAt,
+					CohortID:     summary.CohortID,
+					GitRemoteUrl: remoteURL,
+				}
+			}
+			remote.TotalInvocations += int64(invocations)
+			remoteMedianDurations[key] = append(remoteMedianDurations[key], float64(summary.MedianDurationMs))
+			remotes[key] = remote
+		}
+	}
+
+	rows := make([]database.GetIntelReportGitRemotesRow, 0, len(remotes))
+	for key, remote := range remotes {
+		durations, ok := remoteMedianDurations[key]
+		if !ok {
+			continue
+		}
+		remote.MedianDurationMs = medianFloat64s(durations)
+		rows = append(rows, remote)
+	}
+	return rows, nil
 }
 
 func (q *FakeQuerier) GetJFrogXrayScanByWorkspaceAndAgentID(_ context.Context, arg database.GetJFrogXrayScanByWorkspaceAndAgentIDParams) (database.JfrogXrayScan, error) {
@@ -8650,8 +8758,145 @@ func (q *FakeQuerier) UpsertIntelCohort(_ context.Context, arg database.UpsertIn
 	return cohort, nil
 }
 
-func (q *FakeQuerier) UpsertIntelInvocationSummaries(ctx context.Context) error {
-	panic("not implemented")
+func (q *FakeQuerier) UpsertIntelInvocationSummaries(_ context.Context) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	type machineCohort struct {
+		MachineID uuid.UUID
+		CohortID  uuid.UUID
+	}
+	machineCohorts := make([]machineCohort, 0)
+	for _, cohort := range q.intelCohorts {
+		filterOS, err := regexp.CompilePOSIX(cohort.RegexOperatingSystem)
+		if err != nil {
+			return err
+		}
+		filterOSPlatform, err := regexp.CompilePOSIX(cohort.RegexOperatingSystemPlatform)
+		if err != nil {
+			return err
+		}
+		filterOSVersion, err := regexp.CompilePOSIX(cohort.RegexOperatingSystemVersion)
+		if err != nil {
+			return err
+		}
+		filterArch, err := regexp.CompilePOSIX(cohort.RegexArchitecture)
+		if err != nil {
+			return err
+		}
+		filterInstanceID, err := regexp.CompilePOSIX(cohort.RegexInstanceID)
+		if err != nil {
+			return err
+		}
+		for _, machine := range q.intelMachines {
+			if !filterOS.MatchString(machine.OperatingSystem) {
+				continue
+			}
+			if !filterOSPlatform.MatchString(machine.OperatingSystemPlatform) {
+				continue
+			}
+			if !filterOSVersion.MatchString(machine.OperatingSystemVersion) {
+				continue
+			}
+			if !filterArch.MatchString(machine.Architecture) {
+				continue
+			}
+			if !filterInstanceID.MatchString(machine.InstanceID) {
+				continue
+			}
+			machineCohorts = append(machineCohorts, machineCohort{
+				CohortID:  cohort.ID,
+				MachineID: machine.ID,
+			})
+		}
+	}
+
+	truncateDuration := 15 * time.Minute
+	invocationKey := func(invocation database.IntelInvocation, cohortID string) string {
+		truncatedCreatedAt := invocation.CreatedAt.Truncate(truncateDuration)
+		return fmt.Sprintf("%s-%s-%s-%s", truncatedCreatedAt.Format(time.RFC3339), cohortID, invocation.BinaryName, invocation.BinaryArgs)
+	}
+	type summaryWithTypes struct {
+		database.IntelInvocationSummary
+
+		InvocationIDs      map[uuid.UUID]struct{}
+		MachineIDs         map[uuid.UUID]struct{}
+		BinaryPaths        map[string]int
+		WorkingDirectories map[string]int
+		GitRemoteUrls      map[string]int
+		ExitCodes          map[string]int
+		DurationMS         []float64
+	}
+	invocationSummaries := make(map[string]summaryWithTypes)
+	for _, invocation := range q.intelInvocations {
+		for _, mc := range machineCohorts {
+			if mc.MachineID != invocation.MachineID {
+				continue
+			}
+
+			key := invocationKey(invocation, mc.CohortID.String())
+			summary, ok := invocationSummaries[key]
+			if !ok {
+				startsAt := invocation.CreatedAt.Truncate(truncateDuration)
+				summary = summaryWithTypes{
+					IntelInvocationSummary: database.IntelInvocationSummary{
+						ID:         uuid.New(),
+						CohortID:   mc.CohortID,
+						StartsAt:   startsAt,
+						EndsAt:     startsAt.Add(truncateDuration),
+						BinaryName: invocation.BinaryName,
+						BinaryArgs: invocation.BinaryArgs,
+					},
+					InvocationIDs:      make(map[uuid.UUID]struct{}),
+					MachineIDs:         make(map[uuid.UUID]struct{}),
+					BinaryPaths:        make(map[string]int),
+					WorkingDirectories: make(map[string]int),
+					GitRemoteUrls:      make(map[string]int),
+					ExitCodes:          make(map[string]int),
+				}
+			}
+			summary.BinaryPaths[invocation.BinaryPath]++
+			summary.WorkingDirectories[invocation.WorkingDirectory]++
+			summary.GitRemoteUrls[invocation.GitRemoteUrl]++
+			summary.ExitCodes[strconv.Itoa(int(invocation.ExitCode))]++
+			summary.InvocationIDs[invocation.ID] = struct{}{}
+			summary.MachineIDs[invocation.MachineID] = struct{}{}
+			summary.DurationMS = append(summary.DurationMS, invocation.DurationMs)
+			invocationSummaries[key] = summary
+		}
+	}
+	var err error
+	for _, wrapperSummary := range invocationSummaries {
+		summary := wrapperSummary.IntelInvocationSummary
+		summary.UniqueMachines = int64(len(wrapperSummary.MachineIDs))
+		summary.TotalInvocations = int64(len(wrapperSummary.InvocationIDs))
+		summary.WorkingDirectories, err = json.Marshal(wrapperSummary.WorkingDirectories)
+		if err != nil {
+			return err
+		}
+		summary.BinaryPaths, err = json.Marshal(wrapperSummary.BinaryPaths)
+		if err != nil {
+			return err
+		}
+		summary.GitRemoteUrls, err = json.Marshal(wrapperSummary.GitRemoteUrls)
+		if err != nil {
+			return err
+		}
+		summary.ExitCodes, err = json.Marshal(wrapperSummary.ExitCodes)
+		if err != nil {
+			return err
+		}
+		summary.MedianDurationMs = medianFloat64s(wrapperSummary.DurationMS)
+		q.intelInvocationSummaries = append(q.intelInvocationSummaries, summary)
+
+		// Remove invocations that have been compressed
+		for id := range wrapperSummary.InvocationIDs {
+			q.intelInvocations = slices.DeleteFunc(q.intelInvocations, func(invocation database.IntelInvocation) bool {
+				return invocation.ID == id
+			})
+		}
+	}
+	return nil
 }
 
 func (q *FakeQuerier) UpsertIntelMachine(_ context.Context, arg database.UpsertIntelMachineParams) (database.IntelMachine, error) {
@@ -9320,14 +9565,7 @@ func (q *FakeQuerier) UpsertTemplateUsageStats(ctx context.Context) error {
 					}
 				}
 				row.Latencies = append(row.Latencies, was.ConnectionMedianLatencyMS)
-				sort.Float64s(row.Latencies)
-				if len(row.Latencies) == 1 {
-					row.MedianLatencyMS = was.ConnectionMedianLatencyMS
-				} else if len(row.Latencies)%2 == 0 {
-					row.MedianLatencyMS = (row.Latencies[len(row.Latencies)/2-1] + row.Latencies[len(row.Latencies)/2]) / 2
-				} else {
-					row.MedianLatencyMS = row.Latencies[len(row.Latencies)/2]
-				}
+				row.MedianLatencyMS = medianFloat64s(row.Latencies)
 				latenciesRows[key] = row
 			}
 		}

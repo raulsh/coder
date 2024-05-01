@@ -526,7 +526,7 @@ CREATE TABLE intel_invocation_summaries (
     exit_codes jsonb NOT NULL,
     unique_machines bigint NOT NULL,
     total_invocations bigint NOT NULL,
-    median_duration_ms bigint NOT NULL
+    median_duration_ms double precision NOT NULL
 );
 
 CREATE UNLOGGED TABLE intel_invocations (
@@ -542,7 +542,7 @@ CREATE UNLOGGED TABLE intel_invocations (
     working_directory text NOT NULL,
     git_remote_url text NOT NULL,
     exit_code integer NOT NULL,
-    duration_ms integer NOT NULL
+    duration_ms double precision NOT NULL
 );
 
 CREATE TABLE intel_machines (

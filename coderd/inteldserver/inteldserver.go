@@ -100,7 +100,7 @@ func (s *server) invocationQueueLoop() {
 			workingDirs := make([]string, 0, len(i))
 			gitRemoteURLs := make([]string, 0, len(i))
 			exitCodes := make([]int32, 0, len(i))
-			durationsMS := make([]int32, 0, len(i))
+			durationsMS := make([]float64, 0, len(i))
 
 			for _, invocation := range i {
 				ids = append(ids, uuid.New())
@@ -114,7 +114,7 @@ func (s *server) invocationQueueLoop() {
 				workingDirs = append(workingDirs, invocation.WorkingDirectory)
 				gitRemoteURLs = append(gitRemoteURLs, invocation.GitRemoteUrl)
 				exitCodes = append(exitCodes, invocation.ExitCode)
-				durationsMS = append(durationsMS, int32(invocation.DurationMs))
+				durationsMS = append(durationsMS, float64(invocation.DurationMs))
 			}
 
 			binaryArgsData, _ := json.Marshal(binaryArgs)
