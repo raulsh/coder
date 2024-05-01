@@ -21,8 +21,9 @@ const (
 )
 
 type Event struct {
-	Init               bool `json:"-"`
-	TemplateUsageStats bool `json:"template_usage_stats"`
+	Init                     bool `json:"-"`
+	TemplateUsageStats       bool `json:"template_usage_stats"`
+	IntelInvocationSummaries bool `json:"intel_invocation_summaries"`
 }
 
 type Rolluper struct {
@@ -107,7 +108,17 @@ func (r *Rolluper) start(ctx context.Context) {
 				}
 
 				ev.TemplateUsageStats = true
-				return tx.UpsertTemplateUsageStats(ctx)
+				err = tx.UpsertTemplateUsageStats(ctx)
+				if err != nil {
+					return err
+				}
+
+				ev.IntelInvocationSummaries = true
+				err = tx.UpsertIntelInvocationSummaries(ctx)
+				if err != nil {
+					return err
+				}
+				return nil
 			}, nil)
 		})
 

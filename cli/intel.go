@@ -86,7 +86,7 @@ func (r *RootCmd) intelDaemonStart() *serpent.Command {
 
 			srv := inteld.New(inteld.Options{
 				Dialer: func(ctx context.Context, hostInfo codersdk.IntelDaemonHostInfo) (proto.DRPCIntelDaemonClient, error) {
-					return client.ServeIntelDaemon(ctx, codersdk.ServeIntelDaemonRequest{
+					return client.ServeIntelDaemon(ctx, uuid.Nil, codersdk.ServeIntelDaemonRequest{
 						InstanceID:          instanceID,
 						IntelDaemonHostInfo: hostInfo,
 					})

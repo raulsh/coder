@@ -314,3 +314,20 @@ func (c *Client) IntelReport(ctx context.Context, organizationID uuid.UUID, req 
 	var report IntelReport
 	return report, json.NewDecoder(res.Body).Decode(&report)
 }
+
+// RefreshIntelReport refreshes the intel report for an organization.
+func (c *Client) RefreshIntelReport(ctx context.Context, organizationID uuid.UUID) error {
+	orgParam := organizationID.String()
+	if organizationID == uuid.Nil {
+		orgParam = DefaultOrganization
+	}
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/organizations/%s/intel/report", orgParam), nil)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}

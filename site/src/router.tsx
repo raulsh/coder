@@ -253,6 +253,9 @@ const InsightsCommandsPage = lazy(
 const InsightsEditorsPage = lazy(
   () => import("./pages/IntelPage/IntelEditorsPage"),
 );
+const CreateIntelCohortPage = lazy(
+  () => import("./pages/CreateIntelCohortPage/CreateIntelCohortPage")
+)
 
 const RoutesWithSuspense = () => {
   return (
@@ -318,13 +321,13 @@ export const router = createBrowserRouter(
             </Route>
           </Route>
 
-          <Route path="/intel" element={<IntelLayout />}>
+          <Route path="/intel">
             <Route index element={<InsightsSummaryPage />} />
             <Route path="tools" element={<InsightsToolsPage />} />
             <Route path="commands" element={<InsightsCommandsPage />} />
             <Route path="editors" element={<InsightsEditorsPage />} />
             <Route path="cohorts">
-              <Route path="new" element={<div>hi</div>} />
+              <Route path="new" element={<CreateIntelCohortPage />} />
               <Route path=":cohort">
                 <Route index element={<div>hi</div>} />
                 <Route path="edit" element={<div>hi</div>} />

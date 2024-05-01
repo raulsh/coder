@@ -1855,6 +1855,13 @@ class ApiMethods {
       throw error;
     }
   };
+
+  getIntelCohorts = async (organizationId: string) => {
+    const response = await this.axios.get<TypesGen.IntelCohort[]>(
+      `/api/v2/organizations/${organizationId}/intel/cohorts`,
+    );
+    return response.data;
+  }
 }
 
 // This is a hard coded CSRF token/cookie pair for local development. In prod,

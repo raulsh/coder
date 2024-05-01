@@ -124,10 +124,11 @@ type Options struct {
 	FilesRateLimit int
 
 	// IncludeProvisionerDaemon when true means to start an in-memory provisionerD
-	IncludeProvisionerDaemon    bool
-	MetricsCacheRefreshInterval time.Duration
-	AgentStatsRefreshInterval   time.Duration
-	DeploymentValues            *codersdk.DeploymentValues
+	IncludeProvisionerDaemon           bool
+	MetricsCacheRefreshInterval        time.Duration
+	AgentStatsRefreshInterval          time.Duration
+	IntelServerInvocationFlushInterval time.Duration
+	DeploymentValues                   *codersdk.DeploymentValues
 
 	// Set update check options to enable update check.
 	UpdateCheckOptions *updatecheck.Options
@@ -476,6 +477,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			TLSCertificates:                    options.TLSCertificates,
 			TrialGenerator:                     options.TrialGenerator,
 			RefreshEntitlements:                options.RefreshEntitlements,
+			IntelServerInvocationFlushInterval: options.IntelServerInvocationFlushInterval,
 			TailnetCoordinator:                 options.Coordinator,
 			BaseDERPMap:                        derpMap,
 			DERPMapUpdateFrequency:             150 * time.Millisecond,

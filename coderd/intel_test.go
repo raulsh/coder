@@ -4,12 +4,14 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/inteld/proto"
 )
 
 func TestIntelMachines(t *testing.T) {
@@ -97,14 +99,64 @@ func TestIntelReport(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		ctx := context.Background()
 		cohort, err := client.CreateIntelCohort(ctx, user.OrganizationID, codersdk.CreateIntelCohortRequest{
-			Name: "example",
+			Name: "Everyone",
 		})
 		require.NoError(t, err)
 		report, err := client.IntelReport(ctx, user.OrganizationID, codersdk.IntelReportRequest{
 			CohortIDs: []uuid.UUID{cohort.ID},
 		})
 		require.NoError(t, err)
-		// require.Equal(t, )
+		// No invocations of course!
+		require.Equal(t, int64(0), report.Invocations)
+	})
+	t.Run("Basic", func(t *testing.T) {
+		t.Parallel()
+		flushInterval := 25 * time.Millisecond
+		client := coderdtest.New(t, &coderdtest.Options{
+			IntelServerInvocationFlushInterval: flushInterval,
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+		ctx := context.Background()
+		cohort, err := client.CreateIntelCohort(ctx, user.OrganizationID, codersdk.CreateIntelCohortRequest{
+			Name: "Everyone",
+		})
+		require.NoError(t, err)
+		firstClient, err := client.ServeIntelDaemon(ctx, user.OrganizationID, codersdk.ServeIntelDaemonRequest{
+			IntelDaemonHostInfo: codersdk.IntelDaemonHostInfo{
+				OperatingSystem: "linux",
+			},
+			InstanceID: "test",
+		})
+		require.NoError(t, err)
+		defer firstClient.DRPCConn().Close()
+		_, err = firstClient.RecordInvocation(ctx, &proto.RecordInvocationRequest{
+			Invocations: []*proto.Invocation{{
+				Executable: &proto.Executable{
+					Hash:     "hash",
+					Basename: "go",
+					Path:     "/usr/bin/go",
+					Version:  "1.0.0",
+				},
+				Arguments:        []string{"run", "main.go"},
+				DurationMs:       354,
+				ExitCode:         1,
+				WorkingDirectory: "/home/coder",
+				GitRemoteUrl:     "https://github.com/coder/coder",
+			}},
+		})
+		require.NoError(t, err)
+
+		// TODO: @kylecarbs this is obviously a racey piece of code...
+		// Wait for invocations to flush
+		<-time.After(flushInterval * 2)
+
+		err = client.RefreshIntelReport(ctx, user.OrganizationID)
+		require.NoError(t, err)
+		report, err := client.IntelReport(ctx, user.OrganizationID, codersdk.IntelReportRequest{
+			CohortIDs: []uuid.UUID{cohort.ID},
+		})
+		require.NoError(t, err)
+		require.Equal(t, int64(1), report.Invocations)
 		fmt.Printf("%+v\n", report)
 	})
 }

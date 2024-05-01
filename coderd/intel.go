@@ -130,7 +130,11 @@ func (api *API) intelReport(rw http.ResponseWriter, r *http.Request) {
 			command, ok := reportByBinary[binaryID]
 			if !ok {
 				command = codersdk.IntelReportCommand{
-					BinaryName: row.BinaryName,
+					BinaryName:         row.BinaryName,
+					ExitCodes:          map[int]int64{},
+					GitRemoteURLs:      map[string]int64{},
+					WorkingDirectories: map[string]int64{},
+					BinaryPaths:        map[string]int64{},
 				}
 				err = json.Unmarshal(row.BinaryArgs, &command.BinaryArgs)
 				if err != nil {
@@ -211,6 +215,21 @@ func (api *API) intelReport(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, report)
+}
+
+// postIntelReport updates intel invocation summaries which will
+// enable the intel report to be up-to-date.
+func (api *API) postIntelReport(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	err := api.Database.UpsertIntelInvocationSummaries(ctx)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error upserting intel invocation summaries.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	httpapi.Write(ctx, rw, http.StatusNoContent, nil)
 }
 
 // intelMachines returns all machines that match the given filters.
@@ -477,11 +496,12 @@ func (api *API) intelDaemonServe(rw http.ResponseWriter, r *http.Request) {
 	logger := api.Logger
 
 	srv, err := inteldserver.New(srvCtx, inteldserver.Options{
-		Database:  api.Database,
-		Pubsub:    api.Pubsub,
-		Logger:    logger.Named("intel_server"),
-		MachineID: machine.ID,
-		UserID:    apiKey.UserID,
+		Database:                api.Database,
+		Pubsub:                  api.Pubsub,
+		Logger:                  logger.Named("inteldserver"),
+		MachineID:               machine.ID,
+		UserID:                  apiKey.UserID,
+		InvocationFlushInterval: api.IntelServerInvocationFlushInterval,
 	})
 	if err != nil {
 		if !xerrors.Is(err, context.Canceled) {
