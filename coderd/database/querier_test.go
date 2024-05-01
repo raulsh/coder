@@ -770,6 +770,36 @@ func TestIntelReports(t *testing.T) {
 	})
 	t.Run("ReportCommands", func(t *testing.T) {
 		t.Parallel()
-		//
+		db, _ := dbtestutil.NewDB(t)
+		// A cohort that matches all machines is necessary.
+		cohort := dbgen.IntelCohort(t, db, database.IntelCohort{})
+		machine := dbgen.IntelMachine(t, db, database.IntelMachine{})
+		dbgen.IntelInvocations(t, db, database.IntelInvocation{
+			MachineID:  machine.ID,
+			BinaryName: "go",
+			BinaryArgs: []byte(`["test"]`),
+		}, 50)
+		dbgen.IntelInvocations(t, db, database.IntelInvocation{
+			MachineID:  machine.ID,
+			BinaryName: "go",
+			BinaryArgs: []byte(`["build"]`),
+		}, 50)
+		err := db.UpsertIntelInvocationSummaries(context.Background())
+		require.NoError(t, err)
+		rows, err := db.GetIntelReportCommands(context.Background(), database.GetIntelReportCommandsParams{
+			CohortIds: []uuid.UUID{cohort.ID},
+		})
+		require.NoError(t, err)
+		require.Len(t, rows, 2)
+		for _, row := range rows {
+			switch string(row.BinaryArgs) {
+			case `["test"]`:
+				require.Equal(t, int64(50), row.TotalInvocations)
+			case `["build"]`:
+				require.Equal(t, int64(50), row.TotalInvocations)
+			default:
+				t.Fatalf("unexpected binary args: %s", row.BinaryArgs)
+			}
+		}
 	})
 }

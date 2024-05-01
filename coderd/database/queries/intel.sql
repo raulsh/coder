@@ -236,11 +236,12 @@ SELECT
   binary_args,
   SUM(total_invocations) AS total_invocations,
   PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY median_duration_ms) AS median_duration_ms,
-
-  array_agg(working_directories):: jsonb [] AS aggregated_working_directories,
-  array_agg(binary_paths):: jsonb [] AS aggregated_binary_paths,
-  array_agg(git_remote_urls):: jsonb [] AS aggregated_git_remote_urls,
-  array_agg(exit_codes):: jsonb [] AS aggregated_exit_codes
+  -- We have to convert to text here because Go cannot scan
+  -- an array of jsonb.
+  array_agg(working_directories):: text [] AS aggregated_working_directories,
+  array_agg(binary_paths):: text [] AS aggregated_binary_paths,
+  array_agg(git_remote_urls):: text [] AS aggregated_git_remote_urls,
+  array_agg(exit_codes):: text [] AS aggregated_exit_codes
 FROM
   intel_invocation_summaries
 WHERE

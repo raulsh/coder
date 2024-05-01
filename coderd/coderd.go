@@ -841,6 +841,7 @@ func New(options *Options) *API {
 					r.Get("/serve", api.intelDaemonServe)
 					r.Get("/machines", api.intelMachines)
 					r.Get("/cohorts", api.intelCohorts)
+					r.Get("/report", api.intelReport)
 				})
 			})
 		})

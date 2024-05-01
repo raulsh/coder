@@ -125,7 +125,7 @@ func (api *API) intelReport(rw http.ResponseWriter, r *http.Request) {
 			// Merge exit codes
 			exitCodes := map[string]int64{}
 			for _, exitCodeRaw := range row.AggregatedExitCodes {
-				err = json.Unmarshal(exitCodeRaw, &exitCodes)
+				err = json.Unmarshal([]byte(exitCodeRaw), &exitCodes)
 				if err != nil {
 					return err
 				}
@@ -140,7 +140,7 @@ func (api *API) intelReport(rw http.ResponseWriter, r *http.Request) {
 			// Merge binary paths
 			binaryPaths := map[string]int64{}
 			for _, binaryPathRaw := range row.AggregatedBinaryPaths {
-				err = json.Unmarshal(binaryPathRaw, &binaryPaths)
+				err = json.Unmarshal([]byte(binaryPathRaw), &binaryPaths)
 				if err != nil {
 					return err
 				}
@@ -151,7 +151,7 @@ func (api *API) intelReport(rw http.ResponseWriter, r *http.Request) {
 			// Merge working directories
 			workingDirectories := map[string]int64{}
 			for _, workingDirectoryRaw := range row.AggregatedWorkingDirectories {
-				err = json.Unmarshal(workingDirectoryRaw, &workingDirectories)
+				err = json.Unmarshal([]byte(workingDirectoryRaw), &workingDirectories)
 				if err != nil {
 					return err
 				}
@@ -162,7 +162,7 @@ func (api *API) intelReport(rw http.ResponseWriter, r *http.Request) {
 			// Merge git remote URLs
 			gitRemoteURLs := map[string]int64{}
 			for _, gitRemoteURLRaw := range row.AggregatedGitRemoteUrls {
-				err = json.Unmarshal(gitRemoteURLRaw, &gitRemoteURLs)
+				err = json.Unmarshal([]byte(gitRemoteURLRaw), &gitRemoteURLs)
 				if err != nil {
 					return err
 				}

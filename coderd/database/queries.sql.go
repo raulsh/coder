@@ -3141,10 +3141,10 @@ SELECT
   SUM(total_invocations) AS total_invocations,
   PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY median_duration_ms) AS median_duration_ms,
 
-  array_agg(working_directories):: jsonb [] AS aggregated_working_directories,
-  array_agg(binary_paths):: jsonb [] AS aggregated_binary_paths,
-  array_agg(git_remote_urls):: jsonb [] AS aggregated_git_remote_urls,
-  array_agg(exit_codes):: jsonb [] AS aggregated_exit_codes
+  array_agg(working_directories):: text [] AS aggregated_working_directories,
+  array_agg(binary_paths):: text [] AS aggregated_binary_paths,
+  array_agg(git_remote_urls):: text [] AS aggregated_git_remote_urls,
+  array_agg(exit_codes):: text [] AS aggregated_exit_codes
 FROM
   intel_invocation_summaries
 WHERE
@@ -3161,17 +3161,17 @@ type GetIntelReportCommandsParams struct {
 }
 
 type GetIntelReportCommandsRow struct {
-	StartsAt                     time.Time         `db:"starts_at" json:"starts_at"`
-	EndsAt                       time.Time         `db:"ends_at" json:"ends_at"`
-	CohortID                     uuid.UUID         `db:"cohort_id" json:"cohort_id"`
-	BinaryName                   string            `db:"binary_name" json:"binary_name"`
-	BinaryArgs                   json.RawMessage   `db:"binary_args" json:"binary_args"`
-	TotalInvocations             int64             `db:"total_invocations" json:"total_invocations"`
-	MedianDurationMs             float64           `db:"median_duration_ms" json:"median_duration_ms"`
-	AggregatedWorkingDirectories []json.RawMessage `db:"aggregated_working_directories" json:"aggregated_working_directories"`
-	AggregatedBinaryPaths        []json.RawMessage `db:"aggregated_binary_paths" json:"aggregated_binary_paths"`
-	AggregatedGitRemoteUrls      []json.RawMessage `db:"aggregated_git_remote_urls" json:"aggregated_git_remote_urls"`
-	AggregatedExitCodes          []json.RawMessage `db:"aggregated_exit_codes" json:"aggregated_exit_codes"`
+	StartsAt                     time.Time       `db:"starts_at" json:"starts_at"`
+	EndsAt                       time.Time       `db:"ends_at" json:"ends_at"`
+	CohortID                     uuid.UUID       `db:"cohort_id" json:"cohort_id"`
+	BinaryName                   string          `db:"binary_name" json:"binary_name"`
+	BinaryArgs                   json.RawMessage `db:"binary_args" json:"binary_args"`
+	TotalInvocations             int64           `db:"total_invocations" json:"total_invocations"`
+	MedianDurationMs             float64         `db:"median_duration_ms" json:"median_duration_ms"`
+	AggregatedWorkingDirectories []string        `db:"aggregated_working_directories" json:"aggregated_working_directories"`
+	AggregatedBinaryPaths        []string        `db:"aggregated_binary_paths" json:"aggregated_binary_paths"`
+	AggregatedGitRemoteUrls      []string        `db:"aggregated_git_remote_urls" json:"aggregated_git_remote_urls"`
+	AggregatedExitCodes          []string        `db:"aggregated_exit_codes" json:"aggregated_exit_codes"`
 }
 
 func (q *sqlQuerier) GetIntelReportCommands(ctx context.Context, arg GetIntelReportCommandsParams) ([]GetIntelReportCommandsRow, error) {

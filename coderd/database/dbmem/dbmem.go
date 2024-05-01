@@ -2599,10 +2599,10 @@ func (q *FakeQuerier) GetIntelReportCommands(_ context.Context, arg database.Get
 			}
 		}
 		command.TotalInvocations += summary.TotalInvocations
-		command.AggregatedBinaryPaths = append(command.AggregatedBinaryPaths, summary.BinaryPaths)
-		command.AggregatedExitCodes = append(command.AggregatedExitCodes, summary.ExitCodes)
-		command.AggregatedGitRemoteUrls = append(command.AggregatedGitRemoteUrls, summary.GitRemoteUrls)
-		command.AggregatedWorkingDirectories = append(command.AggregatedWorkingDirectories, summary.WorkingDirectories)
+		command.AggregatedBinaryPaths = append(command.AggregatedBinaryPaths, string(summary.BinaryPaths))
+		command.AggregatedExitCodes = append(command.AggregatedExitCodes, string(summary.ExitCodes))
+		command.AggregatedGitRemoteUrls = append(command.AggregatedGitRemoteUrls, string(summary.GitRemoteUrls))
+		command.AggregatedWorkingDirectories = append(command.AggregatedWorkingDirectories, string(summary.WorkingDirectories))
 		commandMedianDurations[key] = append(commandMedianDurations[key], summary.MedianDurationMs)
 		commands[key] = command
 	}
