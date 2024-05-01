@@ -40,13 +40,14 @@ INSERT INTO intel_machines (id, created_at, updated_at, instance_id, organizatio
 -- name: InsertIntelInvocations :exec
 -- Insert many invocations using unnest
 INSERT INTO intel_invocations (
-	created_at, machine_id, user_id, id, binary_hash, binary_path, binary_args,
+	created_at, machine_id, user_id, id, binary_name, binary_hash, binary_path, binary_args,
 	binary_version, working_directory, git_remote_url, exit_code, duration_ms)
 SELECT
 	@created_at :: timestamptz as created_at,
 	@machine_id :: uuid as machine_id,
 	@user_id :: uuid as user_id,
 	unnest(@id :: uuid[ ]) as id,
+	unnest(@binary_name :: text[ ]) as binary_name,
 	unnest(@binary_hash :: text[ ]) as binary_hash,
 	unnest(@binary_path :: text[ ]) as binary_path,
 	-- This has to be jsonb because PostgreSQL does not support parsing
@@ -102,3 +103,164 @@ GROUP BY
     binary_path, binary_args
 ORDER BY
     median_duration DESC;
+
+-- name: UpsertIntelInvocationSummaries :exec
+WITH machine_cohorts AS (
+    SELECT
+        m.id AS machine_id,
+        c.id AS cohort_id
+    FROM intel_machines m
+    JOIN intel_cohorts c ON
+        m.operating_system ~ c.regex_operating_system AND
+        m.operating_system_platform ~ c.regex_operating_system_platform AND
+        m.operating_system_version ~ c.regex_operating_system_version AND
+        m.architecture ~ c.regex_architecture AND
+        m.instance_id ~ c.regex_instance_id
+),
+invocations_with_cohorts AS (
+    SELECT
+		i.*,
+		-- Truncate the created_at timestamp to the nearest 15 minute interval
+        date_trunc('minute', i.created_at)
+			- INTERVAL '1 minute' * (EXTRACT(MINUTE FROM i.created_at)::integer % 15) AS truncated_created_at,
+        mc.cohort_id
+    FROM intel_invocations i
+    JOIN machine_cohorts mc ON i.machine_id = mc.machine_id
+),
+invocation_working_dirs AS (
+	SELECT
+		truncated_created_at,
+		cohort_id,
+		binary_name,
+		binary_args,
+		working_directory,
+		COUNT(*) as count
+	FROM invocations_with_cohorts
+	GROUP BY truncated_created_at, cohort_id, binary_name, binary_args, working_directory
+),
+invocation_binary_paths AS (
+	SELECT
+		truncated_created_at,
+		cohort_id,
+		binary_name,
+		binary_args,
+		binary_path,
+		COUNT(*) as count
+	FROM invocations_with_cohorts
+	GROUP BY truncated_created_at, cohort_id, binary_name, binary_args, binary_path
+),
+invocation_git_remote_urls AS (
+	SELECT
+		truncated_created_at,
+		cohort_id,
+		binary_name,
+		binary_args,
+		git_remote_url,
+		COUNT(*) as count
+	FROM invocations_with_cohorts
+	GROUP BY truncated_created_at, cohort_id, binary_name, binary_args, git_remote_url
+),
+invocation_exit_codes AS (
+	SELECT
+		truncated_created_at,
+		cohort_id,
+		binary_name,
+		binary_args,
+		exit_code,
+		COUNT(*) as count
+	FROM invocations_with_cohorts
+	GROUP BY truncated_created_at, cohort_id, binary_name, binary_args, exit_code
+),
+aggregated AS (
+	SELECT
+		invocations_with_cohorts.truncated_created_at,
+		invocations_with_cohorts.cohort_id,
+		invocations_with_cohorts.binary_name,
+		invocations_with_cohorts.binary_args,
+		jsonb_object_agg(invocation_working_dirs.working_directory, invocation_working_dirs.count) AS working_directories,
+		jsonb_object_agg(invocation_git_remote_urls.git_remote_url, invocation_git_remote_urls.count) AS git_remote_urls,
+		jsonb_object_agg(invocation_exit_codes.exit_code, invocation_exit_codes.count) AS exit_codes,
+		jsonb_object_agg(invocation_binary_paths.binary_path, invocation_binary_paths.count) AS binary_paths,
+		COUNT(DISTINCT machine_id) as unique_machines,
+		COUNT(DISTINCT id) as total_invocations,
+		PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY duration_ms) AS median_duration_ms
+	FROM invocations_with_cohorts
+	JOIN invocation_working_dirs USING (truncated_created_at, cohort_id, binary_name, binary_args)
+	JOIN invocation_git_remote_urls USING (truncated_created_at, cohort_id, binary_name, binary_args)
+	JOIN invocation_exit_codes USING (truncated_created_at, cohort_id, binary_name, binary_args)
+	JOIN invocation_binary_paths USING (truncated_created_at, cohort_id, binary_name, binary_args)
+	GROUP BY
+		invocations_with_cohorts.truncated_created_at,
+		invocations_with_cohorts.cohort_id,
+		invocations_with_cohorts.binary_name,
+		invocations_with_cohorts.binary_args
+),
+saved AS (
+    INSERT INTO intel_invocation_summaries (id, cohort_id, starts_at, ends_at, binary_name, binary_args, binary_paths, working_directories, git_remote_urls, exit_codes, unique_machines, total_invocations, median_duration_ms)
+    SELECT
+        gen_random_uuid(),
+        cohort_id,
+        truncated_created_at,
+		truncated_created_at + INTERVAL '15 minutes' AS ends_at,  -- Add 15 minutes to starts_at
+        binary_name,
+        binary_args,
+        binary_paths,
+        working_directories,
+        git_remote_urls,
+        exit_codes,
+		unique_machines,
+        total_invocations,
+        median_duration_ms
+    FROM aggregated
+)
+DELETE FROM intel_invocations
+WHERE id IN (SELECT id FROM invocations_with_cohorts);
+
+-- name: GetIntelInvocationSummaries :many
+SELECT * FROM intel_invocation_summaries;
+
+-- name: GetIntelReportGitRemotes :many
+-- Get the total amount of time spent invoking commands
+-- in the directories of a given git remote URL.
+SELECT
+  starts_at,
+  ends_at,
+  cohort_id,
+  git_remote_url::text,
+  PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY median_duration_ms) AS median_duration_ms,
+  SUM(total_invocations) AS total_invocations
+FROM
+  intel_invocation_summaries,
+  LATERAL jsonb_each_text(git_remote_urls) AS git_urls(git_remote_url, invocations)
+WHERE
+  starts_at >= @starts_at
+AND
+  (CARDINALITY(@cohort_ids :: uuid []) = 0 OR cohort_id = ANY(@cohort_ids :: uuid []))
+GROUP BY
+  starts_at,
+  ends_at,
+  cohort_id,
+  git_remote_url;
+
+-- name: GetIntelReportCommands :many
+SELECT
+  starts_at,
+  ends_at,
+  cohort_id,
+  binary_name,
+  binary_args,
+  SUM(total_invocations) AS total_invocations,
+  PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY median_duration_ms) AS median_duration_ms,
+
+  array_agg(working_directories):: jsonb [] AS aggregated_working_directories,
+  array_agg(binary_paths):: jsonb [] AS aggregated_binary_paths,
+  array_agg(git_remote_urls):: jsonb [] AS aggregated_git_remote_urls,
+  array_agg(exit_codes):: jsonb [] AS aggregated_exit_codes
+FROM
+  intel_invocation_summaries
+WHERE
+	starts_at >= @starts_at
+AND
+	(CARDINALITY(@cohort_ids :: uuid []) = 0 OR cohort_id = ANY(@cohort_ids :: uuid []))
+GROUP BY
+  starts_at, ends_at, cohort_id, binary_name, binary_args;

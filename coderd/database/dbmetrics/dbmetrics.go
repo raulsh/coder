@@ -634,10 +634,31 @@ func (m metricsStore) GetIntelCohortsMatchedByMachineIDs(ctx context.Context, id
 	return r0, r1
 }
 
+func (m metricsStore) GetIntelInvocationSummaries(ctx context.Context) ([]database.IntelInvocationSummary, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetIntelInvocationSummaries(ctx)
+	m.queryLatencies.WithLabelValues("GetIntelInvocationSummaries").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) GetIntelMachinesMatchingFilters(ctx context.Context, arg database.GetIntelMachinesMatchingFiltersParams) ([]database.GetIntelMachinesMatchingFiltersRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetIntelMachinesMatchingFilters(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetIntelMachinesMatchingFilters").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m metricsStore) GetIntelReportCommands(ctx context.Context, startsAt database.GetIntelReportCommandsParams) ([]database.GetIntelReportCommandsRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetIntelReportCommands(ctx, startsAt)
+	m.queryLatencies.WithLabelValues("GetIntelReportCommands").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m metricsStore) GetIntelReportGitRemotes(ctx context.Context, startsAt database.GetIntelReportGitRemotesParams) ([]database.GetIntelReportGitRemotesRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetIntelReportGitRemotes(ctx, startsAt)
+	m.queryLatencies.WithLabelValues("GetIntelReportGitRemotes").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 
@@ -2256,6 +2277,13 @@ func (m metricsStore) UpsertIntelCohort(ctx context.Context, arg database.Upsert
 	r0, r1 := m.s.UpsertIntelCohort(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpsertIntelCohort").Observe(time.Since(start).Seconds())
 	return r0, r1
+}
+
+func (m metricsStore) UpsertIntelInvocationSummaries(ctx context.Context) error {
+	start := time.Now()
+	r0 := m.s.UpsertIntelInvocationSummaries(ctx)
+	m.queryLatencies.WithLabelValues("UpsertIntelInvocationSummaries").Observe(time.Since(start).Seconds())
+	return r0
 }
 
 func (m metricsStore) UpsertIntelMachine(ctx context.Context, arg database.UpsertIntelMachineParams) (database.IntelMachine, error) {

@@ -2,14 +2,17 @@ package coderd
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"net"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/yamux"
 	"github.com/sqlc-dev/pqtype"
+	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 	"nhooyr.io/websocket"
 	"storj.io/drpc/drpcmux"
@@ -24,6 +27,174 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/inteld/proto"
 )
+
+func (api *API) intelReport(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var req codersdk.IntelReportRequest
+	q := r.URL.Query()
+	rawCohortIDs := q["cohort_id"]
+	req.CohortIDs = make([]uuid.UUID, 0, len(rawCohortIDs))
+	for _, rawCohortID := range rawCohortIDs {
+		cohortID, err := uuid.Parse(rawCohortID)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid cohort ID.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		req.CohortIDs = append(req.CohortIDs, cohortID)
+	}
+	var err error
+	req.StartsAt, err = time.Parse(q.Get("starts_at"), time.DateOnly)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid starts_at.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	var eg errgroup.Group
+	var report codersdk.IntelReport
+	eg.Go(func() error {
+		rows, err := api.Database.GetIntelReportGitRemotes(ctx, database.GetIntelReportGitRemotesParams{
+			StartsAt:  req.StartsAt,
+			CohortIds: req.CohortIDs,
+		})
+		if err != nil {
+			return err
+		}
+		reportByRemote := make(map[string]codersdk.IntelReportGitRemote, len(rows))
+		for _, row := range rows {
+			gitRemote, ok := reportByRemote[row.GitRemoteUrl]
+			if !ok {
+				var externalAuthConfigID *string
+				for _, extAuth := range api.ExternalAuthConfigs {
+					if extAuth.Regex.MatchString(row.GitRemoteUrl) {
+						externalAuthConfigID = &extAuth.ID
+						break
+					}
+				}
+				gitRemote = codersdk.IntelReportGitRemote{
+					URL:                    row.GitRemoteUrl,
+					ExternalAuthProviderID: externalAuthConfigID,
+				}
+			}
+			gitRemote.Invocations += row.TotalInvocations
+			gitRemote.Intervals = append(gitRemote.Intervals, codersdk.IntelReportInvocationInterval{
+				StartsAt:         row.StartsAt,
+				EndsAt:           row.EndsAt,
+				Invocations:      row.TotalInvocations,
+				MedianDurationMS: row.MedianDurationMs,
+				CohortID:         row.CohortID,
+			})
+			reportByRemote[row.GitRemoteUrl] = gitRemote
+		}
+		for _, gitRemote := range reportByRemote {
+			report.GitRemotes = append(report.GitRemotes, gitRemote)
+		}
+		return nil
+	})
+	eg.Go(func() error {
+		rows, err := api.Database.GetIntelReportCommands(ctx, database.GetIntelReportCommandsParams{
+			StartsAt:  req.StartsAt,
+			CohortIds: req.CohortIDs,
+		})
+		if err != nil {
+			return err
+		}
+		reportByBinary := make(map[string]codersdk.IntelReportCommand, len(rows))
+		for _, row := range rows {
+			// Just index by this for simplicity on lookup.
+			binaryID := string(append([]byte(row.BinaryName), row.BinaryArgs...))
+
+			command, ok := reportByBinary[binaryID]
+			if !ok {
+				command = codersdk.IntelReportCommand{
+					BinaryName: row.BinaryName,
+				}
+				err = json.Unmarshal(row.BinaryArgs, &command.BinaryArgs)
+				if err != nil {
+					return err
+				}
+			}
+			command.Invocations += row.TotalInvocations
+
+			// Merge exit codes
+			exitCodes := map[string]int64{}
+			for _, exitCodeRaw := range row.AggregatedExitCodes {
+				err = json.Unmarshal(exitCodeRaw, &exitCodes)
+				if err != nil {
+					return err
+				}
+				for exitCodeRaw, invocations := range exitCodes {
+					exitCode, err := strconv.Atoi(exitCodeRaw)
+					if err != nil {
+						return err
+					}
+					command.ExitCodes[exitCode] += invocations
+				}
+			}
+			// Merge binary paths
+			binaryPaths := map[string]int64{}
+			for _, binaryPathRaw := range row.AggregatedBinaryPaths {
+				err = json.Unmarshal(binaryPathRaw, &binaryPaths)
+				if err != nil {
+					return err
+				}
+				for binaryPath, invocations := range binaryPaths {
+					command.BinaryPaths[binaryPath] += invocations
+				}
+			}
+			// Merge working directories
+			workingDirectories := map[string]int64{}
+			for _, workingDirectoryRaw := range row.AggregatedWorkingDirectories {
+				err = json.Unmarshal(workingDirectoryRaw, &workingDirectories)
+				if err != nil {
+					return err
+				}
+				for workingDirectory, invocations := range workingDirectories {
+					command.WorkingDirectories[workingDirectory] += invocations
+				}
+			}
+			// Merge git remote URLs
+			gitRemoteURLs := map[string]int64{}
+			for _, gitRemoteURLRaw := range row.AggregatedGitRemoteUrls {
+				err = json.Unmarshal(gitRemoteURLRaw, &gitRemoteURLs)
+				if err != nil {
+					return err
+				}
+				for gitRemoteURL, invocations := range gitRemoteURLs {
+					command.GitRemoteURLs[gitRemoteURL] += invocations
+				}
+			}
+			command.Intervals = append(command.Intervals, codersdk.IntelReportInvocationInterval{
+				StartsAt:         row.StartsAt,
+				EndsAt:           row.EndsAt,
+				Invocations:      row.TotalInvocations,
+				MedianDurationMS: row.MedianDurationMs,
+				CohortID:         row.CohortID,
+			})
+			reportByBinary[binaryID] = command
+		}
+		for _, command := range reportByBinary {
+			report.Commands = append(report.Commands, command)
+			report.Invocations += command.Invocations
+		}
+		return nil
+	})
+	err = eg.Wait()
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error getting intel report.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, report)
+}
 
 // intelMachines returns all machines that match the given filters.
 //

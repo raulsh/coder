@@ -1154,15 +1154,59 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Insights"
+                    "Intel"
                 ],
-                "summary": "Get deployment DAUs",
-                "operationId": "get-deployment-daus",
+                "summary": "List intel machines",
+                "operationId": "list-intel-machines",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Page limit",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page offset",
+                        "name": "offset",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Regex to match a machine operating system against",
+                        "name": "operating_system",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Regex to match a machine operating system platform against",
+                        "name": "operating_system_platform",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Regex to match a machine operating system version against",
+                        "name": "operating_system_version",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Regex to match a machine architecture against",
+                        "name": "architecture",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Regex to match a machine instance ID against",
+                        "name": "instance_id",
+                        "in": "query"
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/codersdk.DAUsResponse"
+                            "$ref": "#/definitions/codersdk.IntelMachinesResponse"
                         }
                     }
                 }
@@ -10018,6 +10062,69 @@ const docTemplate = `{
                 "InsightsReportIntervalDay",
                 "InsightsReportIntervalWeek"
             ]
+        },
+        "codersdk.IntelMachine": {
+            "type": "object",
+            "properties": {
+                "architecture": {
+                    "type": "string"
+                },
+                "cpu_cores": {
+                    "type": "integer"
+                },
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "hostname": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "instance_id": {
+                    "type": "string"
+                },
+                "memory_mb_total": {
+                    "type": "integer"
+                },
+                "operating_system": {
+                    "type": "string"
+                },
+                "operating_system_platform": {
+                    "type": "string"
+                },
+                "operating_system_version": {
+                    "type": "string"
+                },
+                "organization_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "updated_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "user_id": {
+                    "type": "string",
+                    "format": "uuid"
+                }
+            }
+        },
+        "codersdk.IntelMachinesResponse": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "intel_machines": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.IntelMachine"
+                    }
+                }
+            }
         },
         "codersdk.IssueReconnectingPTYSignedTokenRequest": {
             "type": "object",

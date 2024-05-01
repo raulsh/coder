@@ -3090,6 +3090,47 @@ func (q *sqlQuerier) GetIntelCohortsMatchedByMachineIDs(ctx context.Context, ids
 	return items, nil
 }
 
+const getIntelInvocationSummaries = `-- name: GetIntelInvocationSummaries :many
+SELECT id, cohort_id, starts_at, ends_at, binary_name, binary_args, binary_paths, working_directories, git_remote_urls, exit_codes, unique_machines, total_invocations, median_duration_ms FROM intel_invocation_summaries
+`
+
+func (q *sqlQuerier) GetIntelInvocationSummaries(ctx context.Context) ([]IntelInvocationSummary, error) {
+	rows, err := q.db.QueryContext(ctx, getIntelInvocationSummaries)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []IntelInvocationSummary
+	for rows.Next() {
+		var i IntelInvocationSummary
+		if err := rows.Scan(
+			&i.ID,
+			&i.CohortID,
+			&i.StartsAt,
+			&i.EndsAt,
+			&i.BinaryName,
+			&i.BinaryArgs,
+			&i.BinaryPaths,
+			&i.WorkingDirectories,
+			&i.GitRemoteUrls,
+			&i.ExitCodes,
+			&i.UniqueMachines,
+			&i.TotalInvocations,
+			&i.MedianDurationMs,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getIntelMachinesMatchingFilters = `-- name: GetIntelMachinesMatchingFilters :many
 WITH filtered_machines AS (
 	SELECT
@@ -3173,25 +3214,172 @@ func (q *sqlQuerier) GetIntelMachinesMatchingFilters(ctx context.Context, arg Ge
 	return items, nil
 }
 
+const getIntelReportCommands = `-- name: GetIntelReportCommands :many
+SELECT
+  starts_at,
+  ends_at,
+  cohort_id,
+  binary_name,
+  binary_args,
+  SUM(total_invocations) AS total_invocations,
+  PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY median_duration_ms) AS median_duration_ms,
+
+  array_agg(working_directories):: jsonb [] AS aggregated_working_directories,
+  array_agg(binary_paths):: jsonb [] AS aggregated_binary_paths,
+  array_agg(git_remote_urls):: jsonb [] AS aggregated_git_remote_urls,
+  array_agg(exit_codes):: jsonb [] AS aggregated_exit_codes
+FROM
+  intel_invocation_summaries
+WHERE
+	starts_at >= $1
+AND
+	(CARDINALITY($2 :: uuid []) = 0 OR cohort_id = ANY($2 :: uuid []))
+GROUP BY
+  starts_at, ends_at, cohort_id, binary_name, binary_args
+`
+
+type GetIntelReportCommandsParams struct {
+	StartsAt  time.Time   `db:"starts_at" json:"starts_at"`
+	CohortIds []uuid.UUID `db:"cohort_ids" json:"cohort_ids"`
+}
+
+type GetIntelReportCommandsRow struct {
+	StartsAt                     time.Time         `db:"starts_at" json:"starts_at"`
+	EndsAt                       time.Time         `db:"ends_at" json:"ends_at"`
+	CohortID                     uuid.UUID         `db:"cohort_id" json:"cohort_id"`
+	BinaryName                   string            `db:"binary_name" json:"binary_name"`
+	BinaryArgs                   json.RawMessage   `db:"binary_args" json:"binary_args"`
+	TotalInvocations             int64             `db:"total_invocations" json:"total_invocations"`
+	MedianDurationMs             float64           `db:"median_duration_ms" json:"median_duration_ms"`
+	AggregatedWorkingDirectories []json.RawMessage `db:"aggregated_working_directories" json:"aggregated_working_directories"`
+	AggregatedBinaryPaths        []json.RawMessage `db:"aggregated_binary_paths" json:"aggregated_binary_paths"`
+	AggregatedGitRemoteUrls      []json.RawMessage `db:"aggregated_git_remote_urls" json:"aggregated_git_remote_urls"`
+	AggregatedExitCodes          []json.RawMessage `db:"aggregated_exit_codes" json:"aggregated_exit_codes"`
+}
+
+func (q *sqlQuerier) GetIntelReportCommands(ctx context.Context, arg GetIntelReportCommandsParams) ([]GetIntelReportCommandsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getIntelReportCommands, arg.StartsAt, pq.Array(arg.CohortIds))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetIntelReportCommandsRow
+	for rows.Next() {
+		var i GetIntelReportCommandsRow
+		if err := rows.Scan(
+			&i.StartsAt,
+			&i.EndsAt,
+			&i.CohortID,
+			&i.BinaryName,
+			&i.BinaryArgs,
+			&i.TotalInvocations,
+			&i.MedianDurationMs,
+			pq.Array(&i.AggregatedWorkingDirectories),
+			pq.Array(&i.AggregatedBinaryPaths),
+			pq.Array(&i.AggregatedGitRemoteUrls),
+			pq.Array(&i.AggregatedExitCodes),
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getIntelReportGitRemotes = `-- name: GetIntelReportGitRemotes :many
+SELECT
+  starts_at,
+  ends_at,
+  cohort_id,
+  git_remote_url::text,
+  PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY median_duration_ms) AS median_duration_ms,
+  SUM(total_invocations) AS total_invocations
+FROM
+  intel_invocation_summaries,
+  LATERAL jsonb_each_text(git_remote_urls) AS git_urls(git_remote_url, invocations)
+WHERE
+  starts_at >= $1
+AND
+  (CARDINALITY($2 :: uuid []) = 0 OR cohort_id = ANY($2 :: uuid []))
+GROUP BY
+  starts_at,
+  ends_at,
+  cohort_id,
+  git_remote_url
+`
+
+type GetIntelReportGitRemotesParams struct {
+	StartsAt  time.Time   `db:"starts_at" json:"starts_at"`
+	CohortIds []uuid.UUID `db:"cohort_ids" json:"cohort_ids"`
+}
+
+type GetIntelReportGitRemotesRow struct {
+	StartsAt         time.Time `db:"starts_at" json:"starts_at"`
+	EndsAt           time.Time `db:"ends_at" json:"ends_at"`
+	CohortID         uuid.UUID `db:"cohort_id" json:"cohort_id"`
+	GitRemoteUrl     string    `db:"git_remote_url" json:"git_remote_url"`
+	MedianDurationMs float64   `db:"median_duration_ms" json:"median_duration_ms"`
+	TotalInvocations int64     `db:"total_invocations" json:"total_invocations"`
+}
+
+// Get the total amount of time spent invoking commands
+// in the directories of a given git remote URL.
+func (q *sqlQuerier) GetIntelReportGitRemotes(ctx context.Context, arg GetIntelReportGitRemotesParams) ([]GetIntelReportGitRemotesRow, error) {
+	rows, err := q.db.QueryContext(ctx, getIntelReportGitRemotes, arg.StartsAt, pq.Array(arg.CohortIds))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetIntelReportGitRemotesRow
+	for rows.Next() {
+		var i GetIntelReportGitRemotesRow
+		if err := rows.Scan(
+			&i.StartsAt,
+			&i.EndsAt,
+			&i.CohortID,
+			&i.GitRemoteUrl,
+			&i.MedianDurationMs,
+			&i.TotalInvocations,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const insertIntelInvocations = `-- name: InsertIntelInvocations :exec
 INSERT INTO intel_invocations (
-	created_at, machine_id, user_id, id, binary_hash, binary_path, binary_args,
+	created_at, machine_id, user_id, id, binary_name, binary_hash, binary_path, binary_args,
 	binary_version, working_directory, git_remote_url, exit_code, duration_ms)
 SELECT
 	$1 :: timestamptz as created_at,
 	$2 :: uuid as machine_id,
 	$3 :: uuid as user_id,
 	unnest($4 :: uuid[ ]) as id,
-	unnest($5 :: text[ ]) as binary_hash,
-	unnest($6 :: text[ ]) as binary_path,
+	unnest($5 :: text[ ]) as binary_name,
+	unnest($6 :: text[ ]) as binary_hash,
+	unnest($7 :: text[ ]) as binary_path,
 	-- This has to be jsonb because PostgreSQL does not support parsing
 	-- multi-dimensional multi-length arrays!
-	jsonb_array_elements($7 :: jsonb) as binary_args,
-	unnest($8 :: text[ ]) as binary_version,
-	unnest($9 :: text[ ]) as working_directory,
-	unnest($10 :: text[ ]) as git_remote_url,
-	unnest($11 :: int [ ]) as exit_code,
-	unnest($12 :: int[ ]) as duration_ms
+	jsonb_array_elements($8 :: jsonb) as binary_args,
+	unnest($9 :: text[ ]) as binary_version,
+	unnest($10 :: text[ ]) as working_directory,
+	unnest($11 :: text[ ]) as git_remote_url,
+	unnest($12 :: int [ ]) as exit_code,
+	unnest($13 :: int[ ]) as duration_ms
 `
 
 type InsertIntelInvocationsParams struct {
@@ -3199,6 +3387,7 @@ type InsertIntelInvocationsParams struct {
 	MachineID        uuid.UUID       `db:"machine_id" json:"machine_id"`
 	UserID           uuid.UUID       `db:"user_id" json:"user_id"`
 	ID               []uuid.UUID     `db:"id" json:"id"`
+	BinaryName       []string        `db:"binary_name" json:"binary_name"`
 	BinaryHash       []string        `db:"binary_hash" json:"binary_hash"`
 	BinaryPath       []string        `db:"binary_path" json:"binary_path"`
 	BinaryArgs       json.RawMessage `db:"binary_args" json:"binary_args"`
@@ -3216,6 +3405,7 @@ func (q *sqlQuerier) InsertIntelInvocations(ctx context.Context, arg InsertIntel
 		arg.MachineID,
 		arg.UserID,
 		pq.Array(arg.ID),
+		pq.Array(arg.BinaryName),
 		pq.Array(arg.BinaryHash),
 		pq.Array(arg.BinaryPath),
 		arg.BinaryArgs,
@@ -3301,6 +3491,124 @@ func (q *sqlQuerier) UpsertIntelCohort(ctx context.Context, arg UpsertIntelCohor
 		pq.Array(&i.TrackedExecutables),
 	)
 	return i, err
+}
+
+const upsertIntelInvocationSummaries = `-- name: UpsertIntelInvocationSummaries :exec
+WITH machine_cohorts AS (
+    SELECT
+        m.id AS machine_id,
+        c.id AS cohort_id
+    FROM intel_machines m
+    JOIN intel_cohorts c ON
+        m.operating_system ~ c.regex_operating_system AND
+        m.operating_system_platform ~ c.regex_operating_system_platform AND
+        m.operating_system_version ~ c.regex_operating_system_version AND
+        m.architecture ~ c.regex_architecture AND
+        m.instance_id ~ c.regex_instance_id
+),
+invocations_with_cohorts AS (
+    SELECT
+		i.id, i.created_at, i.machine_id, i.user_id, i.binary_hash, i.binary_name, i.binary_path, i.binary_args, i.binary_version, i.working_directory, i.git_remote_url, i.exit_code, i.duration_ms,
+		-- Truncate the created_at timestamp to the nearest 15 minute interval
+        date_trunc('minute', i.created_at)
+			- INTERVAL '1 minute' * (EXTRACT(MINUTE FROM i.created_at)::integer % 15) AS truncated_created_at,
+        mc.cohort_id
+    FROM intel_invocations i
+    JOIN machine_cohorts mc ON i.machine_id = mc.machine_id
+),
+invocation_working_dirs AS (
+	SELECT
+		truncated_created_at,
+		cohort_id,
+		binary_name,
+		binary_args,
+		working_directory,
+		COUNT(*) as count
+	FROM invocations_with_cohorts
+	GROUP BY truncated_created_at, cohort_id, binary_name, binary_args, working_directory
+),
+invocation_binary_paths AS (
+	SELECT
+		truncated_created_at,
+		cohort_id,
+		binary_name,
+		binary_args,
+		binary_path,
+		COUNT(*) as count
+	FROM invocations_with_cohorts
+	GROUP BY truncated_created_at, cohort_id, binary_name, binary_args, binary_path
+),
+invocation_git_remote_urls AS (
+	SELECT
+		truncated_created_at,
+		cohort_id,
+		binary_name,
+		binary_args,
+		git_remote_url,
+		COUNT(*) as count
+	FROM invocations_with_cohorts
+	GROUP BY truncated_created_at, cohort_id, binary_name, binary_args, git_remote_url
+),
+invocation_exit_codes AS (
+	SELECT
+		truncated_created_at,
+		cohort_id,
+		binary_name,
+		binary_args,
+		exit_code,
+		COUNT(*) as count
+	FROM invocations_with_cohorts
+	GROUP BY truncated_created_at, cohort_id, binary_name, binary_args, exit_code
+),
+aggregated AS (
+	SELECT
+		invocations_with_cohorts.truncated_created_at,
+		invocations_with_cohorts.cohort_id,
+		invocations_with_cohorts.binary_name,
+		invocations_with_cohorts.binary_args,
+		jsonb_object_agg(invocation_working_dirs.working_directory, invocation_working_dirs.count) AS working_directories,
+		jsonb_object_agg(invocation_git_remote_urls.git_remote_url, invocation_git_remote_urls.count) AS git_remote_urls,
+		jsonb_object_agg(invocation_exit_codes.exit_code, invocation_exit_codes.count) AS exit_codes,
+		jsonb_object_agg(invocation_binary_paths.binary_path, invocation_binary_paths.count) AS binary_paths,
+		COUNT(DISTINCT machine_id) as unique_machines,
+		COUNT(DISTINCT id) as total_invocations,
+		PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY duration_ms) AS median_duration_ms
+	FROM invocations_with_cohorts
+	JOIN invocation_working_dirs USING (truncated_created_at, cohort_id, binary_name, binary_args)
+	JOIN invocation_git_remote_urls USING (truncated_created_at, cohort_id, binary_name, binary_args)
+	JOIN invocation_exit_codes USING (truncated_created_at, cohort_id, binary_name, binary_args)
+	JOIN invocation_binary_paths USING (truncated_created_at, cohort_id, binary_name, binary_args)
+	GROUP BY
+		invocations_with_cohorts.truncated_created_at,
+		invocations_with_cohorts.cohort_id,
+		invocations_with_cohorts.binary_name,
+		invocations_with_cohorts.binary_args
+),
+saved AS (
+    INSERT INTO intel_invocation_summaries (id, cohort_id, starts_at, ends_at, binary_name, binary_args, binary_paths, working_directories, git_remote_urls, exit_codes, unique_machines, total_invocations, median_duration_ms)
+    SELECT
+        gen_random_uuid(),
+        cohort_id,
+        truncated_created_at,
+		truncated_created_at + INTERVAL '15 minutes' AS ends_at,  -- Add 15 minutes to starts_at
+        binary_name,
+        binary_args,
+        binary_paths,
+        working_directories,
+        git_remote_urls,
+        exit_codes,
+		unique_machines,
+        total_invocations,
+        median_duration_ms
+    FROM aggregated
+)
+DELETE FROM intel_invocations
+WHERE id IN (SELECT id FROM invocations_with_cohorts)
+`
+
+func (q *sqlQuerier) UpsertIntelInvocationSummaries(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, upsertIntelInvocationSummaries)
+	return err
 }
 
 const upsertIntelMachine = `-- name: UpsertIntelMachine :one

@@ -134,7 +134,12 @@ type sqlcQuerier interface {
 	GetIntelCohortsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]IntelCohort, error)
 	// Obtains a list of cohorts that a user can track invocations for.
 	GetIntelCohortsMatchedByMachineIDs(ctx context.Context, ids []uuid.UUID) ([]GetIntelCohortsMatchedByMachineIDsRow, error)
+	GetIntelInvocationSummaries(ctx context.Context) ([]IntelInvocationSummary, error)
 	GetIntelMachinesMatchingFilters(ctx context.Context, arg GetIntelMachinesMatchingFiltersParams) ([]GetIntelMachinesMatchingFiltersRow, error)
+	GetIntelReportCommands(ctx context.Context, arg GetIntelReportCommandsParams) ([]GetIntelReportCommandsRow, error)
+	// Get the total amount of time spent invoking commands
+	// in the directories of a given git remote URL.
+	GetIntelReportGitRemotes(ctx context.Context, arg GetIntelReportGitRemotesParams) ([]GetIntelReportGitRemotesRow, error)
 	GetJFrogXrayScanByWorkspaceAndAgentID(ctx context.Context, arg GetJFrogXrayScanByWorkspaceAndAgentIDParams) (JfrogXrayScan, error)
 	GetLastUpdateCheck(ctx context.Context) (string, error)
 	GetLatestWorkspaceBuildByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) (WorkspaceBuild, error)
@@ -433,6 +438,7 @@ type sqlcQuerier interface {
 	UpsertDefaultProxy(ctx context.Context, arg UpsertDefaultProxyParams) error
 	UpsertHealthSettings(ctx context.Context, value string) error
 	UpsertIntelCohort(ctx context.Context, arg UpsertIntelCohortParams) (IntelCohort, error)
+	UpsertIntelInvocationSummaries(ctx context.Context) error
 	UpsertIntelMachine(ctx context.Context, arg UpsertIntelMachineParams) (IntelMachine, error)
 	UpsertJFrogXrayScanByWorkspaceAndAgentID(ctx context.Context, arg UpsertJFrogXrayScanByWorkspaceAndAgentIDParams) error
 	UpsertLastUpdateCheck(ctx context.Context, value string) error

@@ -659,6 +659,7 @@ export interface IntelMachine {
   readonly instance_id: string;
   readonly hostname: string;
   readonly operating_system: string;
+  readonly operating_system_platform: string;
   readonly operating_system_version: string;
   readonly cpu_cores: number;
   readonly memory_mb_total: number;
@@ -675,6 +676,48 @@ export interface IntelMachinesRequest {
 export interface IntelMachinesResponse {
   readonly intel_machines: readonly IntelMachine[];
   readonly count: number;
+}
+
+// From codersdk/intel.go
+export interface IntelReport {
+  readonly invocations: number;
+  readonly commands: readonly IntelReportCommand[];
+  readonly git_remotes: readonly IntelReportGitRemote[];
+}
+
+// From codersdk/intel.go
+export interface IntelReportCommand {
+  readonly binary_name: string;
+  readonly binary_args: readonly string[];
+  readonly invocations: number;
+  readonly intervals: readonly IntelReportInvocationInterval[];
+  readonly exit_codes: Record<number, number>;
+  readonly git_remote_urls: Record<string, number>;
+  readonly working_directories: Record<string, number>;
+  readonly binary_paths: Record<string, number>;
+}
+
+// From codersdk/intel.go
+export interface IntelReportGitRemote {
+  readonly url: string;
+  readonly external_auth_provider_id?: string;
+  readonly invocations: number;
+  readonly intervals: readonly IntelReportInvocationInterval[];
+}
+
+// From codersdk/intel.go
+export interface IntelReportInvocationInterval {
+  readonly cohort_id: string;
+  readonly starts_at: string;
+  readonly ends_at: string;
+  readonly invocations: number;
+  readonly median_duration_ms: number;
+}
+
+// From codersdk/intel.go
+export interface IntelReportRequest {
+  readonly starts_at: string;
+  readonly cohort_ids: readonly string[];
 }
 
 // From codersdk/workspaceagents.go

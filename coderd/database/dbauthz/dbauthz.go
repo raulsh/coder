@@ -1305,9 +1305,22 @@ func (q *querier) GetIntelCohortsMatchedByMachineIDs(ctx context.Context, ids []
 	return q.db.GetIntelCohortsMatchedByMachineIDs(ctx, ids)
 }
 
+func (q *querier) GetIntelInvocationSummaries(ctx context.Context) ([]database.IntelInvocationSummary, error) {
+	// No authz checks - it'd be too slow
+	return q.db.GetIntelInvocationSummaries(ctx)
+}
+
 func (q *querier) GetIntelMachinesMatchingFilters(ctx context.Context, arg database.GetIntelMachinesMatchingFiltersParams) ([]database.GetIntelMachinesMatchingFiltersRow, error) {
 	// No authz checks possible. It's too weird
 	return q.db.GetIntelMachinesMatchingFilters(ctx, arg)
+}
+
+func (q *querier) GetIntelReportCommands(ctx context.Context, startsAt database.GetIntelReportCommandsParams) ([]database.GetIntelReportCommandsRow, error) {
+	panic("not implemented")
+}
+
+func (q *querier) GetIntelReportGitRemotes(ctx context.Context, startsAt database.GetIntelReportGitRemotesParams) ([]database.GetIntelReportGitRemotesRow, error) {
+	panic("not implemented")
 }
 
 func (q *querier) GetJFrogXrayScanByWorkspaceAndAgentID(ctx context.Context, arg database.GetJFrogXrayScanByWorkspaceAndAgentIDParams) (database.JfrogXrayScan, error) {
@@ -3519,6 +3532,10 @@ func (q *querier) UpsertHealthSettings(ctx context.Context, value string) error 
 
 func (q *querier) UpsertIntelCohort(ctx context.Context, arg database.UpsertIntelCohortParams) (database.IntelCohort, error) {
 	return insert(q.log, q.auth, rbac.ResourceGroup.InOrg(arg.OrganizationID), q.db.UpsertIntelCohort)(ctx, arg)
+}
+
+func (q *querier) UpsertIntelInvocationSummaries(ctx context.Context) error {
+	panic("not implemented")
 }
 
 func (q *querier) UpsertIntelMachine(ctx context.Context, arg database.UpsertIntelMachineParams) (database.IntelMachine, error) {

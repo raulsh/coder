@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -91,6 +92,7 @@ func (s *server) invocationQueueLoop() {
 	for {
 		err := s.invocationQueue.startFlushLoop(s.closeContext, func(i []*proto.Invocation) error {
 			ids := make([]uuid.UUID, 0)
+			binaryNames := make([]string, 0, len(i))
 			binaryHashes := make([]string, 0, len(i))
 			binaryPaths := make([]string, 0, len(i))
 			binaryArgs := make([]json.RawMessage, 0, len(i))
@@ -102,6 +104,8 @@ func (s *server) invocationQueueLoop() {
 
 			for _, invocation := range i {
 				ids = append(ids, uuid.New())
+
+				binaryNames = append(binaryNames, filepath.Base(invocation.Executable.Path))
 				binaryHashes = append(binaryHashes, invocation.Executable.Hash)
 				binaryPaths = append(binaryPaths, invocation.Executable.Path)
 				argsData, _ := json.Marshal(invocation.Arguments)
@@ -119,6 +123,7 @@ func (s *server) invocationQueueLoop() {
 				CreatedAt:        dbtime.Now(),
 				MachineID:        s.MachineID,
 				UserID:           s.UserID,
+				BinaryName:       binaryNames,
 				BinaryHash:       binaryHashes,
 				BinaryPath:       binaryPaths,
 				BinaryArgs:       binaryArgsData,

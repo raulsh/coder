@@ -3107,6 +3107,76 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `day`  |
 | `week` |
 
+## codersdk.IntelMachine
+
+```json
+{
+  "architecture": "string",
+  "cpu_cores": 0,
+  "created_at": "2019-08-24T14:15:22Z",
+  "hostname": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "instance_id": "string",
+  "memory_mb_total": 0,
+  "operating_system": "string",
+  "operating_system_platform": "string",
+  "operating_system_version": "string",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "updated_at": "2019-08-24T14:15:22Z",
+  "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
+}
+```
+
+### Properties
+
+| Name                        | Type    | Required | Restrictions | Description |
+| --------------------------- | ------- | -------- | ------------ | ----------- |
+| `architecture`              | string  | false    |              |             |
+| `cpu_cores`                 | integer | false    |              |             |
+| `created_at`                | string  | false    |              |             |
+| `hostname`                  | string  | false    |              |             |
+| `id`                        | string  | false    |              |             |
+| `instance_id`               | string  | false    |              |             |
+| `memory_mb_total`           | integer | false    |              |             |
+| `operating_system`          | string  | false    |              |             |
+| `operating_system_platform` | string  | false    |              |             |
+| `operating_system_version`  | string  | false    |              |             |
+| `organization_id`           | string  | false    |              |             |
+| `updated_at`                | string  | false    |              |             |
+| `user_id`                   | string  | false    |              |             |
+
+## codersdk.IntelMachinesResponse
+
+```json
+{
+  "count": 0,
+  "intel_machines": [
+    {
+      "architecture": "string",
+      "cpu_cores": 0,
+      "created_at": "2019-08-24T14:15:22Z",
+      "hostname": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "instance_id": "string",
+      "memory_mb_total": 0,
+      "operating_system": "string",
+      "operating_system_platform": "string",
+      "operating_system_version": "string",
+      "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+      "updated_at": "2019-08-24T14:15:22Z",
+      "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name             | Type                                                    | Required | Restrictions | Description |
+| ---------------- | ------------------------------------------------------- | -------- | ------------ | ----------- |
+| `count`          | integer                                                 | false    |              |             |
+| `intel_machines` | array of [codersdk.IntelMachine](#codersdkintelmachine) | false    |              |             |
+
 ## codersdk.IssueReconnectingPTYSignedTokenRequest
 
 ```json

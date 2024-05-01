@@ -578,6 +578,10 @@
           "path": "./api/insights.md"
         },
         {
+          "title": "Intel",
+          "path": "./api/intel.md"
+        },
+        {
           "title": "Members",
           "path": "./api/members.md"
         },

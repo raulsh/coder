@@ -1883,6 +1883,7 @@ type IntelInvocation struct {
 	MachineID        uuid.UUID       `db:"machine_id" json:"machine_id"`
 	UserID           uuid.UUID       `db:"user_id" json:"user_id"`
 	BinaryHash       string          `db:"binary_hash" json:"binary_hash"`
+	BinaryName       string          `db:"binary_name" json:"binary_name"`
 	BinaryPath       string          `db:"binary_path" json:"binary_path"`
 	BinaryArgs       json.RawMessage `db:"binary_args" json:"binary_args"`
 	BinaryVersion    string          `db:"binary_version" json:"binary_version"`
@@ -1890,6 +1891,22 @@ type IntelInvocation struct {
 	GitRemoteUrl     string          `db:"git_remote_url" json:"git_remote_url"`
 	ExitCode         int32           `db:"exit_code" json:"exit_code"`
 	DurationMs       int32           `db:"duration_ms" json:"duration_ms"`
+}
+
+type IntelInvocationSummary struct {
+	ID                 uuid.UUID       `db:"id" json:"id"`
+	CohortID           uuid.UUID       `db:"cohort_id" json:"cohort_id"`
+	StartsAt           time.Time       `db:"starts_at" json:"starts_at"`
+	EndsAt             time.Time       `db:"ends_at" json:"ends_at"`
+	BinaryName         string          `db:"binary_name" json:"binary_name"`
+	BinaryArgs         json.RawMessage `db:"binary_args" json:"binary_args"`
+	BinaryPaths        json.RawMessage `db:"binary_paths" json:"binary_paths"`
+	WorkingDirectories json.RawMessage `db:"working_directories" json:"working_directories"`
+	GitRemoteUrls      json.RawMessage `db:"git_remote_urls" json:"git_remote_urls"`
+	ExitCodes          json.RawMessage `db:"exit_codes" json:"exit_codes"`
+	UniqueMachines     int64           `db:"unique_machines" json:"unique_machines"`
+	TotalInvocations   int64           `db:"total_invocations" json:"total_invocations"`
+	MedianDurationMs   int64           `db:"median_duration_ms" json:"median_duration_ms"`
 }
 
 type IntelMachine struct {

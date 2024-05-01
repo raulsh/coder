@@ -6,12 +6,15 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net"
 	"sort"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
 
@@ -691,13 +694,53 @@ func TestIntel(t *testing.T) {
 	db := database.New(sqlDB)
 	ctx := context.Background()
 
-	machine, err := db.UpsertIntelMachine(ctx, database.UpsertIntelMachineParams{
+	cohort, err := db.UpsertIntelCohort(ctx, database.UpsertIntelCohortParams{
+		ID:                           uuid.New(),
+		CreatedAt:                    dbtime.Now(),
+		UpdatedAt:                    dbtime.Now(),
+		Name:                         "cohort",
+		OrganizationID:               uuid.New(),
+		CreatedBy:                    uuid.New(),
+		DisplayName:                  "cohort",
+		TrackedExecutables:           []string{"go"},
+		RegexOperatingSystem:         ".*",
+		RegexOperatingSystemVersion:  ".*",
+		RegexOperatingSystemPlatform: ".*",
+		RegexArchitecture:            ".*",
+		RegexInstanceID:              ".*",
+	})
+	require.NoError(t, err)
+
+	machine1, err := db.UpsertIntelMachine(ctx, database.UpsertIntelMachineParams{
 		ID:             uuid.New(),
 		CreatedAt:      dbtime.Now(),
 		UpdatedAt:      dbtime.Now(),
 		InstanceID:     "some-id",
-		OrganizationID: uuid.New(),
-		UserID:         uuid.New(),
+		OrganizationID: cohort.OrganizationID,
+		UserID:         cohort.CreatedBy,
+		IPAddress: pqtype.Inet{
+			IPNet: net.IPNet{
+				IP:   net.IPv4(127, 0, 0, 1),
+				Mask: net.IPv4Mask(255, 255, 255, 255),
+			},
+			Valid: true,
+		},
+		Hostname:        "host",
+		OperatingSystem: "linux",
+		CPUCores:        4,
+		MemoryMBTotal:   16 * 1024,
+		Architecture:    "amd64",
+		DaemonVersion:   "1.0.0",
+	})
+	require.NoError(t, err)
+
+	machine2, err := db.UpsertIntelMachine(ctx, database.UpsertIntelMachineParams{
+		ID:             uuid.New(),
+		CreatedAt:      dbtime.Now(),
+		UpdatedAt:      dbtime.Now(),
+		InstanceID:     "some-id-2",
+		OrganizationID: cohort.OrganizationID,
+		UserID:         cohort.CreatedBy,
 		IPAddress: pqtype.Inet{
 			IPNet: net.IPNet{
 				IP:   net.IPv4(127, 0, 0, 1),
@@ -715,8 +758,8 @@ func TestIntel(t *testing.T) {
 	require.NoError(t, err)
 
 	rows, err := db.GetIntelMachinesMatchingFilters(ctx, database.GetIntelMachinesMatchingFiltersParams{
-		OrganizationID:               machine.OrganizationID,
-		RegexOperatingSystem:         "linux|windows",
+		OrganizationID:               machine1.OrganizationID,
+		RegexOperatingSystem:         ".*",
 		RegexOperatingSystemVersion:  ".*",
 		RegexOperatingSystemPlatform: ".*",
 		RegexArchitecture:            ".*",
@@ -725,21 +768,107 @@ func TestIntel(t *testing.T) {
 		OffsetOpt:                    0,
 	})
 	require.NoError(t, err)
-	require.Len(t, rows, 1)
+	require.Len(t, rows, 2)
 
-	err = db.InsertIntelInvocations(ctx, database.InsertIntelInvocationsParams{
-		CreatedAt:        dbtime.Now(),
-		MachineID:        machine.ID,
-		UserID:           machine.UserID,
-		ID:               []uuid.UUID{uuid.New()},
-		BinaryHash:       []string{"hash"},
-		BinaryPath:       []string{"/go"},
-		BinaryArgs:       json.RawMessage("[[\"some\",\"arg\"]]"),
-		BinaryVersion:    []string{"1"},
-		WorkingDirectory: []string{"/"},
-		GitRemoteUrl:     []string{""},
-		ExitCode:         []int32{0},
-		DurationMs:       []int32{0},
-	})
+	chunkSize := 100
+	numberOfChunks := 100
+
+	for n := 0; n < numberOfChunks; n++ {
+		i := chunkSize
+		ids := make([]uuid.UUID, 0)
+		binaryNames := make([]string, 0, i)
+		binaryHashes := make([]string, 0, i)
+		binaryPaths := make([]string, 0, i)
+		binaryArgs := make([]json.RawMessage, 0, i)
+		binaryVersions := make([]string, 0, i)
+		workingDirs := make([]string, 0, i)
+		gitRemoteURLs := make([]string, 0, i)
+		exitCodes := make([]int32, 0, i)
+		durationsMS := make([]int32, 0, i)
+
+		for z := 0; z < i; z++ {
+			ids = append(ids, uuid.New())
+
+			binaryNames = append(binaryNames, "go")
+			binaryHashes = append(binaryHashes, "my-hash")
+			binaryPaths = append(binaryPaths, "/usr/bin/go")
+
+			args := []string{"test"}
+			workingDir := "/home/coder"
+			durationMS := int32(15)
+			if z%2 == 0 {
+				args = []string{"build"}
+				if z%3 == 0 {
+					workingDir = "/home/moo"
+				}
+				durationMS = 5
+			}
+			argsData, _ := json.Marshal(args)
+			binaryArgs = append(binaryArgs, argsData)
+			binaryVersions = append(binaryVersions, "version")
+			workingDirs = append(workingDirs, workingDir)
+			gitRemoteURLs = append(gitRemoteURLs, "remote")
+			exitCodes = append(exitCodes, 0)
+			durationsMS = append(durationsMS, durationMS)
+		}
+
+		machineID := machine1.ID
+		if n%2 == 0 {
+			machineID = machine2.ID
+		}
+		binaryArgsData, _ := json.Marshal(binaryArgs)
+		err = db.InsertIntelInvocations(ctx, database.InsertIntelInvocationsParams{
+			CreatedAt:        dbtime.Now(),
+			MachineID:        machineID,
+			UserID:           machine1.UserID,
+			ID:               ids,
+			BinaryName:       binaryNames,
+			BinaryHash:       binaryHashes,
+			BinaryPath:       binaryPaths,
+			BinaryArgs:       binaryArgsData,
+			BinaryVersion:    binaryVersions,
+			WorkingDirectory: workingDirs,
+			GitRemoteUrl:     gitRemoteURLs,
+			ExitCode:         exitCodes,
+			DurationMs:       durationsMS,
+		})
+		require.NoError(t, err)
+		t.Logf("inserted %d (%d/%d) invocations", chunkSize, n, numberOfChunks)
+	}
+
+	start := time.Now()
+	err = db.UpsertIntelInvocationSummaries(ctx)
+	if err != nil {
+		var pqErr *pq.Error
+		if errors.As(err, &pqErr) {
+			t.Fatalf("failed: %+v", pqErr.Message)
+		}
+	}
 	require.NoError(t, err)
+	end := time.Now()
+	fmt.Printf("UpsertIntelInvocationSummaries took %s\n", end.Sub(start))
+
+	summaries, err := db.GetIntelInvocationSummaries(ctx)
+	require.NoError(t, err)
+
+	fmt.Printf("Summaries %d\n", len(summaries))
+
+	for _, summary := range summaries {
+		fmt.Printf("%+v\n", summary)
+		workingDirs := map[string]int{}
+		err = json.Unmarshal(summary.BinaryPaths, &workingDirs)
+		require.NoError(t, err)
+		totalWorkingDirs := int64(0)
+		for _, count := range workingDirs {
+			totalWorkingDirs += int64(count)
+		}
+		// require.Equal(t, summary.TotalInvocations, totalWorkingDirs)
+	}
+
+	// got, err := db.GetIntelInvocationSummariesByBinaryAndCohort(ctx)
+	// require.NoError(t, err)
+
+	// for _, row := range got {
+	// 	fmt.Printf("%+v\n", row)
+	// }
 }

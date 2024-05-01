@@ -197,3 +197,49 @@ func (c *Client) ServeIntelDaemon(ctx context.Context, req ServeIntelDaemonReque
 	}
 	return proto.NewDRPCIntelDaemonClient(drpc.MultiplexedConn(session)), nil
 }
+
+// IntelReportRequest returns a report of invocations for a cohort.
+type IntelReportRequest struct {
+	StartsAt time.Time `json:"starts_at" format:"date-time"`
+	// CohortIDs is a list of cohort IDs to report on.
+	// If empty, all cohorts will be reported on.
+	CohortIDs []uuid.UUID `json:"cohort_ids"`
+}
+
+type IntelReport struct {
+	Invocations int64 `json:"invocations"`
+
+	Commands   []IntelReportCommand   `json:"commands"`
+	GitRemotes []IntelReportGitRemote `json:"git_remotes"`
+}
+
+// IntelReportInvocationInterval reports the invocation interval for a duration.
+type IntelReportInvocationInterval struct {
+	CohortID         uuid.UUID `json:"cohort_id" format:"uuid"`
+	StartsAt         time.Time `json:"starts_at" format:"date-time"`
+	EndsAt           time.Time `json:"ends_at" format:"date-time"`
+	Invocations      int64     `json:"invocations"`
+	MedianDurationMS float64   `json:"median_duration_ms"`
+}
+
+// IntelReportGitRemote reports the Git remote URL execution time
+// across all invocations.
+type IntelReportGitRemote struct {
+	URL                    string                          `json:"url"`
+	ExternalAuthProviderID *string                         `json:"external_auth_provider_id"`
+	Invocations            int64                           `json:"invocations"`
+	Intervals              []IntelReportInvocationInterval `json:"intervals"`
+}
+
+type IntelReportCommand struct {
+	BinaryName string   `json:"binary_name"`
+	BinaryArgs []string `json:"binary_args"`
+
+	Invocations int64                           `json:"invocations"`
+	Intervals   []IntelReportInvocationInterval `json:"intervals"`
+	// ExitCodes maps exit codes to the number of invocations.
+	ExitCodes          map[int]int64    `json:"exit_codes"`
+	GitRemoteURLs      map[string]int64 `json:"git_remote_urls"`
+	WorkingDirectories map[string]int64 `json:"working_directories"`
+	BinaryPaths        map[string]int64 `json:"binary_paths"`
+}

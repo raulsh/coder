@@ -90,6 +90,7 @@ func testSQLDB(t testing.TB) *sql.DB {
 	connection, closeFn, err := dbtestutil.Open()
 	require.NoError(t, err)
 	t.Cleanup(closeFn)
+	t.Logf("pgurl %s", connection)
 
 	db, err := sql.Open("postgres", connection)
 	require.NoError(t, err)

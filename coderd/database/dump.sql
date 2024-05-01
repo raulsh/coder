@@ -513,12 +513,29 @@ CREATE TABLE intel_cohorts (
     tracked_executables text[] NOT NULL
 );
 
-CREATE TABLE intel_invocations (
+CREATE TABLE intel_invocation_summaries (
+    id uuid NOT NULL,
+    cohort_id uuid NOT NULL,
+    starts_at timestamp with time zone NOT NULL,
+    ends_at timestamp with time zone NOT NULL,
+    binary_name text NOT NULL,
+    binary_args jsonb NOT NULL,
+    binary_paths jsonb NOT NULL,
+    working_directories jsonb NOT NULL,
+    git_remote_urls jsonb NOT NULL,
+    exit_codes jsonb NOT NULL,
+    unique_machines bigint NOT NULL,
+    total_invocations bigint NOT NULL,
+    median_duration_ms bigint NOT NULL
+);
+
+CREATE UNLOGGED TABLE intel_invocations (
     id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
     machine_id uuid NOT NULL,
     user_id uuid NOT NULL,
     binary_hash text NOT NULL,
+    binary_name text NOT NULL,
     binary_path text NOT NULL,
     binary_args jsonb NOT NULL,
     binary_version text NOT NULL,
@@ -1704,7 +1721,17 @@ CREATE INDEX idx_audit_log_user_id ON audit_logs USING btree (user_id);
 
 CREATE INDEX idx_audit_logs_time_desc ON audit_logs USING btree ("time" DESC);
 
-CREATE UNIQUE INDEX idx_custom_roles_name_lower ON custom_roles USING btree (lower(name));
+CREATE INDEX idx_intel_cohorts_id ON intel_cohorts USING btree (id);
+
+CREATE INDEX idx_intel_invocations_binary_args ON intel_invocations USING gin (binary_args);
+
+CREATE INDEX idx_intel_invocations_binary_name ON intel_invocations USING btree (binary_name);
+
+CREATE INDEX idx_intel_invocations_created_at ON intel_invocations USING btree (created_at);
+
+CREATE INDEX idx_intel_invocations_id ON intel_invocations USING btree (id);
+
+CREATE INDEX idx_intel_invocations_machine_id ON intel_invocations USING btree (machine_id);
 
 CREATE INDEX idx_organization_member_organization_id_uuid ON organization_members USING btree (organization_id);
 
@@ -1816,6 +1843,9 @@ ALTER TABLE ONLY group_members
 
 ALTER TABLE ONLY groups
     ADD CONSTRAINT groups_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY intel_invocation_summaries
+    ADD CONSTRAINT intel_invocation_summaries_cohort_id_fkey FOREIGN KEY (cohort_id) REFERENCES intel_cohorts(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY intel_invocations
     ADD CONSTRAINT intel_invocations_machine_id_fkey FOREIGN KEY (machine_id) REFERENCES intel_machines(id) ON DELETE CASCADE;
