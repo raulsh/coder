@@ -911,9 +911,8 @@ func medianFloat64s(a []float64) float64 {
 		return a[0]
 	} else if len(a)%2 == 0 {
 		return (a[len(a)/2-1] + a[len(a)/2]) / 2
-	} else {
-		return a[len(a)/2]
 	}
+	return a[len(a)/2]
 }
 
 func (*FakeQuerier) AcquireLock(_ context.Context, _ int64) error {
@@ -2567,7 +2566,7 @@ func (q *FakeQuerier) GetIntelMachinesMatchingFilters(_ context.Context, arg dat
 	return machines, nil
 }
 
-func (q *FakeQuerier) GetIntelReportCommands(ctx context.Context, arg database.GetIntelReportCommandsParams) ([]database.GetIntelReportCommandsRow, error) {
+func (q *FakeQuerier) GetIntelReportCommands(_ context.Context, arg database.GetIntelReportCommandsParams) ([]database.GetIntelReportCommandsRow, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
 		return nil, err
@@ -2659,7 +2658,7 @@ func (q *FakeQuerier) GetIntelReportGitRemotes(_ context.Context, opts database.
 				}
 			}
 			remote.TotalInvocations += int64(invocations)
-			remoteMedianDurations[key] = append(remoteMedianDurations[key], float64(summary.MedianDurationMs))
+			remoteMedianDurations[key] = append(remoteMedianDurations[key], summary.MedianDurationMs)
 			remotes[key] = remote
 		}
 	}
@@ -8737,6 +8736,7 @@ func (q *FakeQuerier) UpsertIntelCohort(_ context.Context, arg database.UpsertIn
 		return cohort, nil
 	}
 
+	//nolint:gosimple
 	cohort := database.IntelCohort{
 		ID:                           arg.ID,
 		OrganizationID:               arg.OrganizationID,
