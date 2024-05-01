@@ -2,8 +2,10 @@ package coderd_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -84,5 +86,25 @@ func TestIntelCohorts(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Equal(t, cohort.Name, "example")
+	})
+}
+
+func TestIntelReport(t *testing.T) {
+	t.Parallel()
+	t.Run("Empty", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		ctx := context.Background()
+		cohort, err := client.CreateIntelCohort(ctx, user.OrganizationID, codersdk.CreateIntelCohortRequest{
+			Name: "example",
+		})
+		require.NoError(t, err)
+		report, err := client.IntelReport(ctx, user.OrganizationID, codersdk.IntelReportRequest{
+			CohortIDs: []uuid.UUID{cohort.ID},
+		})
+		require.NoError(t, err)
+		// require.Equal(t, )
+		fmt.Printf("%+v\n", report)
 	})
 }

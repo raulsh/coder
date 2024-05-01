@@ -29,6 +29,18 @@ import (
 	"github.com/coder/coder/v2/inteld/proto"
 )
 
+// intelReport returns a report of invocations for a set of cohorts.
+//
+// @Summary Get intel report
+// @ID get-intel-report
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Intel
+// @Param organization path string true "Organization ID" format(uuid)
+// @Param cohort_id query string true "Cohort ID" format(uuid)
+// @Param starts_at query string false "Starts at" format(date)
+// @Success 200 {object} codersdk.IntelReport
+// @Router /organizations/{organization}/intel/report [get]
 func (api *API) intelReport(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 

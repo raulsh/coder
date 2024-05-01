@@ -284,3 +284,33 @@ type IntelReportCommand struct {
 	WorkingDirectories map[string]int64 `json:"working_directories"`
 	BinaryPaths        map[string]int64 `json:"binary_paths"`
 }
+
+// IntelReport returns a report of invocations for a cohort.
+func (c *Client) IntelReport(ctx context.Context, organizationID uuid.UUID, req IntelReportRequest) (IntelReport, error) {
+	orgParam := organizationID.String()
+	if organizationID == uuid.Nil {
+		orgParam = DefaultOrganization
+	}
+	serverURL, err := c.URL.Parse(fmt.Sprintf("/api/v2/organizations/%s/intel/report", orgParam))
+	if err != nil {
+		return IntelReport{}, xerrors.Errorf("parse url: %w", err)
+	}
+	q := serverURL.Query()
+	if !req.StartsAt.IsZero() {
+		q.Set("starts_at", req.StartsAt.Format(time.DateOnly))
+	}
+	for _, cohortID := range req.CohortIDs {
+		q.Add("cohort_id", cohortID.String())
+	}
+	serverURL.RawQuery = q.Encode()
+	res, err := c.Request(ctx, http.MethodGet, serverURL.String(), req)
+	if err != nil {
+		return IntelReport{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return IntelReport{}, ReadBodyAsError(res)
+	}
+	var report IntelReport
+	return report, json.NewDecoder(res.Body).Decode(&report)
+}

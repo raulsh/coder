@@ -111,6 +111,93 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/intel/
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Get intel report
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/intel/report?cohort_id=497f6eca-6276-4993-bfeb-53cbbbba6f08 \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /organizations/{organization}/intel/report`
+
+### Parameters
+
+| Name           | In    | Type         | Required | Description     |
+| -------------- | ----- | ------------ | -------- | --------------- |
+| `organization` | path  | string(uuid) | true     | Organization ID |
+| `cohort_id`    | query | string(uuid) | true     | Cohort ID       |
+| `starts_at`    | query | string(date) | false    | Starts at       |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "commands": [
+    {
+      "binary_args": ["string"],
+      "binary_name": "string",
+      "binary_paths": {
+        "property1": 0,
+        "property2": 0
+      },
+      "exit_codes": {
+        "property1": 0,
+        "property2": 0
+      },
+      "git_remote_urls": {
+        "property1": 0,
+        "property2": 0
+      },
+      "intervals": [
+        {
+          "cohort_id": "123f4084-d082-4664-a07c-0daa0f13a82f",
+          "ends_at": "2019-08-24T14:15:22Z",
+          "invocations": 0,
+          "median_duration_ms": 0,
+          "starts_at": "2019-08-24T14:15:22Z"
+        }
+      ],
+      "invocations": 0,
+      "working_directories": {
+        "property1": 0,
+        "property2": 0
+      }
+    }
+  ],
+  "git_remotes": [
+    {
+      "external_auth_provider_id": "string",
+      "intervals": [
+        {
+          "cohort_id": "123f4084-d082-4664-a07c-0daa0f13a82f",
+          "ends_at": "2019-08-24T14:15:22Z",
+          "invocations": 0,
+          "median_duration_ms": 0,
+          "starts_at": "2019-08-24T14:15:22Z"
+        }
+      ],
+      "invocations": 0,
+      "url": "string"
+    }
+  ],
+  "invocations": 0
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                 |
+| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------ |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.IntelReport](schemas.md#codersdkintelreport) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Serve intel daemon
 
 ### Code samples

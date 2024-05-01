@@ -3265,6 +3265,172 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `count`          | integer                                                 | false    |              |             |
 | `intel_machines` | array of [codersdk.IntelMachine](#codersdkintelmachine) | false    |              |             |
 
+## codersdk.IntelReport
+
+```json
+{
+  "commands": [
+    {
+      "binary_args": ["string"],
+      "binary_name": "string",
+      "binary_paths": {
+        "property1": 0,
+        "property2": 0
+      },
+      "exit_codes": {
+        "property1": 0,
+        "property2": 0
+      },
+      "git_remote_urls": {
+        "property1": 0,
+        "property2": 0
+      },
+      "intervals": [
+        {
+          "cohort_id": "123f4084-d082-4664-a07c-0daa0f13a82f",
+          "ends_at": "2019-08-24T14:15:22Z",
+          "invocations": 0,
+          "median_duration_ms": 0,
+          "starts_at": "2019-08-24T14:15:22Z"
+        }
+      ],
+      "invocations": 0,
+      "working_directories": {
+        "property1": 0,
+        "property2": 0
+      }
+    }
+  ],
+  "git_remotes": [
+    {
+      "external_auth_provider_id": "string",
+      "intervals": [
+        {
+          "cohort_id": "123f4084-d082-4664-a07c-0daa0f13a82f",
+          "ends_at": "2019-08-24T14:15:22Z",
+          "invocations": 0,
+          "median_duration_ms": 0,
+          "starts_at": "2019-08-24T14:15:22Z"
+        }
+      ],
+      "invocations": 0,
+      "url": "string"
+    }
+  ],
+  "invocations": 0
+}
+```
+
+### Properties
+
+| Name          | Type                                                                    | Required | Restrictions | Description |
+| ------------- | ----------------------------------------------------------------------- | -------- | ------------ | ----------- |
+| `commands`    | array of [codersdk.IntelReportCommand](#codersdkintelreportcommand)     | false    |              |             |
+| `git_remotes` | array of [codersdk.IntelReportGitRemote](#codersdkintelreportgitremote) | false    |              |             |
+| `invocations` | integer                                                                 | false    |              |             |
+
+## codersdk.IntelReportCommand
+
+```json
+{
+  "binary_args": ["string"],
+  "binary_name": "string",
+  "binary_paths": {
+    "property1": 0,
+    "property2": 0
+  },
+  "exit_codes": {
+    "property1": 0,
+    "property2": 0
+  },
+  "git_remote_urls": {
+    "property1": 0,
+    "property2": 0
+  },
+  "intervals": [
+    {
+      "cohort_id": "123f4084-d082-4664-a07c-0daa0f13a82f",
+      "ends_at": "2019-08-24T14:15:22Z",
+      "invocations": 0,
+      "median_duration_ms": 0,
+      "starts_at": "2019-08-24T14:15:22Z"
+    }
+  ],
+  "invocations": 0,
+  "working_directories": {
+    "property1": 0,
+    "property2": 0
+  }
+}
+```
+
+### Properties
+
+| Name                  | Type                                                                                      | Required | Restrictions | Description                                              |
+| --------------------- | ----------------------------------------------------------------------------------------- | -------- | ------------ | -------------------------------------------------------- |
+| `binary_args`         | array of string                                                                           | false    |              |                                                          |
+| `binary_name`         | string                                                                                    | false    |              |                                                          |
+| `binary_paths`        | object                                                                                    | false    |              |                                                          |
+| » `[any property]`    | integer                                                                                   | false    |              |                                                          |
+| `exit_codes`          | object                                                                                    | false    |              | Exit codes maps exit codes to the number of invocations. |
+| » `[any property]`    | integer                                                                                   | false    |              |                                                          |
+| `git_remote_urls`     | object                                                                                    | false    |              |                                                          |
+| » `[any property]`    | integer                                                                                   | false    |              |                                                          |
+| `intervals`           | array of [codersdk.IntelReportInvocationInterval](#codersdkintelreportinvocationinterval) | false    |              |                                                          |
+| `invocations`         | integer                                                                                   | false    |              |                                                          |
+| `working_directories` | object                                                                                    | false    |              |                                                          |
+| » `[any property]`    | integer                                                                                   | false    |              |                                                          |
+
+## codersdk.IntelReportGitRemote
+
+```json
+{
+  "external_auth_provider_id": "string",
+  "intervals": [
+    {
+      "cohort_id": "123f4084-d082-4664-a07c-0daa0f13a82f",
+      "ends_at": "2019-08-24T14:15:22Z",
+      "invocations": 0,
+      "median_duration_ms": 0,
+      "starts_at": "2019-08-24T14:15:22Z"
+    }
+  ],
+  "invocations": 0,
+  "url": "string"
+}
+```
+
+### Properties
+
+| Name                        | Type                                                                                      | Required | Restrictions | Description |
+| --------------------------- | ----------------------------------------------------------------------------------------- | -------- | ------------ | ----------- |
+| `external_auth_provider_id` | string                                                                                    | false    |              |             |
+| `intervals`                 | array of [codersdk.IntelReportInvocationInterval](#codersdkintelreportinvocationinterval) | false    |              |             |
+| `invocations`               | integer                                                                                   | false    |              |             |
+| `url`                       | string                                                                                    | false    |              |             |
+
+## codersdk.IntelReportInvocationInterval
+
+```json
+{
+  "cohort_id": "123f4084-d082-4664-a07c-0daa0f13a82f",
+  "ends_at": "2019-08-24T14:15:22Z",
+  "invocations": 0,
+  "median_duration_ms": 0,
+  "starts_at": "2019-08-24T14:15:22Z"
+}
+```
+
+### Properties
+
+| Name                 | Type    | Required | Restrictions | Description |
+| -------------------- | ------- | -------- | ------------ | ----------- |
+| `cohort_id`          | string  | false    |              |             |
+| `ends_at`            | string  | false    |              |             |
+| `invocations`        | integer | false    |              |             |
+| `median_duration_ms` | number  | false    |              |             |
+| `starts_at`          | string  | false    |              |             |
+
 ## codersdk.IssueReconnectingPTYSignedTokenRequest
 
 ```json

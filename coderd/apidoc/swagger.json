@@ -1993,6 +1993,52 @@
         }
       }
     },
+    "/organizations/{organization}/intel/report": {
+      "get": {
+        "security": [
+          {
+            "CoderSessionToken": []
+          }
+        ],
+        "produces": ["application/json"],
+        "tags": ["Intel"],
+        "summary": "Get intel report",
+        "operationId": "get-intel-report",
+        "parameters": [
+          {
+            "type": "string",
+            "format": "uuid",
+            "description": "Organization ID",
+            "name": "organization",
+            "in": "path",
+            "required": true
+          },
+          {
+            "type": "string",
+            "format": "uuid",
+            "description": "Cohort ID",
+            "name": "cohort_id",
+            "in": "query",
+            "required": true
+          },
+          {
+            "type": "string",
+            "format": "date",
+            "description": "Starts at",
+            "name": "starts_at",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/codersdk.IntelReport"
+            }
+          }
+        }
+      }
+    },
     "/organizations/{organization}/intel/serve": {
       "get": {
         "security": [
@@ -9296,6 +9342,117 @@
           "items": {
             "$ref": "#/definitions/codersdk.IntelMachine"
           }
+        }
+      }
+    },
+    "codersdk.IntelReport": {
+      "type": "object",
+      "properties": {
+        "commands": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/codersdk.IntelReportCommand"
+          }
+        },
+        "git_remotes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/codersdk.IntelReportGitRemote"
+          }
+        },
+        "invocations": {
+          "type": "integer"
+        }
+      }
+    },
+    "codersdk.IntelReportCommand": {
+      "type": "object",
+      "properties": {
+        "binary_args": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "binary_name": {
+          "type": "string"
+        },
+        "binary_paths": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer"
+          }
+        },
+        "exit_codes": {
+          "description": "ExitCodes maps exit codes to the number of invocations.",
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer"
+          }
+        },
+        "git_remote_urls": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer"
+          }
+        },
+        "intervals": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/codersdk.IntelReportInvocationInterval"
+          }
+        },
+        "invocations": {
+          "type": "integer"
+        },
+        "working_directories": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer"
+          }
+        }
+      }
+    },
+    "codersdk.IntelReportGitRemote": {
+      "type": "object",
+      "properties": {
+        "external_auth_provider_id": {
+          "type": "string"
+        },
+        "intervals": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/codersdk.IntelReportInvocationInterval"
+          }
+        },
+        "invocations": {
+          "type": "integer"
+        },
+        "url": {
+          "type": "string"
+        }
+      }
+    },
+    "codersdk.IntelReportInvocationInterval": {
+      "type": "object",
+      "properties": {
+        "cohort_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "ends_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "invocations": {
+          "type": "integer"
+        },
+        "median_duration_ms": {
+          "type": "number"
+        },
+        "starts_at": {
+          "type": "string",
+          "format": "date-time"
         }
       }
     },
