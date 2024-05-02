@@ -49,14 +49,15 @@ The best way to give users access to this group is via claims identity provider 
 
 <div class="tabs">
 
-## coder server
+> Note: Managing group and role sync via server config is deprecated and does not support multiple organizations.
 
-The following server config maps people with the `ds` group claim to the `Everyone` group in the `data-science` organization:
+## CLI
 
-```text
-CODER_OIDC_GROUP_MAPPING '{"ds-user": "data-science::Member:Everyone"}'
-CODER_OIDC_ROLE_MAPPING '{"ds-admin": "data-science:Administrator:Everyone"}'
-```
+<!-- TODO -->
+
+## UI
+
+<!-- TODO -->
 
 ## HCL
 
@@ -81,7 +82,7 @@ resource "coderd_idp_mapping" "data_science_members" {
 # Add admins to the data science group
 resource "coderd_idp_mapping" "data_science_admins" {
   claim_name = "groups"
-  claim_value_includes = "ds-user"
+  claim_value_includes = "ds-admin"
   organization_id = data.coder_organization.data_science.id
   group_id = data.coder_organization.data_science.default_group_id
   role_id = data.coder_organization.data_science.admin_role_id

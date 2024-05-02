@@ -31,9 +31,9 @@ Examples:
 - The `@quality-assurance` group has a Windows workspace they use share for testing
 - The `@data-science` group has a provisioner in their own Kubernetes cluster but use a standard template
 
-## Service Accounts
+## Headless Users
 
-Service accounts can be used for CI jobs, third-party integrations, and other automation. Unlike other accounts in Coder, service accounts do not consume a license seat or have an OIDC/password login method, so they cannot be used to log in to the Coder UI.
+Headless user accounts can be used for CI jobs, third-party integrations, and other automation. Unlike other accounts in Coder, headless user accounts do not consume a license seat or have an OIDC/password login method, so they cannot be used to log in to the Coder UI.
 
 ## Custom Roles
 
@@ -45,7 +45,7 @@ Examples:
 - The `Organization Lead` role can access user workspaces for troubleshooting purposes, but cannot edit templates
 - The `Platform Member` role cannot edit or create workspaces as they are created via a third-party system
 
-Custom roles can also be applied to service accounts:
+Custom roles can also be applied to headless user accounts:
 
 - A `Health Check` role can view deployment status but cannot create workspaces, manage templates, or view users
 - A `CI` role can update manage templates but cannot create workspaces or view users
