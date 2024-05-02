@@ -6,7 +6,7 @@ Allow different teams to bring their own Kubernetes cluster into Coder, or optio
 
 First, you need a Coder deployment with [tiered RBAC](../README.md) enabled. You also must have the `Global Administrator` role.
 
-## Option 1: Isolated Organizations
+## Isolated Organizations
 
 To give teams full autonomy of their Coder usage, templates, and infrastructure, consider giving them an isolated organization.
 
@@ -91,61 +91,3 @@ resource "coderd_idp_mapping" "data_science_admins" {
 </div>
 
 Now, users can log in and gain access to the data science organization. Users with the `ds-admin` group in their identity provider will be able to manage provisioners, templates, and users within the organization.
-
-## Option 2: Group Provisioners
-
-If you want to manage a central set of templates, while allowing teams to bring their own infrastructure, group provisioners may be a good option.
-
-First, create a custom role allowing certain organization members to create provisioners:
-
-<div class="tabs">
-
-## HCL
-
-The `write:group-provisioner` role allows users to create provisioners in their organization on behalf of any groups they belong to.
-
-```hcl
-provider "coderd" {}
-
-data "coder_organization" "default" {
-  name = "default"
-}
-
-resource "coderd_custom_role" {
-  organization = data.coder_organization.default.id
-  name         = "provisioner-admin"
-  description  = "Create provisioners"
-
-  permission {
-    action = "write"
-    object = "group-provisioner"
-  }
-}
-```
-</div>
-
-[Role sync](#) can be used to automatically add users to the `provisioner-admin` role based on group or role membership in the identity provider.
-
-Users with this role will be able to create provisioners on behalf of their group:
-
-<div class="tabs">
-
-## UI
-
-![Create a provisioner](../../../images/rabbit/create-provisioner.png)
-
-## CLI
-
-<!-- This needs work -->
-
-```sh
-coder provisionerd create \
-  --scope=group \
-  --group=data-science
-```
-
-</div>
-
-When users are creating workspaces, they can now pick from a compatible provisioner:
-
-![Provisioner picker](../../../images/rabbit/create-workspace-provisioner-picker.png)
