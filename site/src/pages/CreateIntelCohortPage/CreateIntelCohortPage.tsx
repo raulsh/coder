@@ -1,5 +1,12 @@
 import { css } from "@emotion/react";
-import { Button, FormHelperText, TextField } from "@mui/material";
+import {
+  Button,
+  Chip,
+  FormControl,
+  FormHelperText,
+  Input,
+  TextField,
+} from "@mui/material";
 import { Margins } from "components/Margins/Margins";
 import {
   PageHeader,
@@ -7,7 +14,7 @@ import {
   PageHeaderTitle,
 } from "components/PageHeader/PageHeader";
 import { Stack } from "components/Stack/Stack";
-import { FormikContextType, useFormik } from "formik";
+import { FieldArray, FormikContextType, useFormik } from "formik";
 import * as TypesGen from "api/typesGenerated";
 import {
   getFormHelpers,
@@ -17,6 +24,7 @@ import {
 import { FormFields, FormSection, HorizontalForm } from "components/Form/Form";
 import * as Yup from "yup";
 import { IconField } from "components/IconField/IconField";
+import { useCallback, useState } from "react";
 
 const CreateIntelCohortPage = () => {
   const form: FormikContextType<TypesGen.CreateIntelCohortRequest> =
@@ -42,6 +50,7 @@ const CreateIntelCohortPage = () => {
         console.log("submit", request);
       },
     });
+
   const isSubmitting = false;
   const getFieldHelpers = getFormHelpers(form);
 
@@ -148,8 +157,77 @@ const CreateIntelCohortPage = () => {
             </Stack>
           </FormFields>
         </FormSection>
+        <FormSection title="Tracked Executables" description="Machines that match the selector above will track binaries specified here. On Windows, `.exe` is automatically appended.">
+          <FormFields>
+            <IntelBinariesInput
+              value={form.values.tracked_executables}
+              onChange={(value) => form.setFieldValue("tracked_executables", value)}
+            />
+          </FormFields>
+        </FormSection>
       </HorizontalForm>
     </Margins>
+  );
+};
+
+const IntelBinariesInput: React.FC<{
+  value: readonly string[];
+  onChange: (value: string[]) => void;
+}> = ({ value, onChange }) => {
+  const [currentValue, setCurrentValue] = useState("");
+  const handleOnDelete = useCallback(
+    (index: number) => {
+      const newValues = [...value];
+      newValues.splice(index, 1);
+      onChange(newValues);
+    },
+    [value, onChange],
+  );
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLDivElement>) => {
+      if (e.key !== "Enter") {
+        return
+      }
+      const index = value.indexOf(currentValue)
+      setCurrentValue("");
+      if (index !== -1) {
+        // Already exists!
+        return
+      }
+      onChange([...value, currentValue]);
+    },
+    [value, onChange, currentValue],
+  );
+
+  return (
+    <div>
+      <FormControl>
+        <TextField
+          label="Binary Name"
+          placeholder="e.g. go, node, pnpm, yarn"
+          onKeyDown={handleKeyDown}
+          value={currentValue}
+          fullWidth
+          onChange={(e) => setCurrentValue(e.target.value)}
+          helperText="Press Enter to add a new binary."
+        />
+        <div css={css`
+          display: flex;
+          flex-wrap: wrap;
+          gap: 4px;
+          margin-top: 8px;
+        `}>
+          {value.map((value, index) => (
+            <Chip
+              key={value}
+              size="small"
+              label={value}
+              onDelete={() => handleOnDelete(index)}
+            />
+          ))}
+        </div>
+      </FormControl>
+    </div>
   );
 };
 

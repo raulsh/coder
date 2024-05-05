@@ -46,7 +46,7 @@ type Options struct {
 
 func New(ctx context.Context, opts Options) (proto.DRPCIntelDaemonServer, error) {
 	if opts.InvocationFlushInterval == 0 {
-		opts.InvocationFlushInterval = time.Minute
+		opts.InvocationFlushInterval = 5 * time.Second
 	}
 	if opts.InvocationQueueLimit == 0 {
 		opts.InvocationQueueLimit = 1000

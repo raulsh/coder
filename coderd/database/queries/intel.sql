@@ -67,12 +67,12 @@ WITH machines AS (
 	c.id,
     c.tracked_executables
   FROM intel_cohorts c
-  CROSS JOIN machines m
-	WHERE c.regex_operating_system ~ m.operating_system
-	AND c.regex_operating_system_platform ~ m.operating_system_platform
-	AND c.regex_operating_system_version ~ m.operating_system_version
-	AND c.regex_architecture ~ m.architecture
-	AND c.regex_instance_id ~ m.instance_id;
+  CROSS JOIN machines m WHERE
+    m.operating_system ~ c.regex_operating_system AND
+    m.operating_system_platform ~ c.regex_operating_system_platform AND
+    m.operating_system_version ~ c.regex_operating_system_version AND
+    m.architecture ~ c.regex_architecture AND
+    m.instance_id ~ c.regex_instance_id;
 
 -- name: GetIntelMachinesMatchingFilters :many
 WITH filtered_machines AS (
