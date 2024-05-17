@@ -1821,6 +1821,10 @@ type File struct {
 	ID        uuid.UUID `db:"id" json:"id"`
 }
 
+type Foo struct {
+	Bar string `db:"bar" json:"bar"`
+}
+
 type GitSSHKey struct {
 	UserID     uuid.UUID `db:"user_id" json:"user_id"`
 	CreatedAt  time.Time `db:"created_at" json:"created_at"`

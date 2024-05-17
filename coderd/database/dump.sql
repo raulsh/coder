@@ -453,6 +453,10 @@ CREATE TABLE files (
     id uuid DEFAULT gen_random_uuid() NOT NULL
 );
 
+CREATE TABLE foo (
+    bar text NOT NULL
+);
+
 CREATE TABLE gitsshkeys (
     user_id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
@@ -1412,6 +1416,9 @@ ALTER TABLE ONLY files
 
 ALTER TABLE ONLY files
     ADD CONSTRAINT files_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY foo
+    ADD CONSTRAINT foo_pkey PRIMARY KEY (bar);
 
 ALTER TABLE ONLY external_auth_links
     ADD CONSTRAINT git_auth_links_provider_id_user_id_key UNIQUE (provider_id, user_id);
