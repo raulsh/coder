@@ -1,20 +1,17 @@
-import { useEffect, useMemo, useRef, useState, type FC, type PropsWithChildren } from "react";
-import { Helmet } from "react-helmet-async";
-import { Outlet, useLocation } from "react-router-dom";
-import { FilterSearchMenu, OptionItem } from "components/Filter/filter";
-import { useFilterMenu } from "components/Filter/menu";
+import { css } from "@emotion/react";
+import { KeyboardArrowDown } from "@mui/icons-material";
+import { Button, Menu, MenuItem, MenuList } from "@mui/material";
+import { intelCohorts } from "api/queries/intel";
+import { IntelCohort } from "api/typesGenerated";
 import { Margins } from "components/Margins/Margins";
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
 import { TabLink, Tabs, TabsList } from "components/Tabs/Tabs";
-import { pageTitle } from "utils/page";
-import { useQuery } from "react-query";
-import { intelCohorts } from "api/queries/intel";
-import { useAuthenticated } from "contexts/auth/RequireAuth";
-import { Button, Menu, MenuItem, MenuList } from "@mui/material";
-import { KeyboardArrowDown } from "@mui/icons-material";
-import { css } from "@emotion/react";
-import { IntelCohort } from "api/typesGenerated";
 import { useDashboard } from "modules/dashboard/useDashboard";
+import { useEffect, useMemo, useRef, useState, type FC, type PropsWithChildren } from "react";
+import { Helmet } from "react-helmet-async";
+import { useQuery } from "react-query";
+import { Outlet, useLocation } from "react-router-dom";
+import { pageTitle } from "utils/page";
 
 const IntelLayout: FC<PropsWithChildren> = ({ children = <Outlet /> }) => {
   const location = useLocation();
@@ -22,23 +19,6 @@ const IntelLayout: FC<PropsWithChildren> = ({ children = <Outlet /> }) => {
   const activeTab = paths[2] ?? "summary";
   const { organizationId } = useDashboard();
   const cohortsQuery = useQuery(intelCohorts(organizationId));
-  const cohortFilter = useFilterMenu({
-    onChange: () => undefined,
-    value: "All Cohorts",
-    id: "cohort",
-    getOptions: async (_) => {
-      return (
-        cohortsQuery.data?.map((cohort) => ({
-          label: cohort.name,
-          value: cohort.id,
-        })) ?? []
-      );
-    },
-    getSelectedOption: async () => {
-      return null;
-    },
-    enabled: true,
-  });
 
   if (cohortsQuery.isLoading) {
     return <div>Loading...</div>;

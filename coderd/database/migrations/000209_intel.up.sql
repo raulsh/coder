@@ -59,7 +59,7 @@ CREATE INDEX idx_intel_invocations_binary_args ON intel_invocations USING gin (b
 
 -- Stores summaries for hour intervals of invocations.
 -- There are so many invocations that we need to summarize them to make querying them feasible.
-CREATE TABLE intel_invocation_summaries (
+CREATE UNLOGGED TABLE intel_invocation_summaries (
   id uuid NOT NULL,
   starts_at TIMESTAMPTZ NOT NULL,
   ends_at TIMESTAMPTZ NOT NULL,

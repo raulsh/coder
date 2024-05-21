@@ -684,130 +684,39 @@ func requireUsersMatch(t testing.TB, expected []database.User, found []database.
 // complex, so it's good to manually verify the outputs.
 func TestIntelReports(t *testing.T) {
 	t.Parallel()
-	t.Run("ReportGitRemotes", func(t *testing.T) {
-		t.Parallel()
-		t.Run("MedianDurationMS", func(t *testing.T) {
-			t.Parallel()
-			db, _ := dbtestutil.NewDB(t)
-			// A cohort that matches all machines is necessary.
-			cohort := dbgen.IntelCohort(t, db, database.IntelCohort{})
-			machine := dbgen.IntelMachine(t, db, database.IntelMachine{
-				OrganizationID: cohort.OrganizationID,
-				Metadata: database.StringMap{
-					"operating_system": "linux",
-				},
-			})
-			dbgen.IntelInvocations(t, db, database.IntelInvocation{
-				MachineID:    machine.ID,
-				GitRemoteUrl: "https://github.com/coder/coder",
-				DurationMs:   5,
-			}, 50)
-			dbgen.IntelInvocations(t, db, database.IntelInvocation{
-				MachineID:    machine.ID,
-				GitRemoteUrl: "https://github.com/coder/coder",
-				DurationMs:   10,
-			}, 50)
-
-			metadata, err := json.Marshal(database.StringMap{
-				"operating_system": "linux",
-			})
-			require.NoError(t, err)
-			machines, err := db.GetIntelMachinesMatchingFilters(context.Background(), database.GetIntelMachinesMatchingFiltersParams{
-				OrganizationID: machine.OrganizationID,
-				Metadata:       metadata,
-			})
-			require.NoError(t, err)
-			require.Len(t, machines, 1)
-
-			err = db.UpsertIntelInvocationSummaries(context.Background())
-			require.NoError(t, err)
-			rows, err := db.GetIntelReportGitRemotes(context.Background(), time.Time{})
-			require.NoError(t, err)
-			require.Len(t, rows, 1)
-			row := rows[0]
-			require.Equal(t, 7.5, row.MedianDurationMs)
-		})
-		t.Run("MultipleCohorts", func(t *testing.T) {
-			// Ensures that multiple cohorts with a matching remote URL
-			// are properly returned!
-			t.Parallel()
-			db, _ := dbtestutil.NewDB(t)
-
-			// Create machines to match the cohorts!
-			windows := dbgen.IntelMachine(t, db, database.IntelMachine{
-				Metadata: database.StringMap{
-					"operating_system": "windows",
-					"potato":           "true",
-				},
-			})
-			linux := dbgen.IntelMachine(t, db, database.IntelMachine{
-				Metadata: database.StringMap{
-					"operating_system": "linux",
-					"potato":           "true",
-				},
-			})
-
-			// Insert invocations for each machine.
-			dbgen.IntelInvocations(t, db, database.IntelInvocation{
-				MachineID:    windows.ID,
-				GitRemoteUrl: "https://github.com/coder/coder",
-			}, 50)
-			dbgen.IntelInvocations(t, db, database.IntelInvocation{
-				MachineID:    linux.ID,
-				GitRemoteUrl: "https://github.com/coder/coder",
-			}, 50)
-
-			err := db.UpsertIntelInvocationSummaries(context.Background())
-			require.NoError(t, err)
-
-			time.Sleep(time.Hour)
-
-			rows, err := db.GetIntelReportGitRemotes(context.Background(), time.Time{})
-			require.NoError(t, err)
-			require.Len(t, rows, 3)
-
-			// for _, row := range rows {
-			// 	switch row.CohortID {
-			// 	case allCohort.ID:
-			// 		require.Equal(t, int64(100), row.TotalInvocations)
-			// 	case linuxCohort.ID:
-			// 		require.Equal(t, int64(50), row.TotalInvocations)
-			// 	case windowsCohort.ID:
-			// 		require.Equal(t, int64(50), row.TotalInvocations)
-			// 	default:
-			// 		t.Fatalf("unexpected cohort ID: %s", row.CohortID)
-			// 	}
-			// }
-		})
-	})
-	t.Run("ReportCommands", func(t *testing.T) {
+	t.Run("MultipleCohorts", func(t *testing.T) {
+		// Ensures that multiple cohorts with a matching remote URL
+		// are properly returned!
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
-		machine := dbgen.IntelMachine(t, db, database.IntelMachine{})
+
+		// Create machines to match the cohorts!
+		windows := dbgen.IntelMachine(t, db, database.IntelMachine{
+			Metadata: database.StringMap{
+				"operating_system": "windows",
+				"potato":           "true",
+			},
+		})
+		linux := dbgen.IntelMachine(t, db, database.IntelMachine{
+			Metadata: database.StringMap{
+				"operating_system": "linux",
+				"potato":           "true",
+			},
+		})
+
+		// Insert invocations for each machine.
 		dbgen.IntelInvocations(t, db, database.IntelInvocation{
-			MachineID:  machine.ID,
-			BinaryName: "go",
-			BinaryArgs: []byte(`["test"]`),
+			MachineID:    windows.ID,
+			GitRemoteUrl: "https://github.com/coder/coder",
 		}, 50)
 		dbgen.IntelInvocations(t, db, database.IntelInvocation{
-			MachineID:  machine.ID,
-			BinaryName: "go",
-			BinaryArgs: []byte(`["build"]`),
+			MachineID:    linux.ID,
+			GitRemoteUrl: "https://github.com/coder/coder",
 		}, 50)
+
 		err := db.UpsertIntelInvocationSummaries(context.Background())
 		require.NoError(t, err)
-		rows, err := db.GetIntelReportCommands(context.Background(), time.Time{})
-		require.NoError(t, err)
-		require.Len(t, rows, 2)
-		for _, row := range rows {
-			switch string(row.BinaryArgs) {
-			case `["test"]`:
-				require.Equal(t, int64(50), row.TotalInvocations)
-			case `["build"]`:
-				require.Equal(t, int64(50), row.TotalInvocations)
-			default:
-				t.Fatalf("unexpected binary args: %s", row.BinaryArgs)
-			}
-		}
+
+		time.Sleep(time.Hour)
 	})
 }

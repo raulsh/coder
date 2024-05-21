@@ -42,9 +42,27 @@ const meta: Meta<typeof IntelHomePage> = {
       {
         key: intelReportKey([]),
         data: {
-          commands: [],
-          git_remotes: [],
           invocations: 1000,
+          git_auth_providers: {},
+          intervals: [
+            {
+              binary_name: "go",
+              binary_args: ["test"],
+              binary_paths: {
+                "/usr/bin/go": 100,
+              },
+              starts_at: "2021-01-01T00:00:00Z",
+              ends_at: "2021-01-01T00:15:00Z",
+              exit_codes: {},
+              git_remote_urls: {},
+              id: "",
+              machine_metadata: {},
+              median_duration_ms: 1,
+              total_invocations: 100,
+              unique_machines: 2,
+              working_directories: {},
+            },
+          ],
         } as IntelReport,
       }
     ],
