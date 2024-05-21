@@ -154,33 +154,48 @@ func (s *server) invocationQueueLoop() {
 }
 
 func (s *server) Listen(req *proto.ListenRequest, stream proto.DRPCIntelDaemon_ListenStream) error {
-	// TODO: Move this centrally so on update a single query is fired instead!
-	cohorts, err := s.Database.GetIntelCohortsMatchedByMachineIDs(stream.Context(), []uuid.UUID{s.MachineID})
-	if err != nil {
-		return xerrors.Errorf("get intel cohorts: %w", err)
-	}
-	executablesToTrack := []string{}
-	for _, cohort := range cohorts {
-		if cohort.MachineID != s.MachineID {
-			continue
+	sendExecutables := func() error {
+		cohorts, err := s.Database.GetIntelCohortsMatchedByMachineIDs(stream.Context(), []uuid.UUID{s.MachineID})
+		if err != nil {
+			return xerrors.Errorf("get intel cohorts: %w", err)
 		}
-		executablesToTrack = append(executablesToTrack, cohort.TrackedExecutables...)
-	}
-	err = stream.Send(&proto.SystemResponse{
-		Message: &proto.SystemResponse_TrackExecutables{
-			TrackExecutables: &proto.TrackExecutables{
-				BinaryName: executablesToTrack,
+		executablesToTrack := []string{}
+		for _, cohort := range cohorts {
+			if cohort.MachineID != s.MachineID {
+				continue
+			}
+			executablesToTrack = append(executablesToTrack, cohort.TrackedExecutables...)
+		}
+		err = stream.Send(&proto.SystemResponse{
+			Message: &proto.SystemResponse_TrackExecutables{
+				TrackExecutables: &proto.TrackExecutables{
+					BinaryName: executablesToTrack,
+				},
 			},
-		},
-	})
-	if err != nil {
-		return xerrors.Errorf("send track executables: %w", err)
+		})
+		if err != nil {
+			return xerrors.Errorf("send track executables: %w", err)
+		}
+		return nil
 	}
+
+	err := sendExecutables()
+	if err != nil {
+		s.Logger.Warn(stream.Context(), "failed to send executables", slog.Error(err))
+		return err
+	}
+
+	ticker := time.NewTicker(5 * time.Minute)
 	for {
 		select {
 		// TODO: Listen for updates here!
 		case <-stream.Context().Done():
 			return nil
+		case <-ticker.C:
+			err := sendExecutables()
+			if err != nil {
+				s.Logger.Warn(stream.Context(), "failed to send executables", slog.Error(err))
+			}
 		}
 	}
 

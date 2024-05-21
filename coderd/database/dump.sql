@@ -504,17 +504,14 @@ CREATE TABLE intel_cohorts (
     name text NOT NULL,
     icon character varying(256) DEFAULT ''::character varying NOT NULL,
     description text NOT NULL,
-    regex_operating_system character varying(255) DEFAULT '.*'::character varying NOT NULL,
-    regex_operating_system_platform character varying(255) DEFAULT '.*'::character varying NOT NULL,
-    regex_operating_system_version character varying(255) DEFAULT '.*'::character varying NOT NULL,
-    regex_architecture character varying(255) DEFAULT '.*'::character varying NOT NULL,
-    regex_instance_id character varying(255) DEFAULT '.*'::character varying NOT NULL,
-    tracked_executables text[] NOT NULL
+    tracked_executables text[] NOT NULL,
+    machine_metadata jsonb
 );
+
+COMMENT ON COLUMN intel_cohorts.machine_metadata IS 'Key/value pairs that will be regex matched against to find machines. If null, all machines are matched.';
 
 CREATE TABLE intel_invocation_summaries (
     id uuid NOT NULL,
-    cohort_id uuid NOT NULL,
     starts_at timestamp with time zone NOT NULL,
     ends_at timestamp with time zone NOT NULL,
     binary_name text NOT NULL,
@@ -523,10 +520,13 @@ CREATE TABLE intel_invocation_summaries (
     working_directories jsonb NOT NULL,
     git_remote_urls jsonb NOT NULL,
     exit_codes jsonb NOT NULL,
+    machine_metadata jsonb NOT NULL,
     unique_machines bigint NOT NULL,
     total_invocations bigint NOT NULL,
     median_duration_ms double precision NOT NULL
 );
+
+COMMENT ON COLUMN intel_invocation_summaries.machine_metadata IS 'Aggregated machine metadata.';
 
 CREATE UNLOGGED TABLE intel_invocations (
     id uuid NOT NULL,
@@ -552,23 +552,13 @@ CREATE TABLE intel_machines (
     organization_id uuid NOT NULL,
     user_id uuid NOT NULL,
     ip_address inet DEFAULT '0.0.0.0'::inet NOT NULL,
-    hostname text NOT NULL,
-    operating_system character varying(255) NOT NULL,
-    operating_system_version character varying(255) NOT NULL,
-    operating_system_platform character varying(255) NOT NULL,
-    cpu_cores integer NOT NULL,
-    memory_mb_total integer NOT NULL,
-    architecture character varying(255) NOT NULL,
-    daemon_version character varying(255) NOT NULL
+    daemon_version character varying(255) NOT NULL,
+    metadata jsonb NOT NULL
 );
 
-COMMENT ON COLUMN intel_machines.operating_system IS 'GOOS';
-
-COMMENT ON COLUMN intel_machines.memory_mb_total IS 'in MB';
-
-COMMENT ON COLUMN intel_machines.architecture IS 'GOARCH. e.g. amd64';
-
 COMMENT ON COLUMN intel_machines.daemon_version IS 'Version of the daemon running on the machine';
+
+COMMENT ON COLUMN intel_machines.metadata IS 'Key/value pairs that will be regex matched against to find cohorts';
 
 CREATE TABLE jfrog_xray_scans (
     agent_id uuid NOT NULL,
@@ -1845,9 +1835,6 @@ ALTER TABLE ONLY group_members
 
 ALTER TABLE ONLY groups
     ADD CONSTRAINT groups_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
-
-ALTER TABLE ONLY intel_invocation_summaries
-    ADD CONSTRAINT intel_invocation_summaries_cohort_id_fkey FOREIGN KEY (cohort_id) REFERENCES intel_cohorts(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY intel_invocations
     ADD CONSTRAINT intel_invocations_machine_id_fkey FOREIGN KEY (machine_id) REFERENCES intel_machines(id) ON DELETE CASCADE;

@@ -51,6 +51,33 @@ sql:
           - column: "template_usage_stats.app_usage_mins"
             go_type:
               type: "StringMapOfInt"
+          - column: "intel_machines.metadata"
+            go_type:
+              type: "StringMap"
+          - column: "intel_cohorts.machine_metadata"
+            go_type:
+              type: "NullStringMapOfRegex"
+          - column: "intel_invocation_summaries.machine_metadata"
+            go_type:
+              type: "map[string]map[string]int64"
+          - column: "intel_invocations.binary_args"
+            go_type:
+              type: "[]string"
+          - column: "intel_invocation_summaries.binary_args"
+            go_type:
+              type: "[]string"
+          - column: "intel_invocation_summaries.binary_paths"
+            go_type:
+              type: "map[string]int64"
+          - column: "intel_invocation_summaries.working_directories"
+            go_type:
+              type: "map[string]int64"
+          - column: "intel_invocation_summaries.git_remote_urls"
+            go_type:
+              type: "map[string]int64"
+          - column: "intel_invocation_summaries.exit_codes"
+            go_type:
+              type: "map[string]int64"
         rename:
           template: TemplateTable
           template_with_user: Template

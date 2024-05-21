@@ -2960,7 +2960,7 @@ func (q *sqlQuerier) DeleteIntelCohortsByIDs(ctx context.Context, cohortIds []uu
 }
 
 const getIntelCohortsByOrganizationID = `-- name: GetIntelCohortsByOrganizationID :many
-SELECT id, organization_id, created_by, created_at, updated_at, name, icon, description, regex_operating_system, regex_operating_system_platform, regex_operating_system_version, regex_architecture, regex_instance_id, tracked_executables FROM intel_cohorts WHERE organization_id = $1 AND ($2 IS NULL OR name = $2)
+SELECT id, organization_id, created_by, created_at, updated_at, name, icon, description, tracked_executables, machine_metadata FROM intel_cohorts WHERE organization_id = $1 AND ($2 IS NULL OR name = $2)
 `
 
 type GetIntelCohortsByOrganizationIDParams struct {
@@ -2986,12 +2986,8 @@ func (q *sqlQuerier) GetIntelCohortsByOrganizationID(ctx context.Context, arg Ge
 			&i.Name,
 			&i.Icon,
 			&i.Description,
-			&i.RegexOperatingSystem,
-			&i.RegexOperatingSystemPlatform,
-			&i.RegexOperatingSystemVersion,
-			&i.RegexArchitecture,
-			&i.RegexInstanceID,
 			pq.Array(&i.TrackedExecutables),
+			&i.MachineMetadata,
 		); err != nil {
 			return nil, err
 		}
@@ -3008,18 +3004,19 @@ func (q *sqlQuerier) GetIntelCohortsByOrganizationID(ctx context.Context, arg Ge
 
 const getIntelCohortsMatchedByMachineIDs = `-- name: GetIntelCohortsMatchedByMachineIDs :many
 WITH machines AS (
-    SELECT id, created_at, updated_at, instance_id, organization_id, user_id, ip_address, hostname, operating_system, operating_system_version, operating_system_platform, cpu_cores, memory_mb_total, architecture, daemon_version FROM intel_machines WHERE id = ANY($1::uuid [])
+    SELECT id, created_at, updated_at, instance_id, organization_id, user_id, ip_address, daemon_version, metadata FROM intel_machines WHERE id = ANY($1::uuid [])
 ) SELECT
 	m.id machine_id,
 	c.id,
     c.tracked_executables
   FROM intel_cohorts c
   CROSS JOIN machines m WHERE
-    m.operating_system ~ c.regex_operating_system AND
-    m.operating_system_platform ~ c.regex_operating_system_platform AND
-    m.operating_system_version ~ c.regex_operating_system_version AND
-    m.architecture ~ c.regex_architecture AND
-    m.instance_id ~ c.regex_instance_id
+    c.machine_metadata = '{}' OR EXISTS (
+        SELECT 1
+        FROM jsonb_each_text(metadata) AS mdata(key, value)
+        JOIN jsonb_each_text(c.machine_metadata) AS cdata(key, regex)
+        ON mdata.key = cdata.key AND mdata.value ~ regex
+    )
 `
 
 type GetIntelCohortsMatchedByMachineIDsRow struct {
@@ -3052,33 +3049,83 @@ func (q *sqlQuerier) GetIntelCohortsMatchedByMachineIDs(ctx context.Context, ids
 	return items, nil
 }
 
+const getIntelInvocationSummaries = `-- name: GetIntelInvocationSummaries :many
+SELECT id, starts_at, ends_at, binary_name, binary_args, binary_paths, working_directories, git_remote_urls, exit_codes, machine_metadata, unique_machines, total_invocations, median_duration_ms FROM intel_invocation_summaries WHERE starts_at >= $1 AND
+	($2 :: jsonb = '{}' OR EXISTS (
+        SELECT 1
+        FROM jsonb_each_text(machine_metadata) AS mdata(key, value)
+        JOIN jsonb_each_text($3 :: jsonb) AS cdata(key, regex)
+        ON mdata.key = cdata.key AND mdata.value ~ regex
+    ))
+`
+
+type GetIntelInvocationSummariesParams struct {
+	StartsAt        time.Time       `db:"starts_at" json:"starts_at"`
+	Metadata        json.RawMessage `db:"metadata" json:"metadata"`
+	MachineMetadata json.RawMessage `db:"machine_metadata" json:"machine_metadata"`
+}
+
+func (q *sqlQuerier) GetIntelInvocationSummaries(ctx context.Context, arg GetIntelInvocationSummariesParams) ([]IntelInvocationSummary, error) {
+	rows, err := q.db.QueryContext(ctx, getIntelInvocationSummaries, arg.StartsAt, arg.Metadata, arg.MachineMetadata)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []IntelInvocationSummary
+	for rows.Next() {
+		var i IntelInvocationSummary
+		if err := rows.Scan(
+			&i.ID,
+			&i.StartsAt,
+			&i.EndsAt,
+			&i.BinaryName,
+			pq.Array(&i.BinaryArgs),
+			&i.BinaryPaths,
+			&i.WorkingDirectories,
+			&i.GitRemoteUrls,
+			&i.ExitCodes,
+			&i.MachineMetadata,
+			&i.UniqueMachines,
+			&i.TotalInvocations,
+			&i.MedianDurationMs,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getIntelMachinesMatchingFilters = `-- name: GetIntelMachinesMatchingFilters :many
 WITH filtered_machines AS (
 	SELECT
-		id, created_at, updated_at, instance_id, organization_id, user_id, ip_address, hostname, operating_system, operating_system_version, operating_system_platform, cpu_cores, memory_mb_total, architecture, daemon_version
+		id, created_at, updated_at, instance_id, organization_id, user_id, ip_address, daemon_version, metadata
 	FROM intel_machines WHERE organization_id = $1
-	    AND operating_system ~ $2
-		AND operating_system_platform ~ $3
-		AND operating_system_version ~ $4
-		AND architecture ~ $5
-		AND instance_id ~ $6
+	    AND ($2 :: jsonb = '{}' OR EXISTS (
+        SELECT 1
+        FROM jsonb_each_text(metadata) AS mdata(key, value)
+        JOIN jsonb_each_text($2 :: jsonb) AS cdata(key, regex)
+        ON mdata.key = cdata.key AND mdata.value ~ regex
+    ))
 ), total_machines AS (
 	SELECT COUNT(*) as count FROM filtered_machines
 ), paginated_machines AS (
-	SELECT id, created_at, updated_at, instance_id, organization_id, user_id, ip_address, hostname, operating_system, operating_system_version, operating_system_platform, cpu_cores, memory_mb_total, architecture, daemon_version FROM filtered_machines ORDER BY created_at DESC LIMIT NULLIF($8 :: int, 0) OFFSET NULLIF($7 :: int, 0)
+	SELECT id, created_at, updated_at, instance_id, organization_id, user_id, ip_address, daemon_version, metadata FROM filtered_machines ORDER BY created_at DESC LIMIT NULLIF($4 :: int, 0) OFFSET NULLIF($3 :: int, 0)
 )
-SELECT tm.count, intel_machines.id, intel_machines.created_at, intel_machines.updated_at, intel_machines.instance_id, intel_machines.organization_id, intel_machines.user_id, intel_machines.ip_address, intel_machines.hostname, intel_machines.operating_system, intel_machines.operating_system_version, intel_machines.operating_system_platform, intel_machines.cpu_cores, intel_machines.memory_mb_total, intel_machines.architecture, intel_machines.daemon_version FROM paginated_machines AS intel_machines CROSS JOIN total_machines as tm
+SELECT tm.count, intel_machines.id, intel_machines.created_at, intel_machines.updated_at, intel_machines.instance_id, intel_machines.organization_id, intel_machines.user_id, intel_machines.ip_address, intel_machines.daemon_version, intel_machines.metadata FROM paginated_machines AS intel_machines CROSS JOIN total_machines as tm
 `
 
 type GetIntelMachinesMatchingFiltersParams struct {
-	OrganizationID               uuid.UUID `db:"organization_id" json:"organization_id"`
-	RegexOperatingSystem         string    `db:"regex_operating_system" json:"regex_operating_system"`
-	RegexOperatingSystemPlatform string    `db:"regex_operating_system_platform" json:"regex_operating_system_platform"`
-	RegexOperatingSystemVersion  string    `db:"regex_operating_system_version" json:"regex_operating_system_version"`
-	RegexArchitecture            string    `db:"regex_architecture" json:"regex_architecture"`
-	RegexInstanceID              string    `db:"regex_instance_id" json:"regex_instance_id"`
-	OffsetOpt                    int32     `db:"offset_opt" json:"offset_opt"`
-	LimitOpt                     int32     `db:"limit_opt" json:"limit_opt"`
+	OrganizationID uuid.UUID       `db:"organization_id" json:"organization_id"`
+	Metadata       json.RawMessage `db:"metadata" json:"metadata"`
+	OffsetOpt      int32           `db:"offset_opt" json:"offset_opt"`
+	LimitOpt       int32           `db:"limit_opt" json:"limit_opt"`
 }
 
 type GetIntelMachinesMatchingFiltersRow struct {
@@ -3089,11 +3136,7 @@ type GetIntelMachinesMatchingFiltersRow struct {
 func (q *sqlQuerier) GetIntelMachinesMatchingFilters(ctx context.Context, arg GetIntelMachinesMatchingFiltersParams) ([]GetIntelMachinesMatchingFiltersRow, error) {
 	rows, err := q.db.QueryContext(ctx, getIntelMachinesMatchingFilters,
 		arg.OrganizationID,
-		arg.RegexOperatingSystem,
-		arg.RegexOperatingSystemPlatform,
-		arg.RegexOperatingSystemVersion,
-		arg.RegexArchitecture,
-		arg.RegexInstanceID,
+		arg.Metadata,
 		arg.OffsetOpt,
 		arg.LimitOpt,
 	)
@@ -3113,161 +3156,8 @@ func (q *sqlQuerier) GetIntelMachinesMatchingFilters(ctx context.Context, arg Ge
 			&i.IntelMachine.OrganizationID,
 			&i.IntelMachine.UserID,
 			&i.IntelMachine.IPAddress,
-			&i.IntelMachine.Hostname,
-			&i.IntelMachine.OperatingSystem,
-			&i.IntelMachine.OperatingSystemVersion,
-			&i.IntelMachine.OperatingSystemPlatform,
-			&i.IntelMachine.CPUCores,
-			&i.IntelMachine.MemoryMBTotal,
-			&i.IntelMachine.Architecture,
 			&i.IntelMachine.DaemonVersion,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getIntelReportCommands = `-- name: GetIntelReportCommands :many
-SELECT
-  starts_at,
-  ends_at,
-  cohort_id,
-  binary_name,
-  binary_args,
-  SUM(total_invocations) AS total_invocations,
-  PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY median_duration_ms) AS median_duration_ms,
-  -- We have to convert to text here because Go cannot scan
-  -- an array of jsonb.
-  array_agg(working_directories):: text [] AS aggregated_working_directories,
-  array_agg(binary_paths):: text [] AS aggregated_binary_paths,
-  array_agg(git_remote_urls):: text [] AS aggregated_git_remote_urls,
-  array_agg(exit_codes):: text [] AS aggregated_exit_codes
-FROM
-  intel_invocation_summaries
-WHERE
-	starts_at >= $1
-AND
-  (cohort_id = ANY($2 :: uuid []))
-GROUP BY
-  starts_at, ends_at, cohort_id, binary_name, binary_args
-`
-
-type GetIntelReportCommandsParams struct {
-	StartsAt  time.Time   `db:"starts_at" json:"starts_at"`
-	CohortIds []uuid.UUID `db:"cohort_ids" json:"cohort_ids"`
-}
-
-type GetIntelReportCommandsRow struct {
-	StartsAt                     time.Time       `db:"starts_at" json:"starts_at"`
-	EndsAt                       time.Time       `db:"ends_at" json:"ends_at"`
-	CohortID                     uuid.UUID       `db:"cohort_id" json:"cohort_id"`
-	BinaryName                   string          `db:"binary_name" json:"binary_name"`
-	BinaryArgs                   json.RawMessage `db:"binary_args" json:"binary_args"`
-	TotalInvocations             int64           `db:"total_invocations" json:"total_invocations"`
-	MedianDurationMs             float64         `db:"median_duration_ms" json:"median_duration_ms"`
-	AggregatedWorkingDirectories []string        `db:"aggregated_working_directories" json:"aggregated_working_directories"`
-	AggregatedBinaryPaths        []string        `db:"aggregated_binary_paths" json:"aggregated_binary_paths"`
-	AggregatedGitRemoteUrls      []string        `db:"aggregated_git_remote_urls" json:"aggregated_git_remote_urls"`
-	AggregatedExitCodes          []string        `db:"aggregated_exit_codes" json:"aggregated_exit_codes"`
-}
-
-func (q *sqlQuerier) GetIntelReportCommands(ctx context.Context, arg GetIntelReportCommandsParams) ([]GetIntelReportCommandsRow, error) {
-	rows, err := q.db.QueryContext(ctx, getIntelReportCommands, arg.StartsAt, pq.Array(arg.CohortIds))
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []GetIntelReportCommandsRow
-	for rows.Next() {
-		var i GetIntelReportCommandsRow
-		if err := rows.Scan(
-			&i.StartsAt,
-			&i.EndsAt,
-			&i.CohortID,
-			&i.BinaryName,
-			&i.BinaryArgs,
-			&i.TotalInvocations,
-			&i.MedianDurationMs,
-			pq.Array(&i.AggregatedWorkingDirectories),
-			pq.Array(&i.AggregatedBinaryPaths),
-			pq.Array(&i.AggregatedGitRemoteUrls),
-			pq.Array(&i.AggregatedExitCodes),
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getIntelReportGitRemotes = `-- name: GetIntelReportGitRemotes :many
-SELECT
-  starts_at,
-  ends_at,
-  cohort_id,
-  git_remote_url::text,
-  PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY median_duration_ms) AS median_duration_ms,
-  SUM(total_invocations) AS total_invocations
-FROM
-  intel_invocation_summaries,
-  LATERAL jsonb_each_text(git_remote_urls) AS git_urls(git_remote_url, invocations)
-WHERE
-  starts_at >= $1
-AND
-  (cohort_id = ANY($2 :: uuid []))
-GROUP BY
-  starts_at,
-  ends_at,
-  cohort_id,
-  git_remote_url
-`
-
-type GetIntelReportGitRemotesParams struct {
-	StartsAt  time.Time   `db:"starts_at" json:"starts_at"`
-	CohortIds []uuid.UUID `db:"cohort_ids" json:"cohort_ids"`
-}
-
-type GetIntelReportGitRemotesRow struct {
-	StartsAt         time.Time `db:"starts_at" json:"starts_at"`
-	EndsAt           time.Time `db:"ends_at" json:"ends_at"`
-	CohortID         uuid.UUID `db:"cohort_id" json:"cohort_id"`
-	GitRemoteUrl     string    `db:"git_remote_url" json:"git_remote_url"`
-	MedianDurationMs float64   `db:"median_duration_ms" json:"median_duration_ms"`
-	TotalInvocations int64     `db:"total_invocations" json:"total_invocations"`
-}
-
-// Get the total amount of time spent invoking commands
-// in the directories of a given git remote URL.
-func (q *sqlQuerier) GetIntelReportGitRemotes(ctx context.Context, arg GetIntelReportGitRemotesParams) ([]GetIntelReportGitRemotesRow, error) {
-	rows, err := q.db.QueryContext(ctx, getIntelReportGitRemotes, arg.StartsAt, pq.Array(arg.CohortIds))
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []GetIntelReportGitRemotesRow
-	for rows.Next() {
-		var i GetIntelReportGitRemotesRow
-		if err := rows.Scan(
-			&i.StartsAt,
-			&i.EndsAt,
-			&i.CohortID,
-			&i.GitRemoteUrl,
-			&i.MedianDurationMs,
-			&i.TotalInvocations,
+			&i.IntelMachine.Metadata,
 		); err != nil {
 			return nil, err
 		}
@@ -3341,37 +3231,29 @@ func (q *sqlQuerier) InsertIntelInvocations(ctx context.Context, arg InsertIntel
 }
 
 const upsertIntelCohort = `-- name: UpsertIntelCohort :one
-INSERT INTO intel_cohorts (id, organization_id, created_by, created_at, updated_at, name, icon, description, regex_operating_system, regex_operating_system_platform, regex_operating_system_version, regex_architecture, regex_instance_id, tracked_executables)
-	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+INSERT INTO intel_cohorts (id, organization_id, created_by, created_at, updated_at, name, icon, description, tracked_executables, machine_metadata)
+	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 	ON CONFLICT (id) DO UPDATE SET
 		updated_at = $5,
 		name = $6,
 		icon = $7,
 		description = $8,
-		regex_operating_system = $9,
-		regex_operating_system_platform = $10,
-		regex_operating_system_version = $11,
-		regex_architecture = $12,
-		regex_instance_id = $13,
-		tracked_executables = $14
-	RETURNING id, organization_id, created_by, created_at, updated_at, name, icon, description, regex_operating_system, regex_operating_system_platform, regex_operating_system_version, regex_architecture, regex_instance_id, tracked_executables
+		tracked_executables = $9,
+		machine_metadata = $10
+	RETURNING id, organization_id, created_by, created_at, updated_at, name, icon, description, tracked_executables, machine_metadata
 `
 
 type UpsertIntelCohortParams struct {
-	ID                           uuid.UUID `db:"id" json:"id"`
-	OrganizationID               uuid.UUID `db:"organization_id" json:"organization_id"`
-	CreatedBy                    uuid.UUID `db:"created_by" json:"created_by"`
-	CreatedAt                    time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt                    time.Time `db:"updated_at" json:"updated_at"`
-	Name                         string    `db:"name" json:"name"`
-	Icon                         string    `db:"icon" json:"icon"`
-	Description                  string    `db:"description" json:"description"`
-	RegexOperatingSystem         string    `db:"regex_operating_system" json:"regex_operating_system"`
-	RegexOperatingSystemPlatform string    `db:"regex_operating_system_platform" json:"regex_operating_system_platform"`
-	RegexOperatingSystemVersion  string    `db:"regex_operating_system_version" json:"regex_operating_system_version"`
-	RegexArchitecture            string    `db:"regex_architecture" json:"regex_architecture"`
-	RegexInstanceID              string    `db:"regex_instance_id" json:"regex_instance_id"`
-	TrackedExecutables           []string  `db:"tracked_executables" json:"tracked_executables"`
+	ID                 uuid.UUID            `db:"id" json:"id"`
+	OrganizationID     uuid.UUID            `db:"organization_id" json:"organization_id"`
+	CreatedBy          uuid.UUID            `db:"created_by" json:"created_by"`
+	CreatedAt          time.Time            `db:"created_at" json:"created_at"`
+	UpdatedAt          time.Time            `db:"updated_at" json:"updated_at"`
+	Name               string               `db:"name" json:"name"`
+	Icon               string               `db:"icon" json:"icon"`
+	Description        string               `db:"description" json:"description"`
+	TrackedExecutables []string             `db:"tracked_executables" json:"tracked_executables"`
+	MachineMetadata    NullStringMapOfRegex `db:"machine_metadata" json:"machine_metadata"`
 }
 
 func (q *sqlQuerier) UpsertIntelCohort(ctx context.Context, arg UpsertIntelCohortParams) (IntelCohort, error) {
@@ -3384,12 +3266,8 @@ func (q *sqlQuerier) UpsertIntelCohort(ctx context.Context, arg UpsertIntelCohor
 		arg.Name,
 		arg.Icon,
 		arg.Description,
-		arg.RegexOperatingSystem,
-		arg.RegexOperatingSystemPlatform,
-		arg.RegexOperatingSystemVersion,
-		arg.RegexArchitecture,
-		arg.RegexInstanceID,
 		pq.Array(arg.TrackedExecutables),
+		arg.MachineMetadata,
 	)
 	var i IntelCohort
 	err := row.Scan(
@@ -3401,112 +3279,129 @@ func (q *sqlQuerier) UpsertIntelCohort(ctx context.Context, arg UpsertIntelCohor
 		&i.Name,
 		&i.Icon,
 		&i.Description,
-		&i.RegexOperatingSystem,
-		&i.RegexOperatingSystemPlatform,
-		&i.RegexOperatingSystemVersion,
-		&i.RegexArchitecture,
-		&i.RegexInstanceID,
 		pq.Array(&i.TrackedExecutables),
+		&i.MachineMetadata,
 	)
 	return i, err
 }
 
 const upsertIntelInvocationSummaries = `-- name: UpsertIntelInvocationSummaries :exec
-WITH machine_cohorts AS (
+WITH machines_with_metadata AS (
     SELECT
         m.id AS machine_id,
-        c.id AS cohort_id
+        m.metadata AS machine_metadata
     FROM intel_machines m
-    LEFT JOIN intel_cohorts c ON
-        m.operating_system ~ c.regex_operating_system AND
-        m.operating_system_platform ~ c.regex_operating_system_platform AND
-        m.operating_system_version ~ c.regex_operating_system_version AND
-        m.architecture ~ c.regex_architecture AND
-        m.instance_id ~ c.regex_instance_id
 ),
-invocations_with_cohorts AS (
+invocations_with_metadata AS (
     SELECT
-		i.id, i.created_at, i.machine_id, i.user_id, i.binary_hash, i.binary_name, i.binary_path, i.binary_args, i.binary_version, i.working_directory, i.git_remote_url, i.exit_code, i.duration_ms,
-		-- Truncate the created_at timestamp to the nearest 15 minute interval
+        i.id, i.created_at, i.machine_id, i.user_id, i.binary_hash, i.binary_name, i.binary_path, i.binary_args, i.binary_version, i.working_directory, i.git_remote_url, i.exit_code, i.duration_ms,
+        -- Truncate the created_at timestamp to the nearest 15 minute interval
         date_trunc('minute', i.created_at)
-			- INTERVAL '1 minute' * (EXTRACT(MINUTE FROM i.created_at)::integer % 15) AS truncated_created_at,
-        mc.cohort_id
+            - INTERVAL '1 minute' * (EXTRACT(MINUTE FROM i.created_at)::integer % 15) AS truncated_created_at,
+        m.machine_metadata
     FROM intel_invocations i
-    JOIN machine_cohorts mc ON i.machine_id = mc.machine_id
+    JOIN machines_with_metadata m ON i.machine_id = m.machine_id
 ),
 invocation_working_dirs AS (
 	SELECT
 		truncated_created_at,
-		cohort_id,
 		binary_name,
 		binary_args,
 		working_directory,
 		COUNT(*) as count
-	FROM invocations_with_cohorts
-	GROUP BY truncated_created_at, cohort_id, binary_name, binary_args, working_directory
+	FROM invocations_with_metadata
+	GROUP BY truncated_created_at, binary_name, binary_args, working_directory
 ),
 invocation_binary_paths AS (
 	SELECT
 		truncated_created_at,
-		cohort_id,
 		binary_name,
 		binary_args,
 		binary_path,
 		COUNT(*) as count
-	FROM invocations_with_cohorts
-	GROUP BY truncated_created_at, cohort_id, binary_name, binary_args, binary_path
+	FROM invocations_with_metadata
+	GROUP BY truncated_created_at, binary_name, binary_args, binary_path
 ),
 invocation_git_remote_urls AS (
 	SELECT
 		truncated_created_at,
-		cohort_id,
 		binary_name,
 		binary_args,
 		git_remote_url,
 		COUNT(*) as count
-	FROM invocations_with_cohorts
-	GROUP BY truncated_created_at, cohort_id, binary_name, binary_args, git_remote_url
+	FROM invocations_with_metadata
+	GROUP BY truncated_created_at, binary_name, binary_args, git_remote_url
 ),
 invocation_exit_codes AS (
 	SELECT
 		truncated_created_at,
-		cohort_id,
 		binary_name,
 		binary_args,
 		exit_code,
 		COUNT(*) as count
-	FROM invocations_with_cohorts
-	GROUP BY truncated_created_at, cohort_id, binary_name, binary_args, exit_code
+	FROM invocations_with_metadata
+	GROUP BY truncated_created_at, binary_name, binary_args, exit_code
+),
+metadata_counts AS (
+    SELECT
+        truncated_created_at,
+        binary_name,
+        binary_args,
+        meta.key,
+        meta.value,
+        COUNT(*) as count
+    FROM invocations_with_metadata,
+         jsonb_each_text(machine_metadata) AS meta(key, value)
+    GROUP BY truncated_created_at, binary_name, binary_args, meta.key, meta.value
+),
+metadata_aggregated AS (
+    SELECT
+        truncated_created_at,
+        binary_name,
+        binary_args,
+        key,
+        jsonb_object_agg(value, count) AS counts
+    FROM metadata_counts
+    GROUP BY truncated_created_at, binary_name, binary_args, key
+),
+metadata_json AS (
+    SELECT
+        truncated_created_at,
+        binary_name,
+        binary_args,
+        jsonb_object_agg(key, counts) AS metadata
+    FROM metadata_aggregated
+    GROUP BY truncated_created_at, binary_name, binary_args
 ),
 aggregated AS (
 	SELECT
-		invocations_with_cohorts.truncated_created_at,
-		invocations_with_cohorts.cohort_id,
-		invocations_with_cohorts.binary_name,
-		invocations_with_cohorts.binary_args,
+		invocations_with_metadata.truncated_created_at,
+		invocations_with_metadata.binary_name,
+		invocations_with_metadata.binary_args,
 		jsonb_object_agg(invocation_working_dirs.working_directory, invocation_working_dirs.count) AS working_directories,
 		jsonb_object_agg(invocation_git_remote_urls.git_remote_url, invocation_git_remote_urls.count) AS git_remote_urls,
 		jsonb_object_agg(invocation_exit_codes.exit_code, invocation_exit_codes.count) AS exit_codes,
 		jsonb_object_agg(invocation_binary_paths.binary_path, invocation_binary_paths.count) AS binary_paths,
+		COALESCE(mj.metadata, '{}'::jsonb) AS machine_metadata,
 		COUNT(DISTINCT machine_id) as unique_machines,
 		COUNT(DISTINCT id) as total_invocations,
 		PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY duration_ms) AS median_duration_ms
-	FROM invocations_with_cohorts
-	JOIN invocation_working_dirs USING (truncated_created_at, cohort_id, binary_name, binary_args)
-	JOIN invocation_git_remote_urls USING (truncated_created_at, cohort_id, binary_name, binary_args)
-	JOIN invocation_exit_codes USING (truncated_created_at, cohort_id, binary_name, binary_args)
-	JOIN invocation_binary_paths USING (truncated_created_at, cohort_id, binary_name, binary_args)
+	FROM invocations_with_metadata
+	JOIN invocation_working_dirs USING (truncated_created_at, binary_name, binary_args)
+	JOIN invocation_git_remote_urls USING (truncated_created_at, binary_name, binary_args)
+	JOIN invocation_exit_codes USING (truncated_created_at, binary_name, binary_args)
+	JOIN invocation_binary_paths USING (truncated_created_at, binary_name, binary_args)
+	LEFT JOIN metadata_json mj USING (truncated_created_at, binary_name, binary_args)
 	GROUP BY
-		invocations_with_cohorts.truncated_created_at,
-		invocations_with_cohorts.cohort_id,
-		invocations_with_cohorts.binary_name,
-		invocations_with_cohorts.binary_args
+		invocations_with_metadata.truncated_created_at,
+		invocations_with_metadata.binary_name,
+		invocations_with_metadata.binary_args,
+		mj.metadata
 ),
 saved AS (
-    INSERT INTO intel_invocation_summaries (id, cohort_id, starts_at, ends_at, binary_name, binary_args, binary_paths, working_directories, git_remote_urls, exit_codes, unique_machines, total_invocations, median_duration_ms)
+    INSERT INTO intel_invocation_summaries (id, starts_at, ends_at, binary_name, binary_args, binary_paths, working_directories, git_remote_urls, exit_codes, machine_metadata, unique_machines, total_invocations, median_duration_ms)
     SELECT
         gen_random_uuid(),
-        cohort_id,
         truncated_created_at,
 		truncated_created_at + INTERVAL '15 minutes' AS ends_at,  -- Add 15 minutes to starts_at
         binary_name,
@@ -3515,6 +3410,7 @@ saved AS (
         working_directories,
         git_remote_urls,
         exit_codes,
+		machine_metadata,
 		unique_machines,
         total_invocations,
         median_duration_ms
@@ -3532,38 +3428,26 @@ func (q *sqlQuerier) UpsertIntelInvocationSummaries(ctx context.Context) error {
 }
 
 const upsertIntelMachine = `-- name: UpsertIntelMachine :one
-INSERT INTO intel_machines (id, created_at, updated_at, instance_id, organization_id, user_id, ip_address, hostname, operating_system, operating_system_platform, operating_system_version, cpu_cores, memory_mb_total, architecture, daemon_version)
-	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+INSERT INTO intel_machines (id, created_at, updated_at, instance_id, organization_id, user_id, ip_address, daemon_version, metadata)
+	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 	ON CONFLICT (user_id, instance_id) DO UPDATE SET
 		updated_at = $3,
 		ip_address = $7,
-		hostname = $8,
-		operating_system = $9,
-		operating_system_platform = $10,
-		operating_system_version = $11,
-		cpu_cores = $12,
-		memory_mb_total = $13,
-		architecture = $14,
-		daemon_version = $15
-	RETURNING id, created_at, updated_at, instance_id, organization_id, user_id, ip_address, hostname, operating_system, operating_system_version, operating_system_platform, cpu_cores, memory_mb_total, architecture, daemon_version
+		daemon_version = $8,
+		metadata = $9
+	RETURNING id, created_at, updated_at, instance_id, organization_id, user_id, ip_address, daemon_version, metadata
 `
 
 type UpsertIntelMachineParams struct {
-	ID                      uuid.UUID   `db:"id" json:"id"`
-	CreatedAt               time.Time   `db:"created_at" json:"created_at"`
-	UpdatedAt               time.Time   `db:"updated_at" json:"updated_at"`
-	InstanceID              string      `db:"instance_id" json:"instance_id"`
-	OrganizationID          uuid.UUID   `db:"organization_id" json:"organization_id"`
-	UserID                  uuid.UUID   `db:"user_id" json:"user_id"`
-	IPAddress               pqtype.Inet `db:"ip_address" json:"ip_address"`
-	Hostname                string      `db:"hostname" json:"hostname"`
-	OperatingSystem         string      `db:"operating_system" json:"operating_system"`
-	OperatingSystemPlatform string      `db:"operating_system_platform" json:"operating_system_platform"`
-	OperatingSystemVersion  string      `db:"operating_system_version" json:"operating_system_version"`
-	CPUCores                int32       `db:"cpu_cores" json:"cpu_cores"`
-	MemoryMBTotal           int32       `db:"memory_mb_total" json:"memory_mb_total"`
-	Architecture            string      `db:"architecture" json:"architecture"`
-	DaemonVersion           string      `db:"daemon_version" json:"daemon_version"`
+	ID             uuid.UUID   `db:"id" json:"id"`
+	CreatedAt      time.Time   `db:"created_at" json:"created_at"`
+	UpdatedAt      time.Time   `db:"updated_at" json:"updated_at"`
+	InstanceID     string      `db:"instance_id" json:"instance_id"`
+	OrganizationID uuid.UUID   `db:"organization_id" json:"organization_id"`
+	UserID         uuid.UUID   `db:"user_id" json:"user_id"`
+	IPAddress      pqtype.Inet `db:"ip_address" json:"ip_address"`
+	DaemonVersion  string      `db:"daemon_version" json:"daemon_version"`
+	Metadata       StringMap   `db:"metadata" json:"metadata"`
 }
 
 func (q *sqlQuerier) UpsertIntelMachine(ctx context.Context, arg UpsertIntelMachineParams) (IntelMachine, error) {
@@ -3575,14 +3459,8 @@ func (q *sqlQuerier) UpsertIntelMachine(ctx context.Context, arg UpsertIntelMach
 		arg.OrganizationID,
 		arg.UserID,
 		arg.IPAddress,
-		arg.Hostname,
-		arg.OperatingSystem,
-		arg.OperatingSystemPlatform,
-		arg.OperatingSystemVersion,
-		arg.CPUCores,
-		arg.MemoryMBTotal,
-		arg.Architecture,
 		arg.DaemonVersion,
+		arg.Metadata,
 	)
 	var i IntelMachine
 	err := row.Scan(
@@ -3593,14 +3471,8 @@ func (q *sqlQuerier) UpsertIntelMachine(ctx context.Context, arg UpsertIntelMach
 		&i.OrganizationID,
 		&i.UserID,
 		&i.IPAddress,
-		&i.Hostname,
-		&i.OperatingSystem,
-		&i.OperatingSystemVersion,
-		&i.OperatingSystemPlatform,
-		&i.CPUCores,
-		&i.MemoryMBTotal,
-		&i.Architecture,
 		&i.DaemonVersion,
+		&i.Metadata,
 	)
 	return i, err
 }

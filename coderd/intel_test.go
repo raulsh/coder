@@ -3,15 +3,20 @@ package coderd_test
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
+	"github.com/spf13/afero"
 	"github.com/stretchr/testify/require"
+
+	"cdr.dev/slog/sloggers/slogtest"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/inteld"
 	"github.com/coder/coder/v2/inteld/proto"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestIntelMachines(t *testing.T) {
@@ -48,16 +53,16 @@ func TestIntelMachines(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		ctx := context.Background()
 		firstClient, err := client.ServeIntelDaemon(ctx, user.OrganizationID, codersdk.ServeIntelDaemonRequest{
-			IntelDaemonHostInfo: codersdk.IntelDaemonHostInfo{
-				OperatingSystem: "linux",
+			Metadata: map[string]string{
+				"operating_system": "linux",
 			},
 			InstanceID: "test",
 		})
 		require.NoError(t, err)
 		defer firstClient.DRPCConn().Close()
 		secondClient, err := client.ServeIntelDaemon(ctx, user.OrganizationID, codersdk.ServeIntelDaemonRequest{
-			IntelDaemonHostInfo: codersdk.IntelDaemonHostInfo{
-				OperatingSystem: "windows",
+			Metadata: map[string]string{
+				"operating_system": "windows",
 			},
 			InstanceID: "test",
 		})
@@ -65,14 +70,14 @@ func TestIntelMachines(t *testing.T) {
 		defer secondClient.DRPCConn().Close()
 
 		res, err := client.IntelMachines(context.Background(), user.OrganizationID, codersdk.IntelMachinesRequest{
-			RegexFilters: codersdk.IntelCohortRegexFilters{
-				OperatingSystem: "windows",
+			MetadataMatch: map[string]*regexp.Regexp{
+				"operating_system": regexp.MustCompile("windows"),
 			},
 		})
 		require.NoError(t, err)
 		require.Len(t, res.IntelMachines, 1)
 		require.Equal(t, res.Count, 1)
-		require.Equal(t, res.IntelMachines[0].OperatingSystem, "windows")
+		require.Equal(t, res.IntelMachines[0].Metadata["operating_system"], "windows")
 	})
 }
 
@@ -89,6 +94,37 @@ func TestIntelCohorts(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, cohort.Name, "example")
 	})
+	t.Run("TrackedBinaries", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		ctx := context.Background()
+		// Create a cohort that matches the machine.
+		_, err := client.CreateIntelCohort(ctx, user.OrganizationID, codersdk.CreateIntelCohortRequest{
+			Name:               "example",
+			TrackedExecutables: []string{"go"},
+		})
+		require.NoError(t, err)
+		fs := &linkerFS{
+			Fs:    afero.NewMemMapFs(),
+			links: map[string]string{},
+		}
+		closer := inteld.New(inteld.Options{
+			Dialer: func(ctx context.Context, metadata map[string]string) (proto.DRPCIntelDaemonClient, error) {
+				return client.ServeIntelDaemon(ctx, user.OrganizationID, codersdk.ServeIntelDaemonRequest{
+					Metadata:   metadata,
+					InstanceID: "example",
+				})
+			},
+			Logger:          slogtest.Make(t, nil).Named("inteld"),
+			Filesystem:      fs,
+			InvokeDirectory: "/tmp",
+		})
+		defer closer.Close()
+		require.Eventually(t, func() bool {
+			return fs.links["/tmp/go"] == "/tmp/coder-intel-invoke"
+		}, testutil.WaitShort, testutil.IntervalFast)
+	})
 }
 
 func TestIntelReport(t *testing.T) {
@@ -98,13 +134,7 @@ func TestIntelReport(t *testing.T) {
 		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		ctx := context.Background()
-		cohort, err := client.CreateIntelCohort(ctx, user.OrganizationID, codersdk.CreateIntelCohortRequest{
-			Name: "Everyone",
-		})
-		require.NoError(t, err)
-		report, err := client.IntelReport(ctx, user.OrganizationID, codersdk.IntelReportRequest{
-			CohortIDs: []uuid.UUID{cohort.ID},
-		})
+		report, err := client.IntelReport(ctx, user.OrganizationID, codersdk.IntelReportRequest{})
 		require.NoError(t, err)
 		// No invocations of course!
 		require.Equal(t, int64(0), report.Invocations)
@@ -117,15 +147,11 @@ func TestIntelReport(t *testing.T) {
 		})
 		user := coderdtest.CreateFirstUser(t, client)
 		ctx := context.Background()
-		cohort, err := client.CreateIntelCohort(ctx, user.OrganizationID, codersdk.CreateIntelCohortRequest{
-			Name: "Everyone",
-		})
-		require.NoError(t, err)
 		firstClient, err := client.ServeIntelDaemon(ctx, user.OrganizationID, codersdk.ServeIntelDaemonRequest{
-			IntelDaemonHostInfo: codersdk.IntelDaemonHostInfo{
-				OperatingSystem: "linux",
-			},
 			InstanceID: "test",
+			Metadata: map[string]string{
+				"operating_system": "linux",
+			},
 		})
 		require.NoError(t, err)
 		defer firstClient.DRPCConn().Close()
@@ -152,11 +178,19 @@ func TestIntelReport(t *testing.T) {
 
 		err = client.RefreshIntelReport(ctx, user.OrganizationID)
 		require.NoError(t, err)
-		report, err := client.IntelReport(ctx, user.OrganizationID, codersdk.IntelReportRequest{
-			CohortIDs: []uuid.UUID{cohort.ID},
-		})
+		report, err := client.IntelReport(ctx, user.OrganizationID, codersdk.IntelReportRequest{})
 		require.NoError(t, err)
 		require.Equal(t, int64(1), report.Invocations)
 		fmt.Printf("%+v\n", report)
 	})
+}
+
+type linkerFS struct {
+	afero.Fs
+	links map[string]string
+}
+
+func (fs *linkerFS) SymlinkIfPossible(oldname, newname string) error {
+	fs.links[newname] = oldname
+	return nil
 }

@@ -120,6 +120,9 @@ dependencies:
   react-confetti:
     specifier: 6.1.0
     version: 6.1.0(react@18.2.0)
+  react-countup:
+    specifier: 6.5.3
+    version: 6.5.3(react@18.2.0)
   react-date-range:
     specifier: 1.4.0
     version: 1.4.0(date-fns@2.30.0)(react@18.2.0)
@@ -6456,6 +6459,10 @@ packages:
       path-type: 4.0.0
       yaml: 1.10.2
 
+  /countup.js@2.8.0:
+    resolution: {integrity: sha512-f7xEhX0awl4NOElHulrl4XRfKoNH3rB+qfNSZZyjSZhaAoUk6elvhH+MNxMmlmuUJ2/QNTWPSA7U4mNtIAKljQ==}
+    dev: false
+
   /cpu-features@0.0.9:
     resolution: {integrity: sha512-AKjgn2rP2yJyfbepsmLfiYcmtNn/2eUvocUyM/09yB0YDiz39HteK/5/T4Onf0pmdYDMgkBoGvRLvEguzyL7wQ==}
     engines: {node: '>=10.0.0'}
@@ -11000,6 +11007,15 @@ packages:
     dependencies:
       react: 18.2.0
       tween-functions: 1.2.0
+    dev: false
+
+  /react-countup@6.5.3(react@18.2.0):
+    resolution: {integrity: sha512-udnqVQitxC7QWADSPDOxVWULkLvKUWrDapn5i53HE4DPRVgs+Y5rr4bo25qEl8jSh+0l2cToJgGMx+clxPM3+w==}
+    peerDependencies:
+      react: '>= 16.3.0'
+    dependencies:
+      countup.js: 2.8.0
+      react: 18.2.0
     dev: false
 
   /react-date-range@1.4.0(date-fns@2.30.0)(react@18.2.0):

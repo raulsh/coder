@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/cookiejar"
+	"regexp"
 	"strconv"
 	"time"
 
@@ -20,32 +21,6 @@ import (
 	"github.com/coder/coder/v2/inteld/proto"
 )
 
-type IntelCohortRegexFilters struct {
-	OperatingSystem         string `json:"operating_system"`
-	OperatingSystemPlatform string `json:"operating_system_platform"`
-	OperatingSystemVersion  string `json:"operating_system_version"`
-	Architecture            string `json:"architecture"`
-	InstanceID              string `json:"instance_id"`
-}
-
-func (i *IntelCohortRegexFilters) Normalize() {
-	if i.OperatingSystem == "" {
-		i.OperatingSystem = ".*"
-	}
-	if i.OperatingSystemPlatform == "" {
-		i.OperatingSystemPlatform = ".*"
-	}
-	if i.OperatingSystemVersion == "" {
-		i.OperatingSystemVersion = ".*"
-	}
-	if i.Architecture == "" {
-		i.Architecture = ".*"
-	}
-	if i.InstanceID == "" {
-		i.InstanceID = ".*"
-	}
-}
-
 type IntelCohortMetadata struct {
 	Name               string   `json:"name"`
 	Icon               string   `json:"icon"`
@@ -54,45 +29,30 @@ type IntelCohortMetadata struct {
 }
 
 type IntelCohort struct {
-	ID             uuid.UUID               `json:"id" format:"uuid"`
-	OrganizationID uuid.UUID               `json:"organization_id" format:"uuid"`
-	CreatedBy      uuid.UUID               `json:"created_by"`
-	CreatedAt      time.Time               `json:"created_at" format:"date-time"`
-	UpdatedAt      time.Time               `json:"updated_at" format:"date-time"`
-	RegexFilters   IntelCohortRegexFilters `json:"regex_filters"`
+	ID              uuid.UUID                 `json:"id" format:"uuid"`
+	OrganizationID  uuid.UUID                 `json:"organization_id" format:"uuid"`
+	CreatedBy       uuid.UUID                 `json:"created_by"`
+	CreatedAt       time.Time                 `json:"created_at" format:"date-time"`
+	UpdatedAt       time.Time                 `json:"updated_at" format:"date-time"`
+	MachineMetadata map[string]*regexp.Regexp `json:"machine_metadata"`
 
 	IntelCohortMetadata
 }
 
-type IntelDaemonHostInfo struct {
-	Hostname                string `json:"hostname"`
-	OperatingSystem         string `json:"operating_system"`
-	OperatingSystemPlatform string `json:"operating_system_platform"`
-	OperatingSystemVersion  string `json:"operating_system_version"`
-	Architecture            string `json:"architecture"`
-	CPUCores                uint16 `json:"cpu_cores"`
-	MemoryTotalMB           uint64 `json:"memory_total_mb"`
-}
-
 type ServeIntelDaemonRequest struct {
-	IntelDaemonHostInfo
-	InstanceID string `json:"instance_id"`
+	// Metadata is a map of metadata keys to values.
+	Metadata   map[string]string `json:"metadata"`
+	InstanceID string            `json:"instance_id"`
 }
 
 type IntelMachine struct {
-	ID                      uuid.UUID `json:"id" format:"uuid"`
-	CreatedAt               time.Time `json:"created_at" format:"date-time"`
-	UpdatedAt               time.Time `json:"updated_at" format:"date-time"`
-	UserID                  uuid.UUID `json:"user_id" format:"uuid"`
-	OrganizationID          uuid.UUID `json:"organization_id" format:"uuid"`
-	InstanceID              string    `json:"instance_id"`
-	Hostname                string    `json:"hostname"`
-	OperatingSystem         string    `json:"operating_system"`
-	OperatingSystemPlatform string    `json:"operating_system_platform"`
-	OperatingSystemVersion  string    `json:"operating_system_version"`
-	CPUCores                uint16    `json:"cpu_cores"`
-	MemoryMBTotal           uint64    `json:"memory_mb_total"`
-	Architecture            string    `json:"architecture"`
+	ID             uuid.UUID         `json:"id" format:"uuid"`
+	CreatedAt      time.Time         `json:"created_at" format:"date-time"`
+	UpdatedAt      time.Time         `json:"updated_at" format:"date-time"`
+	UserID         uuid.UUID         `json:"user_id" format:"uuid"`
+	OrganizationID uuid.UUID         `json:"organization_id" format:"uuid"`
+	InstanceID     string            `json:"instance_id"`
+	Metadata       map[string]string `json:"metadata"`
 }
 
 func (c *Client) IntelCohorts(ctx context.Context, organizationID uuid.UUID) ([]IntelCohort, error) {
@@ -114,11 +74,13 @@ func (c *Client) IntelCohorts(ctx context.Context, organizationID uuid.UUID) ([]
 
 // CreateIntelCohortRequest is the request to create a new cohort.
 type CreateIntelCohortRequest struct {
-	Name               string                   `json:"name" validate:"required"`
-	Icon               string                   `json:"icon"`
-	Description        string                   `json:"description"`
-	TrackedExecutables []string                 `json:"tracked_executables"`
-	RegexFilters       *IntelCohortRegexFilters `json:"regex_filters"`
+	Name               string   `json:"name" validate:"required"`
+	Icon               string   `json:"icon"`
+	Description        string   `json:"description"`
+	TrackedExecutables []string `json:"tracked_executables"`
+	// MetadataMatch is a map of metadata keys to regular expressions.
+	// If nil, all metadata keys will be matched.
+	MetadataMatch map[string]*regexp.Regexp `json:"metadata_match,omitempty"`
 }
 
 // CreateIntelCohort creates a new cohort.
@@ -140,9 +102,9 @@ func (c *Client) CreateIntelCohort(ctx context.Context, organizationID uuid.UUID
 }
 
 type IntelMachinesRequest struct {
-	RegexFilters IntelCohortRegexFilters `json:"regex_filters"`
-	Offset       int                     `json:"offset,omitempty" typescript:"-"`
-	Limit        int                     `json:"limit,omitempty" typescript:"-"`
+	MetadataMatch map[string]*regexp.Regexp `json:"metadata_match"`
+	Offset        int                       `json:"offset,omitempty" typescript:"-"`
+	Limit         int                       `json:"limit,omitempty" typescript:"-"`
 }
 
 type IntelMachinesResponse struct {
@@ -157,15 +119,18 @@ func (c *Client) IntelMachines(ctx context.Context, organizationID uuid.UUID, re
 	if organizationID == uuid.Nil {
 		orgParam = DefaultOrganization
 	}
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/organizations/%s/intel/machines", orgParam), nil,
-		WithQueryParam("operating_system", req.RegexFilters.OperatingSystem),
-		WithQueryParam("operating_system_platform", req.RegexFilters.OperatingSystemPlatform),
-		WithQueryParam("operating_system_version", req.RegexFilters.OperatingSystemVersion),
-		WithQueryParam("architecture", req.RegexFilters.Architecture),
-		WithQueryParam("instance_id", req.RegexFilters.InstanceID),
+	metadata, err := json.Marshal(req.MetadataMatch)
+	if err != nil {
+		return IntelMachinesResponse{}, xerrors.Errorf("marshal metadata: %w", err)
+	}
+	opts := []RequestOption{
 		WithQueryParam("offset", strconv.Itoa(req.Offset)),
 		WithQueryParam("limit", strconv.Itoa(req.Limit)),
-	)
+	}
+	if req.MetadataMatch != nil {
+		opts = append(opts, WithQueryParam("metadata", string(metadata)))
+	}
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/organizations/%s/intel/machines", orgParam), nil, opts...)
 	if err != nil {
 		return IntelMachinesResponse{}, err
 	}
@@ -189,12 +154,11 @@ func (c *Client) ServeIntelDaemon(ctx context.Context, organizationID uuid.UUID,
 	}
 	query := serverURL.Query()
 	query.Set("instance_id", req.InstanceID)
-	query.Set("hostname", req.Hostname)
-	query.Set("operating_system", req.OperatingSystem)
-	query.Set("operating_system_version", req.OperatingSystemVersion)
-	query.Set("architecture", req.Architecture)
-	query.Set("cpu_cores", strconv.Itoa(int(req.CPUCores)))
-	query.Set("memory_total_mb", strconv.Itoa(int(req.MemoryTotalMB)))
+	metadata, err := json.Marshal(req.Metadata)
+	if err != nil {
+		return nil, xerrors.Errorf("marshal metadata: %w", err)
+	}
+	query.Set("metadata", string(metadata))
 	serverURL.RawQuery = query.Encode()
 	httpClient := &http.Client{
 		Transport: c.HTTPClient.Transport,
@@ -242,47 +206,32 @@ func (c *Client) ServeIntelDaemon(ctx context.Context, organizationID uuid.UUID,
 // IntelReportRequest returns a report of invocations for a cohort.
 type IntelReportRequest struct {
 	StartsAt time.Time `json:"starts_at" format:"date-time"`
-	// CohortIDs is a list of cohort IDs to report on.
-	// If empty, all cohorts will be reported on.
-	CohortIDs []uuid.UUID `json:"cohort_ids"`
 }
 
 type IntelReport struct {
 	Invocations int64 `json:"invocations"`
 
-	Commands   []IntelReportCommand   `json:"commands"`
-	GitRemotes []IntelReportGitRemote `json:"git_remotes"`
+	// GitAuthProviders maps a Git remote URL to the auth provider ID.
+	GitAuthProviders map[string]*string       `json:"git_auth_providers"`
+	Intervals        []IntelInvocationSummary `json:"intervals"`
 }
 
-// IntelReportInvocationInterval reports the invocation interval for a duration.
-type IntelReportInvocationInterval struct {
-	CohortID         uuid.UUID `json:"cohort_id" format:"uuid"`
-	StartsAt         time.Time `json:"starts_at" format:"date-time"`
-	EndsAt           time.Time `json:"ends_at" format:"date-time"`
-	Invocations      int64     `json:"invocations"`
-	MedianDurationMS float64   `json:"median_duration_ms"`
-}
-
-// IntelReportGitRemote reports the Git remote URL execution time
-// across all invocations.
-type IntelReportGitRemote struct {
-	URL                    string                          `json:"url"`
-	ExternalAuthProviderID *string                         `json:"external_auth_provider_id"`
-	Invocations            int64                           `json:"invocations"`
-	Intervals              []IntelReportInvocationInterval `json:"intervals"`
-}
-
-type IntelReportCommand struct {
-	BinaryName string   `json:"binary_name"`
-	BinaryArgs []string `json:"binary_args"`
-
-	Invocations int64                           `json:"invocations"`
-	Intervals   []IntelReportInvocationInterval `json:"intervals"`
+// IntelInvocationSummary reports the invocation interval for a duration.
+type IntelInvocationSummary struct {
+	ID         uuid.UUID `json:"id" format:"uuid"`
+	StartsAt   time.Time `json:"starts_at" format:"date-time"`
+	EndsAt     time.Time `json:"ends_at" format:"date-time"`
+	BinaryName string    `json:"binary_name"`
+	BinaryArgs []string  `json:"binary_args"`
 	// ExitCodes maps exit codes to the number of invocations.
-	ExitCodes          map[int]int64    `json:"exit_codes"`
-	GitRemoteURLs      map[string]int64 `json:"git_remote_urls"`
-	WorkingDirectories map[string]int64 `json:"working_directories"`
-	BinaryPaths        map[string]int64 `json:"binary_paths"`
+	ExitCodes          map[string]int64            `json:"exit_codes"`
+	GitRemoteURLs      map[string]int64            `json:"git_remote_urls"`
+	WorkingDirectories map[string]int64            `json:"working_directories"`
+	BinaryPaths        map[string]int64            `json:"binary_paths"`
+	MachineMetadata    map[string]map[string]int64 `json:"machine_metadata"`
+	UniqueMachines     int64                       `json:"unique_machines"`
+	TotalInvocations   int64                       `json:"total_invocations"`
+	MedianDurationMS   float64                     `json:"median_duration_ms"`
 }
 
 // IntelReport returns a report of invocations for a cohort.
@@ -298,9 +247,6 @@ func (c *Client) IntelReport(ctx context.Context, organizationID uuid.UUID, req 
 	q := serverURL.Query()
 	if !req.StartsAt.IsZero() {
 		q.Set("starts_at", req.StartsAt.Format(time.DateOnly))
-	}
-	for _, cohortID := range req.CohortIDs {
-		q.Add("cohort_id", cohortID.String())
 	}
 	serverURL.RawQuery = q.Encode()
 	res, err := c.Request(ctx, http.MethodGet, serverURL.String(), req)

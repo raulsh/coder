@@ -1154,59 +1154,15 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Intel"
+                    "Insights"
                 ],
-                "summary": "List intel machines",
-                "operationId": "list-intel-machines",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "description": "Page limit",
-                        "name": "limit",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "Page offset",
-                        "name": "offset",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Regex to match a machine operating system against",
-                        "name": "operating_system",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Regex to match a machine operating system platform against",
-                        "name": "operating_system_platform",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Regex to match a machine operating system version against",
-                        "name": "operating_system_version",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Regex to match a machine architecture against",
-                        "name": "architecture",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Regex to match a machine instance ID against",
-                        "name": "instance_id",
-                        "in": "query"
-                    }
-                ],
+                "summary": "Get deployment DAUs",
+                "operationId": "get-deployment-daus",
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/codersdk.IntelMachinesResponse"
+                            "$ref": "#/definitions/codersdk.DAUsResponse"
                         }
                     }
                 }
@@ -2269,6 +2225,59 @@ const docTemplate = `{
                         "description": "Created",
                         "schema": {
                             "$ref": "#/definitions/codersdk.IntelCohort"
+                        }
+                    }
+                }
+            }
+        },
+        "/organizations/{organization}/intel/machines": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Intel"
+                ],
+                "summary": "List intel machines",
+                "operationId": "list-intel-machines",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page limit",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page offset",
+                        "name": "offset",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "A JSON object to match machine metadata against",
+                        "name": "metadata",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.IntelMachinesResponse"
                         }
                     }
                 }
@@ -9069,11 +9078,15 @@ const docTemplate = `{
                 "icon": {
                     "type": "string"
                 },
+                "metadata_match": {
+                    "description": "MetadataMatch is a map of metadata keys to regular expressions.\nIf nil, all metadata keys will be matched.",
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/regexp.Regexp"
+                    }
+                },
                 "name": {
                     "type": "string"
-                },
-                "regex_filters": {
-                    "$ref": "#/definitions/codersdk.IntelCohortRegexFilters"
                 },
                 "tracked_executables": {
                     "type": "array",
@@ -10272,15 +10285,18 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
+                "machine_metadata": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/regexp.Regexp"
+                    }
+                },
                 "name": {
                     "type": "string"
                 },
                 "organization_id": {
                     "type": "string",
                     "format": "uuid"
-                },
-                "regex_filters": {
-                    "$ref": "#/definitions/codersdk.IntelCohortRegexFilters"
                 },
                 "tracked_executables": {
                     "type": "array",
@@ -10294,41 +10310,81 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.IntelCohortRegexFilters": {
+        "codersdk.IntelInvocationSummary": {
             "type": "object",
             "properties": {
-                "architecture": {
+                "binary_args": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "binary_name": {
                     "type": "string"
                 },
-                "instance_id": {
-                    "type": "string"
+                "binary_paths": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "integer"
+                    }
                 },
-                "operating_system": {
-                    "type": "string"
+                "ends_at": {
+                    "type": "string",
+                    "format": "date-time"
                 },
-                "operating_system_platform": {
-                    "type": "string"
+                "exit_codes": {
+                    "description": "ExitCodes maps exit codes to the number of invocations.",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "integer"
+                    }
                 },
-                "operating_system_version": {
-                    "type": "string"
+                "git_remote_urls": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "integer"
+                    }
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "machine_metadata": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "object",
+                        "additionalProperties": {
+                            "type": "integer"
+                        }
+                    }
+                },
+                "median_duration_ms": {
+                    "type": "number"
+                },
+                "starts_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "total_invocations": {
+                    "type": "integer"
+                },
+                "unique_machines": {
+                    "type": "integer"
+                },
+                "working_directories": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "integer"
+                    }
                 }
             }
         },
         "codersdk.IntelMachine": {
             "type": "object",
             "properties": {
-                "architecture": {
-                    "type": "string"
-                },
-                "cpu_cores": {
-                    "type": "integer"
-                },
                 "created_at": {
                     "type": "string",
                     "format": "date-time"
-                },
-                "hostname": {
-                    "type": "string"
                 },
                 "id": {
                     "type": "string",
@@ -10337,17 +10393,11 @@ const docTemplate = `{
                 "instance_id": {
                     "type": "string"
                 },
-                "memory_mb_total": {
-                    "type": "integer"
-                },
-                "operating_system": {
-                    "type": "string"
-                },
-                "operating_system_platform": {
-                    "type": "string"
-                },
-                "operating_system_version": {
-                    "type": "string"
+                "metadata": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
                 },
                 "organization_id": {
                     "type": "string",
@@ -10380,111 +10430,21 @@ const docTemplate = `{
         "codersdk.IntelReport": {
             "type": "object",
             "properties": {
-                "commands": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.IntelReportCommand"
-                    }
-                },
-                "git_remotes": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.IntelReportGitRemote"
-                    }
-                },
-                "invocations": {
-                    "type": "integer"
-                }
-            }
-        },
-        "codersdk.IntelReportCommand": {
-            "type": "object",
-            "properties": {
-                "binary_args": {
-                    "type": "array",
-                    "items": {
+                "git_auth_providers": {
+                    "description": "GitAuthProviders maps a Git remote URL to the auth provider ID.",
+                    "type": "object",
+                    "additionalProperties": {
                         "type": "string"
                     }
                 },
-                "binary_name": {
-                    "type": "string"
-                },
-                "binary_paths": {
-                    "type": "object",
-                    "additionalProperties": {
-                        "type": "integer"
-                    }
-                },
-                "exit_codes": {
-                    "description": "ExitCodes maps exit codes to the number of invocations.",
-                    "type": "object",
-                    "additionalProperties": {
-                        "type": "integer"
-                    }
-                },
-                "git_remote_urls": {
-                    "type": "object",
-                    "additionalProperties": {
-                        "type": "integer"
-                    }
-                },
                 "intervals": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/codersdk.IntelReportInvocationInterval"
+                        "$ref": "#/definitions/codersdk.IntelInvocationSummary"
                     }
                 },
                 "invocations": {
                     "type": "integer"
-                },
-                "working_directories": {
-                    "type": "object",
-                    "additionalProperties": {
-                        "type": "integer"
-                    }
-                }
-            }
-        },
-        "codersdk.IntelReportGitRemote": {
-            "type": "object",
-            "properties": {
-                "external_auth_provider_id": {
-                    "type": "string"
-                },
-                "intervals": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.IntelReportInvocationInterval"
-                    }
-                },
-                "invocations": {
-                    "type": "integer"
-                },
-                "url": {
-                    "type": "string"
-                }
-            }
-        },
-        "codersdk.IntelReportInvocationInterval": {
-            "type": "object",
-            "properties": {
-                "cohort_id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "ends_at": {
-                    "type": "string",
-                    "format": "date-time"
-                },
-                "invocations": {
-                    "type": "integer"
-                },
-                "median_duration_ms": {
-                    "type": "number"
-                },
-                "starts_at": {
-                    "type": "string",
-                    "format": "date-time"
                 }
             }
         },
@@ -14827,6 +14787,9 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
+        },
+        "regexp.Regexp": {
+            "type": "object"
         },
         "serpent.Annotations": {
             "type": "object",

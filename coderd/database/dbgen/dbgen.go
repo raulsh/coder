@@ -586,20 +586,16 @@ func WorkspaceProxy(t testing.TB, db database.Store, orig database.WorkspaceProx
 
 func IntelCohort(t testing.TB, db database.Store, orig database.IntelCohort) database.IntelCohort {
 	cohort, err := db.UpsertIntelCohort(genCtx, database.UpsertIntelCohortParams{
-		ID:                           takeFirst(orig.ID, uuid.New()),
-		CreatedAt:                    takeFirst(orig.CreatedAt, dbtime.Now()),
-		UpdatedAt:                    takeFirst(orig.UpdatedAt, dbtime.Now()),
-		Name:                         takeFirst(orig.Name, namesgenerator.GetRandomName(1)),
-		OrganizationID:               takeFirst(orig.OrganizationID, uuid.New()),
-		CreatedBy:                    takeFirst(orig.CreatedBy, uuid.New()),
-		Icon:                         takeFirst(orig.Icon, ""),
-		Description:                  takeFirst(orig.Description, ""),
-		RegexOperatingSystem:         takeFirst(orig.RegexOperatingSystem, ".*"),
-		RegexOperatingSystemVersion:  takeFirst(orig.RegexOperatingSystemVersion, ".*"),
-		RegexOperatingSystemPlatform: takeFirst(orig.RegexOperatingSystemPlatform, ".*"),
-		RegexArchitecture:            takeFirst(orig.RegexArchitecture, ".*"),
-		RegexInstanceID:              takeFirst(orig.RegexInstanceID, ".*"),
-		TrackedExecutables:           takeFirstSlice(orig.TrackedExecutables, []string{}),
+		ID:                 takeFirst(orig.ID, uuid.New()),
+		CreatedAt:          takeFirst(orig.CreatedAt, dbtime.Now()),
+		UpdatedAt:          takeFirst(orig.UpdatedAt, dbtime.Now()),
+		Name:               takeFirst(orig.Name, namesgenerator.GetRandomName(1)),
+		OrganizationID:     takeFirst(orig.OrganizationID, uuid.New()),
+		CreatedBy:          takeFirst(orig.CreatedBy, uuid.New()),
+		Icon:               takeFirst(orig.Icon, ""),
+		Description:        takeFirst(orig.Description, ""),
+		TrackedExecutables: takeFirstSlice(orig.TrackedExecutables, []string{}),
+		MachineMetadata:    orig.MachineMetadata,
 	})
 	require.NoError(t, err, "insert cohort")
 	return cohort
@@ -616,21 +612,15 @@ func IntelMachine(t testing.TB, db database.Store, orig database.IntelMachine) d
 		}
 	}
 	machine, err := db.UpsertIntelMachine(genCtx, database.UpsertIntelMachineParams{
-		ID:                      takeFirst(orig.ID, uuid.New()),
-		UserID:                  takeFirst(orig.UserID, uuid.New()),
-		CreatedAt:               takeFirst(orig.CreatedAt, dbtime.Now()),
-		UpdatedAt:               takeFirst(orig.UpdatedAt, dbtime.Now()),
-		OrganizationID:          takeFirst(orig.OrganizationID, uuid.New()),
-		OperatingSystem:         takeFirst(orig.OperatingSystem, "linux"),
-		OperatingSystemVersion:  takeFirst(orig.OperatingSystemVersion, "1.0"),
-		OperatingSystemPlatform: takeFirst(orig.OperatingSystemPlatform, "linux"),
-		Architecture:            takeFirst(orig.Architecture, "amd64"),
-		InstanceID:              takeFirst(orig.InstanceID, "i-123456"),
-		Hostname:                takeFirst(orig.Hostname, "hostname"),
-		CPUCores:                takeFirst(orig.CPUCores, 1),
-		MemoryMBTotal:           takeFirst(orig.MemoryMBTotal, 1024),
-		DaemonVersion:           takeFirst(orig.DaemonVersion, "1.0.0"),
-		IPAddress:               orig.IPAddress,
+		ID:             takeFirst(orig.ID, uuid.New()),
+		UserID:         takeFirst(orig.UserID, uuid.New()),
+		CreatedAt:      takeFirst(orig.CreatedAt, dbtime.Now()),
+		UpdatedAt:      takeFirst(orig.UpdatedAt, dbtime.Now()),
+		OrganizationID: takeFirst(orig.OrganizationID, uuid.New()),
+		InstanceID:     takeFirst(orig.InstanceID, "i-123456"),
+		DaemonVersion:  takeFirst(orig.DaemonVersion, "1.0.0"),
+		IPAddress:      orig.IPAddress,
+		Metadata:       orig.Metadata,
 	})
 	require.NoError(t, err, "insert machine")
 	return machine
@@ -641,7 +631,7 @@ func IntelInvocations(t testing.TB, db database.Store, orig database.IntelInvoca
 	binaryNames := make([]string, 0, count)
 	binaryHashes := make([]string, 0, count)
 	binaryPaths := make([]string, 0, count)
-	binaryArgs := make([]json.RawMessage, 0, count)
+	binaryArgs := make([][]string, 0, count)
 	binaryVersions := make([]string, 0, count)
 	workingDirs := make([]string, 0, count)
 	gitRemoteURLs := make([]string, 0, count)
@@ -651,9 +641,9 @@ func IntelInvocations(t testing.TB, db database.Store, orig database.IntelInvoca
 	for z := 0; z < count; z++ {
 		ids = append(ids, uuid.New())
 
-		binaryNames = append(binaryNames, orig.BinaryName)
-		binaryHashes = append(binaryHashes, orig.BinaryHash)
-		binaryPaths = append(binaryPaths, orig.BinaryPath)
+		binaryNames = append(binaryNames, takeFirst("coder", orig.BinaryName))
+		binaryHashes = append(binaryHashes, takeFirst("hash", orig.BinaryHash))
+		binaryPaths = append(binaryPaths, takeFirst("/fake/path", orig.BinaryPath))
 		binaryArgs = append(binaryArgs, orig.BinaryArgs)
 		binaryVersions = append(binaryVersions, orig.BinaryVersion)
 		workingDirs = append(workingDirs, orig.WorkingDirectory)

@@ -1228,6 +1228,21 @@ func (mr *MockStoreMockRecorder) GetIntelCohortsMatchedByMachineIDs(arg0, arg1 a
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetIntelCohortsMatchedByMachineIDs", reflect.TypeOf((*MockStore)(nil).GetIntelCohortsMatchedByMachineIDs), arg0, arg1)
 }
 
+// GetIntelInvocationSummaries mocks base method.
+func (m *MockStore) GetIntelInvocationSummaries(arg0 context.Context, arg1 database.GetIntelInvocationSummariesParams) ([]database.IntelInvocationSummary, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetIntelInvocationSummaries", arg0, arg1)
+	ret0, _ := ret[0].([]database.IntelInvocationSummary)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetIntelInvocationSummaries indicates an expected call of GetIntelInvocationSummaries.
+func (mr *MockStoreMockRecorder) GetIntelInvocationSummaries(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetIntelInvocationSummaries", reflect.TypeOf((*MockStore)(nil).GetIntelInvocationSummaries), arg0, arg1)
+}
+
 // GetIntelMachinesMatchingFilters mocks base method.
 func (m *MockStore) GetIntelMachinesMatchingFilters(arg0 context.Context, arg1 database.GetIntelMachinesMatchingFiltersParams) ([]database.GetIntelMachinesMatchingFiltersRow, error) {
 	m.ctrl.T.Helper()
@@ -1241,36 +1256,6 @@ func (m *MockStore) GetIntelMachinesMatchingFilters(arg0 context.Context, arg1 d
 func (mr *MockStoreMockRecorder) GetIntelMachinesMatchingFilters(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetIntelMachinesMatchingFilters", reflect.TypeOf((*MockStore)(nil).GetIntelMachinesMatchingFilters), arg0, arg1)
-}
-
-// GetIntelReportCommands mocks base method.
-func (m *MockStore) GetIntelReportCommands(arg0 context.Context, arg1 database.GetIntelReportCommandsParams) ([]database.GetIntelReportCommandsRow, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetIntelReportCommands", arg0, arg1)
-	ret0, _ := ret[0].([]database.GetIntelReportCommandsRow)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetIntelReportCommands indicates an expected call of GetIntelReportCommands.
-func (mr *MockStoreMockRecorder) GetIntelReportCommands(arg0, arg1 any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetIntelReportCommands", reflect.TypeOf((*MockStore)(nil).GetIntelReportCommands), arg0, arg1)
-}
-
-// GetIntelReportGitRemotes mocks base method.
-func (m *MockStore) GetIntelReportGitRemotes(arg0 context.Context, arg1 database.GetIntelReportGitRemotesParams) ([]database.GetIntelReportGitRemotesRow, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetIntelReportGitRemotes", arg0, arg1)
-	ret0, _ := ret[0].([]database.GetIntelReportGitRemotesRow)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetIntelReportGitRemotes indicates an expected call of GetIntelReportGitRemotes.
-func (mr *MockStoreMockRecorder) GetIntelReportGitRemotes(arg0, arg1 any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetIntelReportGitRemotes", reflect.TypeOf((*MockStore)(nil).GetIntelReportGitRemotes), arg0, arg1)
 }
 
 // GetJFrogXrayScanByWorkspaceAndAgentID mocks base method.

@@ -2482,40 +2482,20 @@ func (q *FakeQuerier) GetIntelCohortsMatchedByMachineIDs(_ context.Context, ids 
 
 	rows := make([]database.GetIntelCohortsMatchedByMachineIDsRow, 0)
 	for _, cohort := range q.intelCohorts {
-		filterOS, err := regexp.CompilePOSIX(cohort.RegexOperatingSystem)
-		if err != nil {
-			return nil, err
-		}
-		filterOSPlatform, err := regexp.CompilePOSIX(cohort.RegexOperatingSystemPlatform)
-		if err != nil {
-			return nil, err
-		}
-		filterOSVersion, err := regexp.CompilePOSIX(cohort.RegexOperatingSystemVersion)
-		if err != nil {
-			return nil, err
-		}
-		filterArch, err := regexp.CompilePOSIX(cohort.RegexArchitecture)
-		if err != nil {
-			return nil, err
-		}
-		filterInstanceID, err := regexp.CompilePOSIX(cohort.RegexInstanceID)
-		if err != nil {
-			return nil, err
-		}
 		for _, machine := range machines {
-			if !filterOS.MatchString(machine.OperatingSystem) {
-				continue
+			matched := !cohort.MachineMetadata.Valid
+			for key, value := range machine.Metadata {
+				r, ok := cohort.MachineMetadata.StringMapOfRegex[key]
+				if !ok {
+					continue
+				}
+				if !r.MatchString(value) {
+					continue
+				}
+				matched = true
+				break
 			}
-			if !filterOSPlatform.MatchString(machine.OperatingSystemPlatform) {
-				continue
-			}
-			if !filterOSVersion.MatchString(machine.OperatingSystemVersion) {
-				continue
-			}
-			if !filterArch.MatchString(machine.Architecture) {
-				continue
-			}
-			if !filterInstanceID.MatchString(machine.InstanceID) {
+			if !matched {
 				continue
 			}
 			rows = append(rows, database.GetIntelCohortsMatchedByMachineIDsRow{
@@ -2528,6 +2508,25 @@ func (q *FakeQuerier) GetIntelCohortsMatchedByMachineIDs(_ context.Context, ids 
 	return rows, nil
 }
 
+func (q *FakeQuerier) GetIntelInvocationSummaries(ctx context.Context, arg database.GetIntelInvocationSummariesParams) ([]database.IntelInvocationSummary, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return nil, err
+	}
+
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	summaries := make([]database.IntelInvocationSummary, 0)
+	for _, summary := range q.intelInvocationSummaries {
+		if summary.StartsAt.Before(arg.StartsAt) {
+			continue
+		}
+		summaries = append(summaries, summary)
+	}
+	return summaries, nil
+}
+
 func (q *FakeQuerier) GetIntelMachinesMatchingFilters(_ context.Context, arg database.GetIntelMachinesMatchingFiltersParams) ([]database.GetIntelMachinesMatchingFiltersRow, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
@@ -2537,41 +2536,27 @@ func (q *FakeQuerier) GetIntelMachinesMatchingFilters(_ context.Context, arg dat
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	filterOS, err := regexp.CompilePOSIX(arg.RegexOperatingSystem)
+	var metadata database.StringMapOfRegex
+	err = json.Unmarshal(arg.Metadata, &metadata)
 	if err != nil {
 		return nil, err
 	}
-	filterOSVersion, err := regexp.CompilePOSIX(arg.RegexOperatingSystemVersion)
-	if err != nil {
-		return nil, err
-	}
-	filterOSPlatform, err := regexp.CompilePOSIX(arg.RegexOperatingSystemPlatform)
-	if err != nil {
-		return nil, err
-	}
-	filterArch, err := regexp.CompilePOSIX(arg.RegexArchitecture)
-	if err != nil {
-		return nil, err
-	}
-	filterInstanceID, err := regexp.CompilePOSIX(arg.RegexInstanceID)
-	if err != nil {
-		return nil, err
-	}
+
 	machines := make([]database.GetIntelMachinesMatchingFiltersRow, 0)
 	for _, m := range q.intelMachines {
-		if !filterOS.MatchString(m.OperatingSystem) {
-			continue
+		matched := len(metadata) == 0
+		for key, value := range m.Metadata {
+			r, ok := metadata[key]
+			if !ok {
+				continue
+			}
+			if !r.MatchString(value) {
+				continue
+			}
+			matched = true
+			break
 		}
-		if !filterOSVersion.MatchString(m.OperatingSystemVersion) {
-			continue
-		}
-		if !filterOSPlatform.MatchString(m.OperatingSystemPlatform) {
-			continue
-		}
-		if !filterArch.MatchString(m.Architecture) {
-			continue
-		}
-		if !filterInstanceID.MatchString(m.InstanceID) {
+		if !matched {
 			continue
 		}
 		machines = append(machines, database.GetIntelMachinesMatchingFiltersRow{
@@ -2590,115 +2575,6 @@ func (q *FakeQuerier) GetIntelMachinesMatchingFilters(_ context.Context, arg dat
 		machines = machines[:arg.LimitOpt]
 	}
 	return machines, nil
-}
-
-func (q *FakeQuerier) GetIntelReportCommands(_ context.Context, arg database.GetIntelReportCommandsParams) ([]database.GetIntelReportCommandsRow, error) {
-	err := validateDatabaseType(arg)
-	if err != nil {
-		return nil, err
-	}
-
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	commandKey := func(summary database.IntelInvocationSummary) string {
-		return fmt.Sprintf("%s-%s-%s-%s-%s", summary.StartsAt, summary.EndsAt, summary.CohortID, summary.BinaryName, summary.BinaryArgs)
-	}
-	commands := map[string]database.GetIntelReportCommandsRow{}
-	commandMedianDurations := map[string][]float64{}
-	for _, summary := range q.intelInvocationSummaries {
-		if summary.StartsAt.Before(arg.StartsAt) {
-			continue
-		}
-		if len(arg.CohortIds) > 0 && !slices.Contains(arg.CohortIds, summary.CohortID) {
-			continue
-		}
-		key := commandKey(summary)
-		command, ok := commands[key]
-		if !ok {
-			command = database.GetIntelReportCommandsRow{
-				StartsAt:   summary.StartsAt,
-				EndsAt:     summary.EndsAt,
-				CohortID:   summary.CohortID,
-				BinaryName: summary.BinaryName,
-				BinaryArgs: summary.BinaryArgs,
-			}
-		}
-		command.TotalInvocations += summary.TotalInvocations
-		command.AggregatedBinaryPaths = append(command.AggregatedBinaryPaths, string(summary.BinaryPaths))
-		command.AggregatedExitCodes = append(command.AggregatedExitCodes, string(summary.ExitCodes))
-		command.AggregatedGitRemoteUrls = append(command.AggregatedGitRemoteUrls, string(summary.GitRemoteUrls))
-		command.AggregatedWorkingDirectories = append(command.AggregatedWorkingDirectories, string(summary.WorkingDirectories))
-		commandMedianDurations[key] = append(commandMedianDurations[key], summary.MedianDurationMs)
-		commands[key] = command
-	}
-
-	rows := make([]database.GetIntelReportCommandsRow, 0, len(commands))
-	for key, command := range commands {
-		durations, ok := commandMedianDurations[key]
-		if !ok {
-			continue
-		}
-		command.MedianDurationMs = medianFloat64s(durations)
-		rows = append(rows, command)
-	}
-	return rows, nil
-}
-
-func (q *FakeQuerier) GetIntelReportGitRemotes(_ context.Context, opts database.GetIntelReportGitRemotesParams) ([]database.GetIntelReportGitRemotesRow, error) {
-	err := validateDatabaseType(opts)
-	if err != nil {
-		return nil, err
-	}
-
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	remoteKey := func(summary database.IntelInvocationSummary, remoteURL string) string {
-		return fmt.Sprintf("%s-%s-%s-%s", summary.StartsAt, summary.EndsAt, summary.CohortID, remoteURL)
-	}
-	remotes := map[string]database.GetIntelReportGitRemotesRow{}
-	remoteMedianDurations := map[string][]float64{}
-	for _, summary := range q.intelInvocationSummaries {
-		if summary.StartsAt.Before(opts.StartsAt) {
-			continue
-		}
-		if len(opts.CohortIds) > 0 && !slices.Contains(opts.CohortIds, summary.CohortID) {
-			continue
-		}
-		// Maps remote URLs to invocation counts
-		gitRemoteURLs := map[string]int{}
-		err = json.Unmarshal(summary.GitRemoteUrls, &gitRemoteURLs)
-		if err != nil {
-			return nil, err
-		}
-		for remoteURL, invocations := range gitRemoteURLs {
-			key := remoteKey(summary, remoteURL)
-			remote, ok := remotes[key]
-			if !ok {
-				remote = database.GetIntelReportGitRemotesRow{
-					StartsAt:     summary.StartsAt,
-					EndsAt:       summary.EndsAt,
-					CohortID:     summary.CohortID,
-					GitRemoteUrl: remoteURL,
-				}
-			}
-			remote.TotalInvocations += int64(invocations)
-			remoteMedianDurations[key] = append(remoteMedianDurations[key], summary.MedianDurationMs)
-			remotes[key] = remote
-		}
-	}
-
-	rows := make([]database.GetIntelReportGitRemotesRow, 0, len(remotes))
-	for key, remote := range remotes {
-		durations, ok := remoteMedianDurations[key]
-		if !ok {
-			continue
-		}
-		remote.MedianDurationMs = medianFloat64s(durations)
-		rows = append(rows, remote)
-	}
-	return rows, nil
 }
 
 func (q *FakeQuerier) GetJFrogXrayScanByWorkspaceAndAgentID(_ context.Context, arg database.GetJFrogXrayScanByWorkspaceAndAgentIDParams) (database.JfrogXrayScan, error) {
@@ -6284,7 +6160,7 @@ func (q *FakeQuerier) InsertIntelInvocations(_ context.Context, arg database.Ins
 
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
-	var binaryArgs []json.RawMessage
+	var binaryArgs [][]string
 	_ = json.Unmarshal(arg.BinaryArgs, &binaryArgs)
 	for i, id := range arg.ID {
 		q.intelInvocations = append(q.intelInvocations, database.IntelInvocation{
@@ -8749,11 +8625,7 @@ func (q *FakeQuerier) UpsertIntelCohort(_ context.Context, arg database.UpsertIn
 		}
 		cohort.UpdatedAt = arg.UpdatedAt
 		cohort.Description = arg.Description
-		cohort.RegexOperatingSystem = arg.RegexOperatingSystem
-		cohort.RegexOperatingSystemPlatform = arg.RegexOperatingSystemPlatform
-		cohort.RegexOperatingSystemVersion = arg.RegexOperatingSystemVersion
-		cohort.RegexArchitecture = arg.RegexArchitecture
-		cohort.RegexInstanceID = arg.RegexInstanceID
+		cohort.MachineMetadata = arg.MachineMetadata
 		cohort.TrackedExecutables = arg.TrackedExecutables
 		cohort.Name = arg.Name
 		cohort.Icon = arg.Icon
@@ -8763,20 +8635,16 @@ func (q *FakeQuerier) UpsertIntelCohort(_ context.Context, arg database.UpsertIn
 
 	//nolint:gosimple
 	cohort := database.IntelCohort{
-		ID:                           arg.ID,
-		OrganizationID:               arg.OrganizationID,
-		CreatedBy:                    arg.CreatedBy,
-		CreatedAt:                    arg.CreatedAt,
-		UpdatedAt:                    arg.UpdatedAt,
-		Description:                  arg.Description,
-		RegexOperatingSystem:         arg.RegexOperatingSystem,
-		RegexOperatingSystemPlatform: arg.RegexOperatingSystemPlatform,
-		RegexOperatingSystemVersion:  arg.RegexOperatingSystemVersion,
-		RegexArchitecture:            arg.RegexArchitecture,
-		RegexInstanceID:              arg.RegexInstanceID,
-		TrackedExecutables:           arg.TrackedExecutables,
-		Name:                         arg.Name,
-		Icon:                         arg.Icon,
+		ID:                 arg.ID,
+		OrganizationID:     arg.OrganizationID,
+		CreatedBy:          arg.CreatedBy,
+		CreatedAt:          arg.CreatedAt,
+		UpdatedAt:          arg.UpdatedAt,
+		Description:        arg.Description,
+		MachineMetadata:    arg.MachineMetadata,
+		TrackedExecutables: arg.TrackedExecutables,
+		Name:               arg.Name,
+		Icon:               arg.Icon,
 	}
 	q.intelCohorts = append(q.intelCohorts, cohort)
 	return cohort, nil
@@ -8786,130 +8654,78 @@ func (q *FakeQuerier) UpsertIntelInvocationSummaries(_ context.Context) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
-	type machineCohort struct {
-		MachineID uuid.UUID
-		CohortID  uuid.UUID
+	machineByID := make(map[uuid.UUID]database.IntelMachine)
+	for _, m := range q.intelMachines {
+		machineByID[m.ID] = m
 	}
-	machineCohorts := make([]machineCohort, 0)
-	for _, cohort := range q.intelCohorts {
-		filterOS, err := regexp.CompilePOSIX(cohort.RegexOperatingSystem)
-		if err != nil {
-			return err
-		}
-		filterOSPlatform, err := regexp.CompilePOSIX(cohort.RegexOperatingSystemPlatform)
-		if err != nil {
-			return err
-		}
-		filterOSVersion, err := regexp.CompilePOSIX(cohort.RegexOperatingSystemVersion)
-		if err != nil {
-			return err
-		}
-		filterArch, err := regexp.CompilePOSIX(cohort.RegexArchitecture)
-		if err != nil {
-			return err
-		}
-		filterInstanceID, err := regexp.CompilePOSIX(cohort.RegexInstanceID)
-		if err != nil {
-			return err
-		}
-		for _, machine := range q.intelMachines {
-			if !filterOS.MatchString(machine.OperatingSystem) {
-				continue
-			}
-			if !filterOSPlatform.MatchString(machine.OperatingSystemPlatform) {
-				continue
-			}
-			if !filterOSVersion.MatchString(machine.OperatingSystemVersion) {
-				continue
-			}
-			if !filterArch.MatchString(machine.Architecture) {
-				continue
-			}
-			if !filterInstanceID.MatchString(machine.InstanceID) {
-				continue
-			}
-			machineCohorts = append(machineCohorts, machineCohort{
-				CohortID:  cohort.ID,
-				MachineID: machine.ID,
-			})
-		}
-	}
-
 	truncateDuration := 15 * time.Minute
-	invocationKey := func(invocation database.IntelInvocation, cohortID string) string {
+	invocationKey := func(invocation database.IntelInvocation) string {
 		truncatedCreatedAt := invocation.CreatedAt.Truncate(truncateDuration)
-		return fmt.Sprintf("%s-%s-%s-%s", truncatedCreatedAt.Format(time.RFC3339), cohortID, invocation.BinaryName, invocation.BinaryArgs)
+		return fmt.Sprintf("%s-%s-%s", truncatedCreatedAt.Format(time.RFC3339), invocation.BinaryName, invocation.BinaryArgs)
 	}
 	type summaryWithTypes struct {
 		database.IntelInvocationSummary
 
 		InvocationIDs      map[uuid.UUID]struct{}
 		MachineIDs         map[uuid.UUID]struct{}
-		BinaryPaths        map[string]int
-		WorkingDirectories map[string]int
-		GitRemoteUrls      map[string]int
-		ExitCodes          map[string]int
+		BinaryPaths        map[string]int64
+		WorkingDirectories map[string]int64
+		GitRemoteUrls      map[string]int64
+		ExitCodes          map[string]int64
+		MachineMetadata    map[string]map[string]int64
 		DurationMS         []float64
 	}
 	invocationSummaries := make(map[string]summaryWithTypes)
 	for _, invocation := range q.intelInvocations {
-		for _, mc := range machineCohorts {
-			if mc.MachineID != invocation.MachineID {
-				continue
+		key := invocationKey(invocation)
+		summary, ok := invocationSummaries[key]
+		if !ok {
+			startsAt := invocation.CreatedAt.Truncate(truncateDuration)
+			summary = summaryWithTypes{
+				IntelInvocationSummary: database.IntelInvocationSummary{
+					ID:         uuid.New(),
+					StartsAt:   startsAt,
+					EndsAt:     startsAt.Add(truncateDuration),
+					BinaryName: invocation.BinaryName,
+					BinaryArgs: invocation.BinaryArgs,
+				},
+				InvocationIDs:      make(map[uuid.UUID]struct{}),
+				MachineIDs:         make(map[uuid.UUID]struct{}),
+				BinaryPaths:        make(map[string]int64),
+				WorkingDirectories: make(map[string]int64),
+				GitRemoteUrls:      make(map[string]int64),
+				ExitCodes:          make(map[string]int64),
+				MachineMetadata:    make(map[string]map[string]int64),
 			}
-
-			key := invocationKey(invocation, mc.CohortID.String())
-			summary, ok := invocationSummaries[key]
-			if !ok {
-				startsAt := invocation.CreatedAt.Truncate(truncateDuration)
-				summary = summaryWithTypes{
-					IntelInvocationSummary: database.IntelInvocationSummary{
-						ID:         uuid.New(),
-						CohortID:   mc.CohortID,
-						StartsAt:   startsAt,
-						EndsAt:     startsAt.Add(truncateDuration),
-						BinaryName: invocation.BinaryName,
-						BinaryArgs: invocation.BinaryArgs,
-					},
-					InvocationIDs:      make(map[uuid.UUID]struct{}),
-					MachineIDs:         make(map[uuid.UUID]struct{}),
-					BinaryPaths:        make(map[string]int),
-					WorkingDirectories: make(map[string]int),
-					GitRemoteUrls:      make(map[string]int),
-					ExitCodes:          make(map[string]int),
-				}
-			}
-			summary.BinaryPaths[invocation.BinaryPath]++
-			summary.WorkingDirectories[invocation.WorkingDirectory]++
-			summary.GitRemoteUrls[invocation.GitRemoteUrl]++
-			summary.ExitCodes[strconv.Itoa(int(invocation.ExitCode))]++
-			summary.InvocationIDs[invocation.ID] = struct{}{}
-			summary.MachineIDs[invocation.MachineID] = struct{}{}
-			summary.DurationMS = append(summary.DurationMS, invocation.DurationMs)
-			invocationSummaries[key] = summary
 		}
+		summary.BinaryPaths[invocation.BinaryPath]++
+		summary.WorkingDirectories[invocation.WorkingDirectory]++
+		summary.GitRemoteUrls[invocation.GitRemoteUrl]++
+		summary.ExitCodes[strconv.Itoa(int(invocation.ExitCode))]++
+		summary.InvocationIDs[invocation.ID] = struct{}{}
+		summary.MachineIDs[invocation.MachineID] = struct{}{}
+
+		machine, ok := machineByID[invocation.MachineID]
+		if ok {
+			for k, v := range machine.Metadata {
+				if _, ok := summary.MachineMetadata[k]; !ok {
+					summary.MachineMetadata[k] = make(map[string]int64)
+				}
+				summary.MachineMetadata[k][v]++
+			}
+		}
+		summary.DurationMS = append(summary.DurationMS, invocation.DurationMs)
+		invocationSummaries[key] = summary
 	}
-	var err error
 	for _, wrapperSummary := range invocationSummaries {
 		summary := wrapperSummary.IntelInvocationSummary
 		summary.UniqueMachines = int64(len(wrapperSummary.MachineIDs))
 		summary.TotalInvocations = int64(len(wrapperSummary.InvocationIDs))
-		summary.WorkingDirectories, err = json.Marshal(wrapperSummary.WorkingDirectories)
-		if err != nil {
-			return err
-		}
-		summary.BinaryPaths, err = json.Marshal(wrapperSummary.BinaryPaths)
-		if err != nil {
-			return err
-		}
-		summary.GitRemoteUrls, err = json.Marshal(wrapperSummary.GitRemoteUrls)
-		if err != nil {
-			return err
-		}
-		summary.ExitCodes, err = json.Marshal(wrapperSummary.ExitCodes)
-		if err != nil {
-			return err
-		}
+		summary.WorkingDirectories = wrapperSummary.WorkingDirectories
+		summary.BinaryPaths = wrapperSummary.BinaryPaths
+		summary.GitRemoteUrls = wrapperSummary.GitRemoteUrls
+		summary.ExitCodes = wrapperSummary.ExitCodes
+		summary.MachineMetadata = wrapperSummary.MachineMetadata
 		summary.MedianDurationMs = medianFloat64s(wrapperSummary.DurationMS)
 		q.intelInvocationSummaries = append(q.intelInvocationSummaries, summary)
 	}
@@ -8932,13 +8748,7 @@ func (q *FakeQuerier) UpsertIntelMachine(_ context.Context, arg database.UpsertI
 		if machine.UserID == arg.UserID && machine.InstanceID == arg.InstanceID {
 			machine.UpdatedAt = arg.UpdatedAt
 			machine.IPAddress = arg.IPAddress
-			machine.Hostname = arg.Hostname
-			machine.OperatingSystem = arg.OperatingSystem
-			machine.OperatingSystemPlatform = arg.OperatingSystemPlatform
-			machine.OperatingSystemVersion = arg.OperatingSystemVersion
-			machine.CPUCores = arg.CPUCores
-			machine.MemoryMBTotal = arg.MemoryMBTotal
-			machine.Architecture = arg.Architecture
+			machine.Metadata = arg.Metadata
 			machine.DaemonVersion = arg.DaemonVersion
 			q.intelMachines[i] = machine
 			return machine, nil
@@ -8946,21 +8756,15 @@ func (q *FakeQuerier) UpsertIntelMachine(_ context.Context, arg database.UpsertI
 	}
 
 	machine := database.IntelMachine{
-		ID:                      arg.ID,
-		CreatedAt:               arg.CreatedAt,
-		UpdatedAt:               arg.UpdatedAt,
-		InstanceID:              arg.InstanceID,
-		OrganizationID:          arg.OrganizationID,
-		UserID:                  arg.UserID,
-		IPAddress:               arg.IPAddress,
-		Hostname:                arg.Hostname,
-		OperatingSystem:         arg.OperatingSystem,
-		OperatingSystemPlatform: arg.OperatingSystemPlatform,
-		OperatingSystemVersion:  arg.OperatingSystemVersion,
-		CPUCores:                arg.CPUCores,
-		MemoryMBTotal:           arg.MemoryMBTotal,
-		Architecture:            arg.Architecture,
-		DaemonVersion:           arg.DaemonVersion,
+		ID:             arg.ID,
+		CreatedAt:      arg.CreatedAt,
+		UpdatedAt:      arg.UpdatedAt,
+		InstanceID:     arg.InstanceID,
+		OrganizationID: arg.OrganizationID,
+		UserID:         arg.UserID,
+		IPAddress:      arg.IPAddress,
+		Metadata:       arg.Metadata,
+		DaemonVersion:  arg.DaemonVersion,
 	}
 	q.intelMachines = append(q.intelMachines, machine)
 	return machine, nil

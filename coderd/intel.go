@@ -7,13 +7,11 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/yamux"
 	"github.com/sqlc-dev/pqtype"
-	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 	"nhooyr.io/websocket"
 	"storj.io/drpc/drpcmux"
@@ -46,19 +44,6 @@ func (api *API) intelReport(rw http.ResponseWriter, r *http.Request) {
 
 	var req codersdk.IntelReportRequest
 	q := r.URL.Query()
-	rawCohortIDs := q["cohort_id"]
-	req.CohortIDs = make([]uuid.UUID, 0, len(rawCohortIDs))
-	for _, rawCohortID := range rawCohortIDs {
-		cohortID, err := uuid.Parse(rawCohortID)
-		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Invalid cohort ID.",
-				Detail:  err.Error(),
-			})
-			return
-		}
-		req.CohortIDs = append(req.CohortIDs, cohortID)
-	}
 	// Default to the beginning of time?
 	rawStartsAt := q.Get("starts_at")
 	if rawStartsAt != "" {
@@ -72,147 +57,50 @@ func (api *API) intelReport(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-
-	var eg errgroup.Group
-	var report codersdk.IntelReport
-	eg.Go(func() error {
-		rows, err := api.Database.GetIntelReportGitRemotes(ctx, database.GetIntelReportGitRemotesParams{
-			StartsAt:  req.StartsAt,
-			CohortIds: req.CohortIDs,
-		})
-		if err != nil {
-			return err
-		}
-		reportByRemote := make(map[string]codersdk.IntelReportGitRemote, len(rows))
-		for _, row := range rows {
-			gitRemote, ok := reportByRemote[row.GitRemoteUrl]
-			if !ok {
-				var externalAuthConfigID *string
-				for _, extAuth := range api.ExternalAuthConfigs {
-					if extAuth.Regex.MatchString(row.GitRemoteUrl) {
-						externalAuthConfigID = &extAuth.ID
-						break
-					}
-				}
-				gitRemote = codersdk.IntelReportGitRemote{
-					URL:                    row.GitRemoteUrl,
-					ExternalAuthProviderID: externalAuthConfigID,
-				}
-			}
-			gitRemote.Invocations += row.TotalInvocations
-			gitRemote.Intervals = append(gitRemote.Intervals, codersdk.IntelReportInvocationInterval{
-				StartsAt:         row.StartsAt,
-				EndsAt:           row.EndsAt,
-				Invocations:      row.TotalInvocations,
-				MedianDurationMS: row.MedianDurationMs,
-				CohortID:         row.CohortID,
-			})
-			reportByRemote[row.GitRemoteUrl] = gitRemote
-		}
-		for _, gitRemote := range reportByRemote {
-			report.GitRemotes = append(report.GitRemotes, gitRemote)
-		}
-		return nil
+	summaries, err := api.Database.GetIntelInvocationSummaries(ctx, database.GetIntelInvocationSummariesParams{
+		StartsAt: req.StartsAt,
 	})
-	eg.Go(func() error {
-		rows, err := api.Database.GetIntelReportCommands(ctx, database.GetIntelReportCommandsParams{
-			StartsAt:  req.StartsAt,
-			CohortIds: req.CohortIDs,
-		})
-		if err != nil {
-			return err
-		}
-		reportByBinary := make(map[string]codersdk.IntelReportCommand, len(rows))
-		for _, row := range rows {
-			// Just index by this for simplicity on lookup.
-			binaryID := string(append([]byte(row.BinaryName), row.BinaryArgs...))
-
-			command, ok := reportByBinary[binaryID]
-			if !ok {
-				command = codersdk.IntelReportCommand{
-					BinaryName:         row.BinaryName,
-					ExitCodes:          map[int]int64{},
-					GitRemoteURLs:      map[string]int64{},
-					WorkingDirectories: map[string]int64{},
-					BinaryPaths:        map[string]int64{},
-				}
-				err = json.Unmarshal(row.BinaryArgs, &command.BinaryArgs)
-				if err != nil {
-					return err
-				}
-			}
-			command.Invocations += row.TotalInvocations
-
-			// Merge exit codes
-			exitCodes := map[string]int64{}
-			for _, exitCodeRaw := range row.AggregatedExitCodes {
-				err = json.Unmarshal([]byte(exitCodeRaw), &exitCodes)
-				if err != nil {
-					return err
-				}
-				for exitCodeRaw, invocations := range exitCodes {
-					exitCode, err := strconv.Atoi(exitCodeRaw)
-					if err != nil {
-						return err
-					}
-					command.ExitCodes[exitCode] += invocations
-				}
-			}
-			// Merge binary paths
-			binaryPaths := map[string]int64{}
-			for _, binaryPathRaw := range row.AggregatedBinaryPaths {
-				err = json.Unmarshal([]byte(binaryPathRaw), &binaryPaths)
-				if err != nil {
-					return err
-				}
-				for binaryPath, invocations := range binaryPaths {
-					command.BinaryPaths[binaryPath] += invocations
-				}
-			}
-			// Merge working directories
-			workingDirectories := map[string]int64{}
-			for _, workingDirectoryRaw := range row.AggregatedWorkingDirectories {
-				err = json.Unmarshal([]byte(workingDirectoryRaw), &workingDirectories)
-				if err != nil {
-					return err
-				}
-				for workingDirectory, invocations := range workingDirectories {
-					command.WorkingDirectories[workingDirectory] += invocations
-				}
-			}
-			// Merge git remote URLs
-			gitRemoteURLs := map[string]int64{}
-			for _, gitRemoteURLRaw := range row.AggregatedGitRemoteUrls {
-				err = json.Unmarshal([]byte(gitRemoteURLRaw), &gitRemoteURLs)
-				if err != nil {
-					return err
-				}
-				for gitRemoteURL, invocations := range gitRemoteURLs {
-					command.GitRemoteURLs[gitRemoteURL] += invocations
-				}
-			}
-			command.Intervals = append(command.Intervals, codersdk.IntelReportInvocationInterval{
-				StartsAt:         row.StartsAt,
-				EndsAt:           row.EndsAt,
-				Invocations:      row.TotalInvocations,
-				MedianDurationMS: row.MedianDurationMs,
-				CohortID:         row.CohortID,
-			})
-			reportByBinary[binaryID] = command
-		}
-		for _, command := range reportByBinary {
-			report.Commands = append(report.Commands, command)
-			report.Invocations += command.Invocations
-		}
-		return nil
-	})
-	err := eg.Wait()
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error getting intel report.",
+			Message: "Internal error getting intel invocation summaries.",
 			Detail:  err.Error(),
 		})
 		return
+	}
+	report := codersdk.IntelReport{
+		GitAuthProviders: map[string]*string{},
+		Intervals:        make([]codersdk.IntelInvocationSummary, 0, len(summaries)),
+	}
+	for _, summary := range summaries {
+		report.Intervals = append(report.Intervals, codersdk.IntelInvocationSummary{
+			ID:                 summary.ID,
+			StartsAt:           summary.StartsAt,
+			EndsAt:             summary.EndsAt,
+			BinaryName:         summary.BinaryName,
+			BinaryArgs:         summary.BinaryArgs,
+			ExitCodes:          summary.ExitCodes,
+			GitRemoteURLs:      summary.GitRemoteUrls,
+			WorkingDirectories: summary.WorkingDirectories,
+			BinaryPaths:        summary.BinaryPaths,
+			MachineMetadata:    summary.MachineMetadata,
+			UniqueMachines:     summary.UniqueMachines,
+			TotalInvocations:   summary.TotalInvocations,
+			MedianDurationMS:   summary.MedianDurationMs,
+		})
+		report.Invocations += summary.TotalInvocations
+		for url := range summary.GitRemoteUrls {
+			_, exists := report.GitAuthProviders[url]
+			if exists {
+				continue
+			}
+			for _, extAuth := range api.ExternalAuthConfigs {
+				if !extAuth.Regex.MatchString(url) {
+					continue
+				}
+				report.GitAuthProviders[url] = &extAuth.ID
+				break
+			}
+		}
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, report)
 }
@@ -239,15 +127,12 @@ func (api *API) postIntelReport(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Intel
+// @Param organization path string true "Organization ID" format(uuid)
 // @Param limit query int false "Page limit"
 // @Param offset query int false "Page offset"
-// @Param operating_system query string false "Regex to match a machine operating system against"
-// @Param operating_system_platform query string false "Regex to match a machine operating system platform against"
-// @Param operating_system_version query string false "Regex to match a machine operating system version against"
-// @Param architecture query string false "Regex to match a machine architecture against"
-// @Param instance_id query string false "Regex to match a machine instance ID against"
+// @Param metadata query string false "A JSON object to match machine metadata against"
 // @Success 200 {object} codersdk.IntelMachinesResponse
-// @Router /insights/daus [get]
+// @Router /organizations/{organization}/intel/machines [get]
 func (api *API) intelMachines(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	organization := httpmw.OrganizationParam(r)
@@ -256,24 +141,27 @@ func (api *API) intelMachines(rw http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	query := r.URL.Query()
-	filters := &codersdk.IntelCohortRegexFilters{
-		OperatingSystem:         query.Get("operating_system"),
-		OperatingSystemPlatform: query.Get("operating_system_platform"),
-		OperatingSystemVersion:  query.Get("operating_system_version"),
-		Architecture:            query.Get("architecture"),
-		InstanceID:              query.Get("instance_id"),
+	metadataRaw := r.URL.Query().Get("metadata")
+	if metadataRaw != "" {
+		// Just for validation!
+		var mapping database.StringMapOfRegex
+		err := json.Unmarshal([]byte(metadataRaw), &mapping)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid metadata.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+	} else {
+		metadataRaw = "{}"
 	}
-	filters.Normalize()
 
 	machineRows, err := api.Database.GetIntelMachinesMatchingFilters(ctx, database.GetIntelMachinesMatchingFiltersParams{
-		OrganizationID:              organization.ID,
-		RegexOperatingSystem:        filters.OperatingSystem,
-		RegexOperatingSystemVersion: filters.OperatingSystemVersion,
-		RegexArchitecture:           filters.Architecture,
-		RegexInstanceID:             filters.InstanceID,
-		LimitOpt:                    int32(page.Limit),
-		OffsetOpt:                   int32(page.Offset),
+		OrganizationID: organization.ID,
+		Metadata:       []byte(metadataRaw),
+		LimitOpt:       int32(page.Limit),
+		OffsetOpt:      int32(page.Offset),
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -330,30 +218,23 @@ func (api *API) postIntelCohorts(rw http.ResponseWriter, r *http.Request) {
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
-	if req.RegexFilters == nil {
-		req.RegexFilters = &codersdk.IntelCohortRegexFilters{}
-	}
 	if req.TrackedExecutables == nil {
 		req.TrackedExecutables = []string{}
 	}
-	// Ensure defaults to match any exist!
-	req.RegexFilters.Normalize()
-
 	cohort, err := api.Database.UpsertIntelCohort(ctx, database.UpsertIntelCohortParams{
-		ID:                           uuid.New(),
-		OrganizationID:               organization.ID,
-		CreatedBy:                    apiKey.UserID,
-		CreatedAt:                    dbtime.Now(),
-		UpdatedAt:                    dbtime.Now(),
-		Name:                         req.Name,
-		Icon:                         req.Icon,
-		Description:                  req.Description,
-		TrackedExecutables:           req.TrackedExecutables,
-		RegexOperatingSystem:         req.RegexFilters.OperatingSystem,
-		RegexOperatingSystemPlatform: req.RegexFilters.OperatingSystemPlatform,
-		RegexOperatingSystemVersion:  req.RegexFilters.OperatingSystemVersion,
-		RegexArchitecture:            req.RegexFilters.Architecture,
-		RegexInstanceID:              req.RegexFilters.InstanceID,
+		ID:                 uuid.New(),
+		OrganizationID:     organization.ID,
+		CreatedBy:          apiKey.UserID,
+		CreatedAt:          dbtime.Now(),
+		UpdatedAt:          dbtime.Now(),
+		Name:               req.Name,
+		Icon:               req.Icon,
+		Description:        req.Description,
+		TrackedExecutables: req.TrackedExecutables,
+		MachineMetadata: database.NullStringMapOfRegex{
+			StringMapOfRegex: req.MetadataMatch,
+			Valid:            req.MetadataMatch != nil,
+		},
 	})
 	if err != nil {
 		if database.IsUniqueViolation(err, database.UniqueIntelCohortsOrganizationIDNameKey) {
@@ -405,18 +286,18 @@ func (api *API) intelDaemonServe(rw http.ResponseWriter, r *http.Request) {
 	organization := httpmw.OrganizationParam(r)
 
 	query := r.URL.Query()
-	// It's fine if this is unset!
-	cpuCores, _ := strconv.ParseUint(query.Get("cpu_cores"), 10, 16)
-	// It's fine if this is unset as well!
-	memoryTotalMB, _ := strconv.ParseUint(query.Get("memory_total_mb"), 10, 64)
 	instanceID := query.Get("instance_id")
-	hostInfo := codersdk.IntelDaemonHostInfo{
-		Hostname:               query.Get("hostname"),
-		OperatingSystem:        query.Get("operating_system"),
-		OperatingSystemVersion: query.Get("operating_system_version"),
-		Architecture:           query.Get("architecture"),
-		CPUCores:               uint16(cpuCores),
-		MemoryTotalMB:          memoryTotalMB,
+	metadataRaw := query.Get("metadata")
+	var metadata map[string]string
+	if metadataRaw != "" {
+		err := json.Unmarshal([]byte(metadataRaw), &metadata)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid metadata.",
+				Detail:  err.Error(),
+			})
+			return
+		}
 	}
 	remoteIP := net.ParseIP(r.RemoteAddr)
 	if remoteIP == nil {
@@ -432,21 +313,15 @@ func (api *API) intelDaemonServe(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	machine, err := api.Database.UpsertIntelMachine(ctx, database.UpsertIntelMachineParams{
-		ID:                      uuid.New(),
-		CreatedAt:               dbtime.Now(),
-		UpdatedAt:               dbtime.Now(),
-		UserID:                  apiKey.UserID,
-		OrganizationID:          organization.ID,
-		IPAddress:               ipAddress,
-		InstanceID:              instanceID,
-		Hostname:                hostInfo.Hostname,
-		OperatingSystem:         hostInfo.OperatingSystem,
-		OperatingSystemVersion:  hostInfo.OperatingSystemVersion,
-		OperatingSystemPlatform: hostInfo.OperatingSystemPlatform,
-		CPUCores:                int32(hostInfo.CPUCores),
-		MemoryMBTotal:           int32(hostInfo.MemoryTotalMB),
-		Architecture:            hostInfo.Architecture,
-		DaemonVersion:           "",
+		ID:             uuid.New(),
+		CreatedAt:      dbtime.Now(),
+		UpdatedAt:      dbtime.Now(),
+		UserID:         apiKey.UserID,
+		OrganizationID: organization.ID,
+		IPAddress:      ipAddress,
+		InstanceID:     instanceID,
+		Metadata:       metadata,
+		DaemonVersion:  "",
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -517,7 +392,7 @@ func (api *API) intelDaemonServe(rw http.ResponseWriter, r *http.Request) {
 	}
 	server := drpcserver.NewWithOptions(mux, drpcserver.Options{
 		Log: func(err error) {
-			if xerrors.Is(err, io.EOF) {
+			if xerrors.Is(err, io.EOF) || xerrors.Is(err, context.Canceled) {
 				return
 			}
 			logger.Debug(ctx, "drpc server error", slog.Error(err))
@@ -537,19 +412,13 @@ func convertIntelMachines(machines []database.IntelMachine) []codersdk.IntelMach
 	converted := make([]codersdk.IntelMachine, len(machines))
 	for i, machine := range machines {
 		converted[i] = codersdk.IntelMachine{
-			ID:                      machine.ID,
-			UserID:                  machine.UserID,
-			OrganizationID:          machine.OrganizationID,
-			CreatedAt:               machine.CreatedAt,
-			UpdatedAt:               machine.UpdatedAt,
-			InstanceID:              machine.InstanceID,
-			Hostname:                machine.Hostname,
-			OperatingSystem:         machine.OperatingSystem,
-			OperatingSystemPlatform: machine.OperatingSystemPlatform,
-			OperatingSystemVersion:  machine.OperatingSystemVersion,
-			CPUCores:                uint16(machine.CPUCores),
-			MemoryMBTotal:           uint64(machine.MemoryMBTotal),
-			Architecture:            machine.Architecture,
+			ID:             machine.ID,
+			UserID:         machine.UserID,
+			OrganizationID: machine.OrganizationID,
+			CreatedAt:      machine.CreatedAt,
+			UpdatedAt:      machine.UpdatedAt,
+			InstanceID:     machine.InstanceID,
+			Metadata:       machine.Metadata,
 		}
 	}
 	return converted
@@ -559,24 +428,40 @@ func convertIntelCohorts(cohorts []database.IntelCohort) []codersdk.IntelCohort 
 	converted := make([]codersdk.IntelCohort, len(cohorts))
 	for i, cohort := range cohorts {
 		converted[i] = codersdk.IntelCohort{
-			ID:             cohort.ID,
-			OrganizationID: cohort.OrganizationID,
-			CreatedBy:      cohort.CreatedBy,
-			UpdatedAt:      cohort.UpdatedAt,
-			RegexFilters: codersdk.IntelCohortRegexFilters{
-				OperatingSystem:         cohort.RegexOperatingSystem,
-				OperatingSystemPlatform: cohort.RegexOperatingSystemPlatform,
-				OperatingSystemVersion:  cohort.RegexOperatingSystemVersion,
-				Architecture:            cohort.RegexArchitecture,
-				InstanceID:              cohort.RegexInstanceID,
-			},
-			CreatedAt: cohort.CreatedAt,
+			ID:              cohort.ID,
+			OrganizationID:  cohort.OrganizationID,
+			CreatedBy:       cohort.CreatedBy,
+			UpdatedAt:       cohort.UpdatedAt,
+			MachineMetadata: cohort.MachineMetadata.StringMapOfRegex,
+			CreatedAt:       cohort.CreatedAt,
 			IntelCohortMetadata: codersdk.IntelCohortMetadata{
 				Name:               cohort.Name,
 				Icon:               cohort.Icon,
 				Description:        cohort.Description,
 				TrackedExecutables: cohort.TrackedExecutables,
 			},
+		}
+	}
+	return converted
+}
+
+func convertIntelInvocationSummaries(summaries []database.IntelInvocationSummary) []codersdk.IntelInvocationSummary {
+	converted := make([]codersdk.IntelInvocationSummary, len(summaries))
+	for i, summary := range summaries {
+		converted[i] = codersdk.IntelInvocationSummary{
+			ID:                 summary.ID,
+			StartsAt:           summary.StartsAt,
+			EndsAt:             summary.EndsAt,
+			BinaryName:         summary.BinaryName,
+			BinaryArgs:         summary.BinaryArgs,
+			GitRemoteURLs:      summary.GitRemoteUrls,
+			ExitCodes:          summary.ExitCodes,
+			WorkingDirectories: summary.WorkingDirectories,
+			BinaryPaths:        summary.BinaryPaths,
+			MachineMetadata:    summary.MachineMetadata,
+			UniqueMachines:     summary.UniqueMachines,
+			TotalInvocations:   summary.TotalInvocations,
+			MedianDurationMS:   summary.MedianDurationMs,
 		}
 	}
 	return converted

@@ -1302,19 +1302,15 @@ func (q *querier) GetIntelCohortsMatchedByMachineIDs(ctx context.Context, ids []
 	return q.db.GetIntelCohortsMatchedByMachineIDs(ctx, ids)
 }
 
+func (q *querier) GetIntelInvocationSummaries(ctx context.Context, arg database.GetIntelInvocationSummariesParams) ([]database.IntelInvocationSummary, error) {
+	// No authz checks - it'd be too slow to check the
+	// authorization for each user and each machine.
+	return q.db.GetIntelInvocationSummaries(ctx, arg)
+}
+
 func (q *querier) GetIntelMachinesMatchingFilters(ctx context.Context, arg database.GetIntelMachinesMatchingFiltersParams) ([]database.GetIntelMachinesMatchingFiltersRow, error) {
 	// No authz checks possible. It's too weird
 	return q.db.GetIntelMachinesMatchingFilters(ctx, arg)
-}
-
-func (q *querier) GetIntelReportCommands(ctx context.Context, arg database.GetIntelReportCommandsParams) ([]database.GetIntelReportCommandsRow, error) {
-	// No authz checks possible. It's too weird
-	return q.db.GetIntelReportCommands(ctx, arg)
-}
-
-func (q *querier) GetIntelReportGitRemotes(ctx context.Context, arg database.GetIntelReportGitRemotesParams) ([]database.GetIntelReportGitRemotesRow, error) {
-	// No authz checks possible. It's too weird
-	return q.db.GetIntelReportGitRemotes(ctx, arg)
 }
 
 func (q *querier) GetJFrogXrayScanByWorkspaceAndAgentID(ctx context.Context, arg database.GetJFrogXrayScanByWorkspaceAndAgentIDParams) (database.JfrogXrayScan, error) {

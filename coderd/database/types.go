@@ -3,8 +3,7 @@ package database
 import (
 	"database/sql/driver"
 	"encoding/json"
-	"fmt"
-	"strings"
+	"regexp"
 	"time"
 
 	"github.com/google/uuid"
@@ -115,47 +114,58 @@ func (m StringMapOfInt) Value() (driver.Value, error) {
 	return json.Marshal(m)
 }
 
-type StringaArray [][]string
+type StringMapOfRegex map[string]*regexp.Regexp
 
-func (s *StringaArray) Scan(src interface{}) error {
+func (m *StringMapOfRegex) Scan(src interface{}) error {
 	if src == nil {
 		return nil
 	}
 	switch src := src.(type) {
 	case []byte:
-		err := json.Unmarshal(src, s)
+		var strMap map[string]string
+		err := json.Unmarshal(src, &strMap)
 		if err != nil {
 			return err
 		}
+		*m = make(StringMapOfRegex)
+		for k, v := range strMap {
+			r, err := regexp.Compile(v)
+			if err != nil {
+				return err
+			}
+			(*m)[k] = r
+		}
 	default:
-		return xerrors.Errorf("unsupported Scan, storing driver.Value type %T into type %T", src, s)
+		return xerrors.Errorf("unsupported Scan, storing driver.Value type %T into type %T", src, m)
 	}
 	return nil
 }
 
-func (s StringaArray) Value() (driver.Value, error) {
-	fmt.Printf("Calling custom!\n")
-	var b strings.Builder
-	b.WriteString("{")
-
-	for i, arr := range s {
-		if i > 0 {
-			b.WriteString(",")
-		}
-		b.WriteString("{")
-		for j, str := range arr {
-			if j > 0 {
-				b.WriteString(",")
-			}
-			// Properly escape string literals
-			escaped := strings.ReplaceAll(str, "\"", "\\\"")
-			escaped = strings.ReplaceAll(escaped, ",", "\\,")
-			b.WriteString(fmt.Sprintf("%q", escaped))
-		}
-		b.WriteString("}")
+func (m StringMapOfRegex) Value() (driver.Value, error) {
+	strMap := make(map[string]string)
+	for k, v := range m {
+		strMap[k] = v.String()
 	}
+	return json.Marshal(strMap)
+}
 
-	b.WriteString("}")
-	fmt.Printf("Writing %q\n", b.String())
-	return b.String(), nil
+type NullStringMapOfRegex struct {
+	StringMapOfRegex StringMapOfRegex
+	Valid            bool
+}
+
+func (m *NullStringMapOfRegex) Scan(value any) error {
+	if value == nil {
+		m.StringMapOfRegex, m.Valid = nil, false
+		return nil
+	}
+	m.Valid = true
+	return m.StringMapOfRegex.Scan(value)
+}
+
+func (m NullStringMapOfRegex) Value() (driver.Value, error) {
+	if !m.Valid {
+		return nil, nil
+	}
+	return m.StringMapOfRegex.Value()
 }

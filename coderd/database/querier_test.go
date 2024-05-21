@@ -691,7 +691,12 @@ func TestIntelReports(t *testing.T) {
 			db, _ := dbtestutil.NewDB(t)
 			// A cohort that matches all machines is necessary.
 			cohort := dbgen.IntelCohort(t, db, database.IntelCohort{})
-			machine := dbgen.IntelMachine(t, db, database.IntelMachine{})
+			machine := dbgen.IntelMachine(t, db, database.IntelMachine{
+				OrganizationID: cohort.OrganizationID,
+				Metadata: database.StringMap{
+					"operating_system": "linux",
+				},
+			})
 			dbgen.IntelInvocations(t, db, database.IntelInvocation{
 				MachineID:    machine.ID,
 				GitRemoteUrl: "https://github.com/coder/coder",
@@ -702,11 +707,21 @@ func TestIntelReports(t *testing.T) {
 				GitRemoteUrl: "https://github.com/coder/coder",
 				DurationMs:   10,
 			}, 50)
-			err := db.UpsertIntelInvocationSummaries(context.Background())
-			require.NoError(t, err)
-			rows, err := db.GetIntelReportGitRemotes(context.Background(), database.GetIntelReportGitRemotesParams{
-				CohortIds: []uuid.UUID{cohort.ID},
+
+			metadata, err := json.Marshal(database.StringMap{
+				"operating_system": "linux",
 			})
+			require.NoError(t, err)
+			machines, err := db.GetIntelMachinesMatchingFilters(context.Background(), database.GetIntelMachinesMatchingFiltersParams{
+				OrganizationID: machine.OrganizationID,
+				Metadata:       metadata,
+			})
+			require.NoError(t, err)
+			require.Len(t, machines, 1)
+
+			err = db.UpsertIntelInvocationSummaries(context.Background())
+			require.NoError(t, err)
+			rows, err := db.GetIntelReportGitRemotes(context.Background(), time.Time{})
 			require.NoError(t, err)
 			require.Len(t, rows, 1)
 			row := rows[0]
@@ -717,23 +732,19 @@ func TestIntelReports(t *testing.T) {
 			// are properly returned!
 			t.Parallel()
 			db, _ := dbtestutil.NewDB(t)
-			// Should catch everything.
-			allCohort := dbgen.IntelCohort(t, db, database.IntelCohort{})
-			// Create two cohorts to track. One for Linux machines
-			// and one for Windows machines.
-			linuxCohort := dbgen.IntelCohort(t, db, database.IntelCohort{
-				RegexOperatingSystem: "linux",
-			})
-			windowsCohort := dbgen.IntelCohort(t, db, database.IntelCohort{
-				RegexOperatingSystem: "windows",
-			})
 
 			// Create machines to match the cohorts!
 			windows := dbgen.IntelMachine(t, db, database.IntelMachine{
-				OperatingSystem: "windows",
+				Metadata: database.StringMap{
+					"operating_system": "windows",
+					"potato":           "true",
+				},
 			})
 			linux := dbgen.IntelMachine(t, db, database.IntelMachine{
-				OperatingSystem: "linux",
+				Metadata: database.StringMap{
+					"operating_system": "linux",
+					"potato":           "true",
+				},
 			})
 
 			// Insert invocations for each machine.
@@ -748,31 +759,30 @@ func TestIntelReports(t *testing.T) {
 
 			err := db.UpsertIntelInvocationSummaries(context.Background())
 			require.NoError(t, err)
-			rows, err := db.GetIntelReportGitRemotes(context.Background(), database.GetIntelReportGitRemotesParams{
-				CohortIds: []uuid.UUID{allCohort.ID, linuxCohort.ID, windowsCohort.ID},
-			})
+
+			time.Sleep(time.Hour)
+
+			rows, err := db.GetIntelReportGitRemotes(context.Background(), time.Time{})
 			require.NoError(t, err)
 			require.Len(t, rows, 3)
 
-			for _, row := range rows {
-				switch row.CohortID {
-				case allCohort.ID:
-					require.Equal(t, int64(100), row.TotalInvocations)
-				case linuxCohort.ID:
-					require.Equal(t, int64(50), row.TotalInvocations)
-				case windowsCohort.ID:
-					require.Equal(t, int64(50), row.TotalInvocations)
-				default:
-					t.Fatalf("unexpected cohort ID: %s", row.CohortID)
-				}
-			}
+			// for _, row := range rows {
+			// 	switch row.CohortID {
+			// 	case allCohort.ID:
+			// 		require.Equal(t, int64(100), row.TotalInvocations)
+			// 	case linuxCohort.ID:
+			// 		require.Equal(t, int64(50), row.TotalInvocations)
+			// 	case windowsCohort.ID:
+			// 		require.Equal(t, int64(50), row.TotalInvocations)
+			// 	default:
+			// 		t.Fatalf("unexpected cohort ID: %s", row.CohortID)
+			// 	}
+			// }
 		})
 	})
 	t.Run("ReportCommands", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
-		// A cohort that matches all machines is necessary.
-		cohort := dbgen.IntelCohort(t, db, database.IntelCohort{})
 		machine := dbgen.IntelMachine(t, db, database.IntelMachine{})
 		dbgen.IntelInvocations(t, db, database.IntelInvocation{
 			MachineID:  machine.ID,
@@ -786,9 +796,7 @@ func TestIntelReports(t *testing.T) {
 		}, 50)
 		err := db.UpsertIntelInvocationSummaries(context.Background())
 		require.NoError(t, err)
-		rows, err := db.GetIntelReportCommands(context.Background(), database.GetIntelReportCommandsParams{
-			CohortIds: []uuid.UUID{cohort.ID},
-		})
+		rows, err := db.GetIntelReportCommands(context.Background(), time.Time{})
 		require.NoError(t, err)
 		require.Len(t, rows, 2)
 		for _, row := range rows {

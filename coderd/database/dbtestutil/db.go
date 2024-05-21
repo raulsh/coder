@@ -100,6 +100,9 @@ func NewDB(t testing.TB, opts ...Option) (database.Store, pubsub.Pubsub) {
 			connectionURL, closePg, err = Open()
 			require.NoError(t, err)
 			t.Cleanup(closePg)
+			if testing.Verbose() {
+				t.Logf("psql connection url: %s", connectionURL)
+			}
 		}
 
 		if o.fixedTimezone == "" {

@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -30,7 +31,7 @@ import (
 	"github.com/kalafut/imohash"
 )
 
-type Dialer func(ctx context.Context, hostInfo codersdk.IntelDaemonHostInfo) (proto.DRPCIntelDaemonClient, error)
+type Dialer func(ctx context.Context, metadata map[string]string) (proto.DRPCIntelDaemonClient, error)
 
 type InvokeBinaryDownloader func(ctx context.Context, etag string) (*http.Response, error)
 
@@ -75,6 +76,7 @@ func New(opts Options) *API {
 		filesystem:             opts.Filesystem,
 		logger:                 opts.Logger,
 		invokeDirectory:        opts.InvokeDirectory,
+		invokeBinaryPathChan:   make(chan string),
 		invokeBinaryDownloader: opts.InvokeBinaryDownloader,
 		invocationQueue:        invocationQueue,
 	}
@@ -134,7 +136,11 @@ func (a *API) invocationQueueLoop() {
 // If the binary already exists at the path, it is hashed to ensure
 // it is up-to-date with ETag.
 func (a *API) downloadInvokeBinary(invokeBinaryPath string) error {
-	_, err := os.Stat(invokeBinaryPath)
+	if a.invokeBinaryDownloader == nil {
+		a.logger.Warn(a.closeContext, "no invoke binary downloader")
+		return nil
+	}
+	_, err := a.filesystem.Stat(invokeBinaryPath)
 	existingSha1 := ""
 	if err == nil {
 		file, err := a.filesystem.Open(invokeBinaryPath)
@@ -179,6 +185,7 @@ func (a *API) downloadInvokeBinary(invokeBinaryPath string) error {
 	if err != nil {
 		return xerrors.Errorf("unable to chmod invoke binary: %w", err)
 	}
+	a.logger.Info(a.closeContext, "successfully obtained invoke binary")
 	return nil
 }
 
@@ -226,12 +233,14 @@ func (a *API) systemRecvLoop(client proto.DRPCIntelDaemon_ListenClient) {
 
 		switch m := resp.Message.(type) {
 		case *proto.SystemResponse_TrackExecutables:
+			a.logger.Info(ctx, "tracking executables", slog.F("binary_names", m.TrackExecutables.BinaryName))
 			err = a.trackExecutables(m.TrackExecutables.BinaryName)
 			if err != nil {
 				// TODO: send an error back to the server
 				a.logger.Warn(ctx, "unable to track executables", slog.Error(err))
+			} else {
+				a.logger.Info(ctx, "tracked executables", slog.F("binary_names", m.TrackExecutables.BinaryName))
 			}
-			a.logger.Info(ctx, "tracked executables", slog.F("binary_names", m.TrackExecutables.BinaryName))
 		}
 	}
 }
@@ -254,7 +263,7 @@ func (a *API) trackExecutables(binaryNames []string) error {
 	invokeBinary, valid := a.invokeBinaryPath()
 	if !valid {
 		// If there isn't an invoke binary, we shouldn't set up any symlinks!
-		return nil
+		return xerrors.Errorf("no invoke binary")
 	}
 	for _, file := range files {
 		// Clear out the directory to remove old filenames.
@@ -312,14 +321,14 @@ func (a *API) connectLoop() {
 	} else {
 		a.logger.Warn(a.closeContext, "unable to fetch machine information", slog.Error(err))
 	}
-	hostInfo := codersdk.IntelDaemonHostInfo{
-		Hostname:                hostname,
-		OperatingSystem:         runtime.GOOS,
-		Architecture:            runtime.GOARCH,
-		OperatingSystemVersion:  osVersion,
-		OperatingSystemPlatform: osPlatform,
-		CPUCores:                uint16(runtime.NumCPU()),
-		MemoryTotalMB:           memoryTotal,
+	metadata := map[string]string{
+		"hostname":                  hostname,
+		"operating_system":          runtime.GOOS,
+		"architecture":              runtime.GOARCH,
+		"operating_system_version":  osVersion,
+		"operating_system_platform": osPlatform,
+		"cpu_cores":                 strconv.Itoa(runtime.NumCPU()),
+		"memory_total_mb":           strconv.FormatUint(memoryTotal, 10),
 	}
 	invokeBinaryPath := filepath.Join(a.invokeDirectory, "coder-intel-invoke")
 	if runtime.GOOS == "windows" {
@@ -328,7 +337,7 @@ func (a *API) connectLoop() {
 connectLoop:
 	for retrier := retry.New(50*time.Millisecond, 10*time.Second); retrier.Wait(a.closeContext); {
 		a.logger.Debug(a.closeContext, "dialing coderd")
-		client, err := a.clientDialer(a.closeContext, hostInfo)
+		client, err := a.clientDialer(a.closeContext, metadata)
 		if err != nil {
 			if errors.Is(err, context.Canceled) {
 				return
@@ -345,13 +354,12 @@ connectLoop:
 			a.logger.Warn(a.closeContext, "coderd client failed to dial", slog.Error(err))
 			continue
 		}
-		a.logger.Info(a.closeContext, "successfully connected to coderd", slog.F("host_info", hostInfo))
+		a.logger.Info(a.closeContext, "successfully connected to coderd", slog.F("metadata", metadata))
 		err = a.downloadInvokeBinary(invokeBinaryPath)
 		if err != nil {
 			a.logger.Warn(a.closeContext, "unable to download invoke binary", slog.Error(err))
 			continue
 		}
-		a.logger.Info(a.closeContext, "successfully obtained invoke binary")
 		retrier.Reset()
 
 		// serve the client until we are closed or it disconnects
@@ -364,9 +372,7 @@ connectLoop:
 				a.logger.Info(a.closeContext, "connection to coderd closed")
 				continue connectLoop
 			case a.clientChan <- client:
-				continue
 			case a.invokeBinaryPathChan <- invokeBinaryPath:
-				continue
 			}
 		}
 	}

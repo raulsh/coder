@@ -1860,52 +1860,50 @@ type GroupMember struct {
 }
 
 type IntelCohort struct {
-	ID                           uuid.UUID `db:"id" json:"id"`
-	OrganizationID               uuid.UUID `db:"organization_id" json:"organization_id"`
-	CreatedBy                    uuid.UUID `db:"created_by" json:"created_by"`
-	CreatedAt                    time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt                    time.Time `db:"updated_at" json:"updated_at"`
-	Name                         string    `db:"name" json:"name"`
-	Icon                         string    `db:"icon" json:"icon"`
-	Description                  string    `db:"description" json:"description"`
-	RegexOperatingSystem         string    `db:"regex_operating_system" json:"regex_operating_system"`
-	RegexOperatingSystemPlatform string    `db:"regex_operating_system_platform" json:"regex_operating_system_platform"`
-	RegexOperatingSystemVersion  string    `db:"regex_operating_system_version" json:"regex_operating_system_version"`
-	RegexArchitecture            string    `db:"regex_architecture" json:"regex_architecture"`
-	RegexInstanceID              string    `db:"regex_instance_id" json:"regex_instance_id"`
-	TrackedExecutables           []string  `db:"tracked_executables" json:"tracked_executables"`
+	ID                 uuid.UUID `db:"id" json:"id"`
+	OrganizationID     uuid.UUID `db:"organization_id" json:"organization_id"`
+	CreatedBy          uuid.UUID `db:"created_by" json:"created_by"`
+	CreatedAt          time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt          time.Time `db:"updated_at" json:"updated_at"`
+	Name               string    `db:"name" json:"name"`
+	Icon               string    `db:"icon" json:"icon"`
+	Description        string    `db:"description" json:"description"`
+	TrackedExecutables []string  `db:"tracked_executables" json:"tracked_executables"`
+	// Key/value pairs that will be regex matched against to find machines. If null, all machines are matched.
+	MachineMetadata NullStringMapOfRegex `db:"machine_metadata" json:"machine_metadata"`
 }
 
 type IntelInvocation struct {
-	ID               uuid.UUID       `db:"id" json:"id"`
-	CreatedAt        time.Time       `db:"created_at" json:"created_at"`
-	MachineID        uuid.UUID       `db:"machine_id" json:"machine_id"`
-	UserID           uuid.UUID       `db:"user_id" json:"user_id"`
-	BinaryHash       string          `db:"binary_hash" json:"binary_hash"`
-	BinaryName       string          `db:"binary_name" json:"binary_name"`
-	BinaryPath       string          `db:"binary_path" json:"binary_path"`
-	BinaryArgs       json.RawMessage `db:"binary_args" json:"binary_args"`
-	BinaryVersion    string          `db:"binary_version" json:"binary_version"`
-	WorkingDirectory string          `db:"working_directory" json:"working_directory"`
-	GitRemoteUrl     string          `db:"git_remote_url" json:"git_remote_url"`
-	ExitCode         int32           `db:"exit_code" json:"exit_code"`
-	DurationMs       float64         `db:"duration_ms" json:"duration_ms"`
+	ID               uuid.UUID `db:"id" json:"id"`
+	CreatedAt        time.Time `db:"created_at" json:"created_at"`
+	MachineID        uuid.UUID `db:"machine_id" json:"machine_id"`
+	UserID           uuid.UUID `db:"user_id" json:"user_id"`
+	BinaryHash       string    `db:"binary_hash" json:"binary_hash"`
+	BinaryName       string    `db:"binary_name" json:"binary_name"`
+	BinaryPath       string    `db:"binary_path" json:"binary_path"`
+	BinaryArgs       []string  `db:"binary_args" json:"binary_args"`
+	BinaryVersion    string    `db:"binary_version" json:"binary_version"`
+	WorkingDirectory string    `db:"working_directory" json:"working_directory"`
+	GitRemoteUrl     string    `db:"git_remote_url" json:"git_remote_url"`
+	ExitCode         int32     `db:"exit_code" json:"exit_code"`
+	DurationMs       float64   `db:"duration_ms" json:"duration_ms"`
 }
 
 type IntelInvocationSummary struct {
-	ID                 uuid.UUID       `db:"id" json:"id"`
-	CohortID           uuid.UUID       `db:"cohort_id" json:"cohort_id"`
-	StartsAt           time.Time       `db:"starts_at" json:"starts_at"`
-	EndsAt             time.Time       `db:"ends_at" json:"ends_at"`
-	BinaryName         string          `db:"binary_name" json:"binary_name"`
-	BinaryArgs         json.RawMessage `db:"binary_args" json:"binary_args"`
-	BinaryPaths        json.RawMessage `db:"binary_paths" json:"binary_paths"`
-	WorkingDirectories json.RawMessage `db:"working_directories" json:"working_directories"`
-	GitRemoteUrls      json.RawMessage `db:"git_remote_urls" json:"git_remote_urls"`
-	ExitCodes          json.RawMessage `db:"exit_codes" json:"exit_codes"`
-	UniqueMachines     int64           `db:"unique_machines" json:"unique_machines"`
-	TotalInvocations   int64           `db:"total_invocations" json:"total_invocations"`
-	MedianDurationMs   float64         `db:"median_duration_ms" json:"median_duration_ms"`
+	ID                 uuid.UUID        `db:"id" json:"id"`
+	StartsAt           time.Time        `db:"starts_at" json:"starts_at"`
+	EndsAt             time.Time        `db:"ends_at" json:"ends_at"`
+	BinaryName         string           `db:"binary_name" json:"binary_name"`
+	BinaryArgs         []string         `db:"binary_args" json:"binary_args"`
+	BinaryPaths        map[string]int64 `db:"binary_paths" json:"binary_paths"`
+	WorkingDirectories map[string]int64 `db:"working_directories" json:"working_directories"`
+	GitRemoteUrls      map[string]int64 `db:"git_remote_urls" json:"git_remote_urls"`
+	ExitCodes          map[string]int64 `db:"exit_codes" json:"exit_codes"`
+	// Aggregated machine metadata.
+	MachineMetadata  map[string]map[string]int64 `db:"machine_metadata" json:"machine_metadata"`
+	UniqueMachines   int64                       `db:"unique_machines" json:"unique_machines"`
+	TotalInvocations int64                       `db:"total_invocations" json:"total_invocations"`
+	MedianDurationMs float64                     `db:"median_duration_ms" json:"median_duration_ms"`
 }
 
 type IntelMachine struct {
@@ -1916,18 +1914,10 @@ type IntelMachine struct {
 	OrganizationID uuid.UUID   `db:"organization_id" json:"organization_id"`
 	UserID         uuid.UUID   `db:"user_id" json:"user_id"`
 	IPAddress      pqtype.Inet `db:"ip_address" json:"ip_address"`
-	Hostname       string      `db:"hostname" json:"hostname"`
-	// GOOS
-	OperatingSystem         string `db:"operating_system" json:"operating_system"`
-	OperatingSystemVersion  string `db:"operating_system_version" json:"operating_system_version"`
-	OperatingSystemPlatform string `db:"operating_system_platform" json:"operating_system_platform"`
-	CPUCores                int32  `db:"cpu_cores" json:"cpu_cores"`
-	// in MB
-	MemoryMBTotal int32 `db:"memory_mb_total" json:"memory_mb_total"`
-	// GOARCH. e.g. amd64
-	Architecture string `db:"architecture" json:"architecture"`
 	// Version of the daemon running on the machine
 	DaemonVersion string `db:"daemon_version" json:"daemon_version"`
+	// Key/value pairs that will be regex matched against to find cohorts
+	Metadata StringMap `db:"metadata" json:"metadata"`
 }
 
 type JfrogXrayScan struct {

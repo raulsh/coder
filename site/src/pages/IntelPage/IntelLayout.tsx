@@ -14,12 +14,13 @@ import { Button, Menu, MenuItem, MenuList } from "@mui/material";
 import { KeyboardArrowDown } from "@mui/icons-material";
 import { css } from "@emotion/react";
 import { IntelCohort } from "api/typesGenerated";
+import { useDashboard } from "modules/dashboard/useDashboard";
 
 const IntelLayout: FC<PropsWithChildren> = ({ children = <Outlet /> }) => {
   const location = useLocation();
   const paths = location.pathname.split("/");
   const activeTab = paths[2] ?? "summary";
-  const { organizationId } = useAuthenticated();
+  const { organizationId } = useDashboard();
   const cohortsQuery = useQuery(intelCohorts(organizationId));
   const cohortFilter = useFilterMenu({
     onChange: () => undefined,
@@ -79,7 +80,7 @@ const IntelLayout: FC<PropsWithChildren> = ({ children = <Outlet /> }) => {
 };
 
 const CohortSelector = () => {
-  const { organizationId } = useAuthenticated();
+  const { organizationId } = useDashboard();
   const cohortsQuery = useQuery(intelCohorts(organizationId))
   const cohortByID = useMemo(() => {
     if (!cohortsQuery.data) {

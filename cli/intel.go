@@ -85,10 +85,10 @@ func (r *RootCmd) intelDaemonStart() *serpent.Command {
 			logger.Info(ctx, "starting intel daemon", slog.F("invoke_directory", invokeDirectory))
 
 			srv := inteld.New(inteld.Options{
-				Dialer: func(ctx context.Context, hostInfo codersdk.IntelDaemonHostInfo) (proto.DRPCIntelDaemonClient, error) {
+				Dialer: func(ctx context.Context, metadata map[string]string) (proto.DRPCIntelDaemonClient, error) {
 					return client.ServeIntelDaemon(ctx, uuid.Nil, codersdk.ServeIntelDaemonRequest{
-						InstanceID:          instanceID,
-						IntelDaemonHostInfo: hostInfo,
+						InstanceID: instanceID,
+						Metadata:   metadata,
 					})
 				},
 				Logger:     logger,

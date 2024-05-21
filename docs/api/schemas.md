@@ -1408,27 +1408,25 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 {
   "description": "string",
   "icon": "string",
-  "name": "string",
-  "regex_filters": {
-    "architecture": "string",
-    "instance_id": "string",
-    "operating_system": "string",
-    "operating_system_platform": "string",
-    "operating_system_version": "string"
+  "metadata_match": {
+    "property1": {},
+    "property2": {}
   },
+  "name": "string",
   "tracked_executables": ["string"]
 }
 ```
 
 ### Properties
 
-| Name                  | Type                                                                 | Required | Restrictions | Description |
-| --------------------- | -------------------------------------------------------------------- | -------- | ------------ | ----------- |
-| `description`         | string                                                               | false    |              |             |
-| `icon`                | string                                                               | false    |              |             |
-| `name`                | string                                                               | true     |              |             |
-| `regex_filters`       | [codersdk.IntelCohortRegexFilters](#codersdkintelcohortregexfilters) | false    |              |             |
-| `tracked_executables` | array of string                                                      | false    |              |             |
+| Name                  | Type                           | Required | Restrictions | Description                                                                                                 |
+| --------------------- | ------------------------------ | -------- | ------------ | ----------------------------------------------------------------------------------------------------------- |
+| `description`         | string                         | false    |              |                                                                                                             |
+| `icon`                | string                         | false    |              |                                                                                                             |
+| `metadata_match`      | object                         | false    |              | Metadata match is a map of metadata keys to regular expressions. If nil, all metadata keys will be matched. |
+| » `[any property]`    | [regexp.Regexp](#regexpregexp) | false    |              |                                                                                                             |
+| `name`                | string                         | true     |              |                                                                                                             |
+| `tracked_executables` | array of string                | false    |              |                                                                                                             |
 
 ## codersdk.CreateOrganizationRequest
 
@@ -3144,15 +3142,12 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "description": "string",
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "machine_metadata": {
+    "property1": {},
+    "property2": {}
+  },
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-  "regex_filters": {
-    "architecture": "string",
-    "instance_id": "string",
-    "operating_system": "string",
-    "operating_system_platform": "string",
-    "operating_system_version": "string"
-  },
   "tracked_executables": ["string"],
   "updated_at": "2019-08-24T14:15:22Z"
 }
@@ -3160,55 +3155,96 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ### Properties
 
-| Name                  | Type                                                                 | Required | Restrictions | Description |
-| --------------------- | -------------------------------------------------------------------- | -------- | ------------ | ----------- |
-| `created_at`          | string                                                               | false    |              |             |
-| `created_by`          | string                                                               | false    |              |             |
-| `description`         | string                                                               | false    |              |             |
-| `icon`                | string                                                               | false    |              |             |
-| `id`                  | string                                                               | false    |              |             |
-| `name`                | string                                                               | false    |              |             |
-| `organization_id`     | string                                                               | false    |              |             |
-| `regex_filters`       | [codersdk.IntelCohortRegexFilters](#codersdkintelcohortregexfilters) | false    |              |             |
-| `tracked_executables` | array of string                                                      | false    |              |             |
-| `updated_at`          | string                                                               | false    |              |             |
+| Name                  | Type                           | Required | Restrictions | Description |
+| --------------------- | ------------------------------ | -------- | ------------ | ----------- |
+| `created_at`          | string                         | false    |              |             |
+| `created_by`          | string                         | false    |              |             |
+| `description`         | string                         | false    |              |             |
+| `icon`                | string                         | false    |              |             |
+| `id`                  | string                         | false    |              |             |
+| `machine_metadata`    | object                         | false    |              |             |
+| » `[any property]`    | [regexp.Regexp](#regexpregexp) | false    |              |             |
+| `name`                | string                         | false    |              |             |
+| `organization_id`     | string                         | false    |              |             |
+| `tracked_executables` | array of string                | false    |              |             |
+| `updated_at`          | string                         | false    |              |             |
 
-## codersdk.IntelCohortRegexFilters
+## codersdk.IntelInvocationSummary
 
 ```json
 {
-  "architecture": "string",
-  "instance_id": "string",
-  "operating_system": "string",
-  "operating_system_platform": "string",
-  "operating_system_version": "string"
+  "binary_args": ["string"],
+  "binary_name": "string",
+  "binary_paths": {
+    "property1": 0,
+    "property2": 0
+  },
+  "ends_at": "2019-08-24T14:15:22Z",
+  "exit_codes": {
+    "property1": 0,
+    "property2": 0
+  },
+  "git_remote_urls": {
+    "property1": 0,
+    "property2": 0
+  },
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "machine_metadata": {
+    "property1": {
+      "property1": 0,
+      "property2": 0
+    },
+    "property2": {
+      "property1": 0,
+      "property2": 0
+    }
+  },
+  "median_duration_ms": 0,
+  "starts_at": "2019-08-24T14:15:22Z",
+  "total_invocations": 0,
+  "unique_machines": 0,
+  "working_directories": {
+    "property1": 0,
+    "property2": 0
+  }
 }
 ```
 
 ### Properties
 
-| Name                        | Type   | Required | Restrictions | Description |
-| --------------------------- | ------ | -------- | ------------ | ----------- |
-| `architecture`              | string | false    |              |             |
-| `instance_id`               | string | false    |              |             |
-| `operating_system`          | string | false    |              |             |
-| `operating_system_platform` | string | false    |              |             |
-| `operating_system_version`  | string | false    |              |             |
+| Name                          | Type            | Required | Restrictions | Description                                              |
+| ----------------------------- | --------------- | -------- | ------------ | -------------------------------------------------------- |
+| `binary_args`                 | array of string | false    |              |                                                          |
+| `binary_name`                 | string          | false    |              |                                                          |
+| `binary_paths`                | object          | false    |              |                                                          |
+| » `[any property]`            | integer         | false    |              |                                                          |
+| `ends_at`                     | string          | false    |              |                                                          |
+| `exit_codes`                  | object          | false    |              | Exit codes maps exit codes to the number of invocations. |
+| » `[any property]`            | integer         | false    |              |                                                          |
+| `git_remote_urls`             | object          | false    |              |                                                          |
+| » `[any property]`            | integer         | false    |              |                                                          |
+| `id`                          | string          | false    |              |                                                          |
+| `machine_metadata`            | object          | false    |              |                                                          |
+| » `[any property]`            | object          | false    |              |                                                          |
+| `»» **additionalProperties**` | integer         | false    |              |                                                          |
+| `median_duration_ms`          | number          | false    |              |                                                          |
+| `starts_at`                   | string          | false    |              |                                                          |
+| `total_invocations`           | integer         | false    |              |                                                          |
+| `unique_machines`             | integer         | false    |              |                                                          |
+| `working_directories`         | object          | false    |              |                                                          |
+| » `[any property]`            | integer         | false    |              |                                                          |
 
 ## codersdk.IntelMachine
 
 ```json
 {
-  "architecture": "string",
-  "cpu_cores": 0,
   "created_at": "2019-08-24T14:15:22Z",
-  "hostname": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "instance_id": "string",
-  "memory_mb_total": 0,
-  "operating_system": "string",
-  "operating_system_platform": "string",
-  "operating_system_version": "string",
+  "metadata": {
+    "property1": "string",
+    "property2": "string"
+  },
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "updated_at": "2019-08-24T14:15:22Z",
   "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
@@ -3217,21 +3253,16 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ### Properties
 
-| Name                        | Type    | Required | Restrictions | Description |
-| --------------------------- | ------- | -------- | ------------ | ----------- |
-| `architecture`              | string  | false    |              |             |
-| `cpu_cores`                 | integer | false    |              |             |
-| `created_at`                | string  | false    |              |             |
-| `hostname`                  | string  | false    |              |             |
-| `id`                        | string  | false    |              |             |
-| `instance_id`               | string  | false    |              |             |
-| `memory_mb_total`           | integer | false    |              |             |
-| `operating_system`          | string  | false    |              |             |
-| `operating_system_platform` | string  | false    |              |             |
-| `operating_system_version`  | string  | false    |              |             |
-| `organization_id`           | string  | false    |              |             |
-| `updated_at`                | string  | false    |              |             |
-| `user_id`                   | string  | false    |              |             |
+| Name               | Type   | Required | Restrictions | Description |
+| ------------------ | ------ | -------- | ------------ | ----------- |
+| `created_at`       | string | false    |              |             |
+| `id`               | string | false    |              |             |
+| `instance_id`      | string | false    |              |             |
+| `metadata`         | object | false    |              |             |
+| » `[any property]` | string | false    |              |             |
+| `organization_id`  | string | false    |              |             |
+| `updated_at`       | string | false    |              |             |
+| `user_id`          | string | false    |              |             |
 
 ## codersdk.IntelMachinesResponse
 
@@ -3240,16 +3271,13 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "count": 0,
   "intel_machines": [
     {
-      "architecture": "string",
-      "cpu_cores": 0,
       "created_at": "2019-08-24T14:15:22Z",
-      "hostname": "string",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "instance_id": "string",
-      "memory_mb_total": 0,
-      "operating_system": "string",
-      "operating_system_platform": "string",
-      "operating_system_version": "string",
+      "metadata": {
+        "property1": "string",
+        "property2": "string"
+      },
       "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
       "updated_at": "2019-08-24T14:15:22Z",
       "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
@@ -3269,7 +3297,11 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
-  "commands": [
+  "git_auth_providers": {
+    "property1": "string",
+    "property2": "string"
+  },
+  "intervals": [
     {
       "binary_args": ["string"],
       "binary_name": "string",
@@ -3277,6 +3309,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "property1": 0,
         "property2": 0
       },
+      "ends_at": "2019-08-24T14:15:22Z",
       "exit_codes": {
         "property1": 0,
         "property2": 0
@@ -3285,36 +3318,25 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "property1": 0,
         "property2": 0
       },
-      "intervals": [
-        {
-          "cohort_id": "123f4084-d082-4664-a07c-0daa0f13a82f",
-          "ends_at": "2019-08-24T14:15:22Z",
-          "invocations": 0,
-          "median_duration_ms": 0,
-          "starts_at": "2019-08-24T14:15:22Z"
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "machine_metadata": {
+        "property1": {
+          "property1": 0,
+          "property2": 0
+        },
+        "property2": {
+          "property1": 0,
+          "property2": 0
         }
-      ],
-      "invocations": 0,
+      },
+      "median_duration_ms": 0,
+      "starts_at": "2019-08-24T14:15:22Z",
+      "total_invocations": 0,
+      "unique_machines": 0,
       "working_directories": {
         "property1": 0,
         "property2": 0
       }
-    }
-  ],
-  "git_remotes": [
-    {
-      "external_auth_provider_id": "string",
-      "intervals": [
-        {
-          "cohort_id": "123f4084-d082-4664-a07c-0daa0f13a82f",
-          "ends_at": "2019-08-24T14:15:22Z",
-          "invocations": 0,
-          "median_duration_ms": 0,
-          "starts_at": "2019-08-24T14:15:22Z"
-        }
-      ],
-      "invocations": 0,
-      "url": "string"
     }
   ],
   "invocations": 0
@@ -3323,113 +3345,12 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ### Properties
 
-| Name          | Type                                                                    | Required | Restrictions | Description |
-| ------------- | ----------------------------------------------------------------------- | -------- | ------------ | ----------- |
-| `commands`    | array of [codersdk.IntelReportCommand](#codersdkintelreportcommand)     | false    |              |             |
-| `git_remotes` | array of [codersdk.IntelReportGitRemote](#codersdkintelreportgitremote) | false    |              |             |
-| `invocations` | integer                                                                 | false    |              |             |
-
-## codersdk.IntelReportCommand
-
-```json
-{
-  "binary_args": ["string"],
-  "binary_name": "string",
-  "binary_paths": {
-    "property1": 0,
-    "property2": 0
-  },
-  "exit_codes": {
-    "property1": 0,
-    "property2": 0
-  },
-  "git_remote_urls": {
-    "property1": 0,
-    "property2": 0
-  },
-  "intervals": [
-    {
-      "cohort_id": "123f4084-d082-4664-a07c-0daa0f13a82f",
-      "ends_at": "2019-08-24T14:15:22Z",
-      "invocations": 0,
-      "median_duration_ms": 0,
-      "starts_at": "2019-08-24T14:15:22Z"
-    }
-  ],
-  "invocations": 0,
-  "working_directories": {
-    "property1": 0,
-    "property2": 0
-  }
-}
-```
-
-### Properties
-
-| Name                  | Type                                                                                      | Required | Restrictions | Description                                              |
-| --------------------- | ----------------------------------------------------------------------------------------- | -------- | ------------ | -------------------------------------------------------- |
-| `binary_args`         | array of string                                                                           | false    |              |                                                          |
-| `binary_name`         | string                                                                                    | false    |              |                                                          |
-| `binary_paths`        | object                                                                                    | false    |              |                                                          |
-| » `[any property]`    | integer                                                                                   | false    |              |                                                          |
-| `exit_codes`          | object                                                                                    | false    |              | Exit codes maps exit codes to the number of invocations. |
-| » `[any property]`    | integer                                                                                   | false    |              |                                                          |
-| `git_remote_urls`     | object                                                                                    | false    |              |                                                          |
-| » `[any property]`    | integer                                                                                   | false    |              |                                                          |
-| `intervals`           | array of [codersdk.IntelReportInvocationInterval](#codersdkintelreportinvocationinterval) | false    |              |                                                          |
-| `invocations`         | integer                                                                                   | false    |              |                                                          |
-| `working_directories` | object                                                                                    | false    |              |                                                          |
-| » `[any property]`    | integer                                                                                   | false    |              |                                                          |
-
-## codersdk.IntelReportGitRemote
-
-```json
-{
-  "external_auth_provider_id": "string",
-  "intervals": [
-    {
-      "cohort_id": "123f4084-d082-4664-a07c-0daa0f13a82f",
-      "ends_at": "2019-08-24T14:15:22Z",
-      "invocations": 0,
-      "median_duration_ms": 0,
-      "starts_at": "2019-08-24T14:15:22Z"
-    }
-  ],
-  "invocations": 0,
-  "url": "string"
-}
-```
-
-### Properties
-
-| Name                        | Type                                                                                      | Required | Restrictions | Description |
-| --------------------------- | ----------------------------------------------------------------------------------------- | -------- | ------------ | ----------- |
-| `external_auth_provider_id` | string                                                                                    | false    |              |             |
-| `intervals`                 | array of [codersdk.IntelReportInvocationInterval](#codersdkintelreportinvocationinterval) | false    |              |             |
-| `invocations`               | integer                                                                                   | false    |              |             |
-| `url`                       | string                                                                                    | false    |              |             |
-
-## codersdk.IntelReportInvocationInterval
-
-```json
-{
-  "cohort_id": "123f4084-d082-4664-a07c-0daa0f13a82f",
-  "ends_at": "2019-08-24T14:15:22Z",
-  "invocations": 0,
-  "median_duration_ms": 0,
-  "starts_at": "2019-08-24T14:15:22Z"
-}
-```
-
-### Properties
-
-| Name                 | Type    | Required | Restrictions | Description |
-| -------------------- | ------- | -------- | ------------ | ----------- |
-| `cohort_id`          | string  | false    |              |             |
-| `ends_at`            | string  | false    |              |             |
-| `invocations`        | integer | false    |              |             |
-| `median_duration_ms` | number  | false    |              |             |
-| `starts_at`          | string  | false    |              |             |
+| Name                 | Type                                                                        | Required | Restrictions | Description                                                       |
+| -------------------- | --------------------------------------------------------------------------- | -------- | ------------ | ----------------------------------------------------------------- |
+| `git_auth_providers` | object                                                                      | false    |              | Git auth providers maps a Git remote URL to the auth provider ID. |
+| » `[any property]`   | string                                                                      | false    |              |                                                                   |
+| `intervals`          | array of [codersdk.IntelInvocationSummary](#codersdkintelinvocationsummary) | false    |              |                                                                   |
+| `invocations`        | integer                                                                     | false    |              |                                                                   |
 
 ## codersdk.IssueReconnectingPTYSignedTokenRequest
 
@@ -9024,6 +8945,16 @@ _None_
 | If zero, TokenSource implementations will reuse the same token forever and RefreshToken or equivalent mechanisms for that TokenSource will not be used. |
 | `refresh_token`                                                                                                                                         | string | false    |              | Refresh token is a token that's used by the application (as opposed to the user) to refresh the access token if it expires. |
 | `token_type`                                                                                                                                            | string | false    |              | Token type is the type of token. The Type method returns either this or "Bearer", the default.                              |
+
+## regexp.Regexp
+
+```json
+{}
+```
+
+### Properties
+
+_None_
 
 ## serpent.Annotations
 

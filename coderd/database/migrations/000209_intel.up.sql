@@ -7,16 +7,13 @@ CREATE TABLE intel_cohorts (
 	name TEXT NOT NULL,
     icon character varying(256) DEFAULT ''::character varying NOT NULL,
     description TEXT NOT NULL,
-
-    regex_operating_system VARCHAR(255) NOT NULL DEFAULT '.*',
-	regex_operating_system_platform VARCHAR(255) NOT NULL DEFAULT '.*',
-    regex_operating_system_version VARCHAR(255) NOT NULL DEFAULT '.*',
-    regex_architecture VARCHAR(255) NOT NULL DEFAULT '.*',
-	regex_instance_id VARCHAR(255) NOT NULL DEFAULT '.*',
     tracked_executables TEXT[] NOT NULL,
+	machine_metadata jsonb,
 
 	UNIQUE(organization_id, name)
 );
+
+COMMENT ON COLUMN intel_cohorts.machine_metadata IS 'Key/value pairs that will be regex matched against to find machines. If null, all machines are matched.';
 
 CREATE INDEX idx_intel_cohorts_id ON intel_cohorts (id);
 
@@ -28,20 +25,12 @@ CREATE TABLE intel_machines (
 	organization_id UUID NOT NULL,
     user_id UUID NOT NULL,
     ip_address inet DEFAULT '0.0.0.0'::inet NOT NULL,
-    hostname TEXT NOT NULL,
-    operating_system VARCHAR(255) NOT NULL,
-    operating_system_version VARCHAR(255) NOT NULL,
-	operating_system_platform VARCHAR(255) NOT NULL,
-    cpu_cores INT NOT NULL,
-    memory_mb_total INT NOT NULL,
-    architecture VARCHAR(255) NOT NULL,
     daemon_version VARCHAR(255) NOT NULL,
+	metadata jsonb NOT NULL,
 	UNIQUE (user_id, instance_id)
 );
 
-COMMENT ON COLUMN intel_machines.operating_system IS 'GOOS';
-COMMENT ON COLUMN intel_machines.memory_mb_total IS 'in MB';
-COMMENT ON COLUMN intel_machines.architecture IS 'GOARCH. e.g. amd64';
+COMMENT ON COLUMN intel_machines.metadata IS 'Key/value pairs that will be regex matched against to find cohorts';
 COMMENT ON COLUMN intel_machines.daemon_version IS 'Version of the daemon running on the machine';
 
 -- UNLOGGED because it is extremely update-heavy and the data is not valuable enough to justify
@@ -70,12 +59,8 @@ CREATE INDEX idx_intel_invocations_binary_args ON intel_invocations USING gin (b
 
 -- Stores summaries for hour intervals of invocations.
 -- There are so many invocations that we need to summarize them to make querying them feasible.
-
--- Summarize invocations by timestamp and cohort.
--- There are so many invocations that we need to summarize them to make querying feasible.
 CREATE TABLE intel_invocation_summaries (
   id uuid NOT NULL,
-  cohort_id uuid NOT NULL REFERENCES intel_cohorts(id) ON DELETE CASCADE,
   starts_at TIMESTAMPTZ NOT NULL,
   ends_at TIMESTAMPTZ NOT NULL,
   binary_name TEXT NOT NULL,
@@ -84,8 +69,10 @@ CREATE TABLE intel_invocation_summaries (
   working_directories jsonb NOT NULL,
   git_remote_urls jsonb NOT NULL,
   exit_codes jsonb NOT NULL,
+  machine_metadata jsonb NOT NULL,
   unique_machines BIGINT NOT NULL,
   total_invocations BIGINT NOT NULL,
   median_duration_ms FLOAT NOT NULL
 );
 
+COMMENT ON COLUMN intel_invocation_summaries.machine_metadata IS 'Aggregated machine metadata.';

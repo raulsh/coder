@@ -229,7 +229,9 @@ export interface CreateIntelCohortRequest {
   readonly icon: string;
   readonly description: string;
   readonly tracked_executables: readonly string[];
-  readonly regex_filters?: IntelCohortRegexFilters;
+  // Named type "regexp.Regexp" unknown, using "any"
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
+  readonly metadata_match?: Record<string, any>;
 }
 
 // From codersdk/users.go
@@ -626,7 +628,9 @@ export interface IntelCohort extends IntelCohortMetadata {
   readonly created_by: string;
   readonly created_at: string;
   readonly updated_at: string;
-  readonly regex_filters: IntelCohortRegexFilters;
+  // Named type "regexp.Regexp" unknown, using "any"
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
+  readonly machine_metadata: Record<string, any>;
 }
 
 // From codersdk/intel.go
@@ -638,23 +642,20 @@ export interface IntelCohortMetadata {
 }
 
 // From codersdk/intel.go
-export interface IntelCohortRegexFilters {
-  readonly operating_system: string;
-  readonly operating_system_platform: string;
-  readonly operating_system_version: string;
-  readonly architecture: string;
-  readonly instance_id: string;
-}
-
-// From codersdk/intel.go
-export interface IntelDaemonHostInfo {
-  readonly hostname: string;
-  readonly operating_system: string;
-  readonly operating_system_platform: string;
-  readonly operating_system_version: string;
-  readonly architecture: string;
-  readonly cpu_cores: number;
-  readonly memory_total_mb: number;
+export interface IntelInvocationSummary {
+  readonly id: string;
+  readonly starts_at: string;
+  readonly ends_at: string;
+  readonly binary_name: string;
+  readonly binary_args: readonly string[];
+  readonly exit_codes: Record<string, number>;
+  readonly git_remote_urls: Record<string, number>;
+  readonly working_directories: Record<string, number>;
+  readonly binary_paths: Record<string, number>;
+  readonly machine_metadata: Record<string, Record<string, number>>;
+  readonly unique_machines: number;
+  readonly total_invocations: number;
+  readonly median_duration_ms: number;
 }
 
 // From codersdk/intel.go
@@ -665,18 +666,14 @@ export interface IntelMachine {
   readonly user_id: string;
   readonly organization_id: string;
   readonly instance_id: string;
-  readonly hostname: string;
-  readonly operating_system: string;
-  readonly operating_system_platform: string;
-  readonly operating_system_version: string;
-  readonly cpu_cores: number;
-  readonly memory_mb_total: number;
-  readonly architecture: string;
+  readonly metadata: Record<string, string>;
 }
 
 // From codersdk/intel.go
 export interface IntelMachinesRequest {
-  readonly regex_filters: IntelCohortRegexFilters;
+  // Named type "regexp.Regexp" unknown, using "any"
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
+  readonly metadata_match: Record<string, any>;
 }
 
 // From codersdk/intel.go
@@ -688,43 +685,13 @@ export interface IntelMachinesResponse {
 // From codersdk/intel.go
 export interface IntelReport {
   readonly invocations: number;
-  readonly commands: readonly IntelReportCommand[];
-  readonly git_remotes: readonly IntelReportGitRemote[];
-}
-
-// From codersdk/intel.go
-export interface IntelReportCommand {
-  readonly binary_name: string;
-  readonly binary_args: readonly string[];
-  readonly invocations: number;
-  readonly intervals: readonly IntelReportInvocationInterval[];
-  readonly exit_codes: Record<number, number>;
-  readonly git_remote_urls: Record<string, number>;
-  readonly working_directories: Record<string, number>;
-  readonly binary_paths: Record<string, number>;
-}
-
-// From codersdk/intel.go
-export interface IntelReportGitRemote {
-  readonly url: string;
-  readonly external_auth_provider_id?: string;
-  readonly invocations: number;
-  readonly intervals: readonly IntelReportInvocationInterval[];
-}
-
-// From codersdk/intel.go
-export interface IntelReportInvocationInterval {
-  readonly cohort_id: string;
-  readonly starts_at: string;
-  readonly ends_at: string;
-  readonly invocations: number;
-  readonly median_duration_ms: number;
+  readonly git_auth_providers: Record<string, string>;
+  readonly intervals: readonly IntelInvocationSummary[];
 }
 
 // From codersdk/intel.go
 export interface IntelReportRequest {
   readonly starts_at: string;
-  readonly cohort_ids: readonly string[];
 }
 
 // From codersdk/workspaceagents.go
@@ -1114,7 +1081,8 @@ export interface SSHConfigResponse {
 }
 
 // From codersdk/intel.go
-export interface ServeIntelDaemonRequest extends IntelDaemonHostInfo {
+export interface ServeIntelDaemonRequest {
+  readonly metadata: Record<string, string>;
   readonly instance_id: string;
 }
 
