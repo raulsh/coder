@@ -84,7 +84,7 @@ func (r *RootCmd) CoreSubcommands() []*serpent.Command {
 	return []*serpent.Command{
 		r.dotfiles(),
 		r.externalAuth(),
-		r.intelDaemon(),
+		r.intel(),
 		r.login(),
 		r.logout(),
 		r.netcheck(),

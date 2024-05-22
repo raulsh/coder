@@ -1863,10 +1863,9 @@ class ApiMethods {
     return response.data;
   }
 
-  getIntelReport = async (cohortIDs: string[]) => {
-    const params = new URLSearchParams(cohortIDs.map((id) => ["cohort_id", id]));
+  getIntelReport = async (organizationId: string) => {
     const response = await this.axios.get<TypesGen.IntelReport>(
-      `/api/v2/intel/report?${params}`,
+      `/api/v2/organizations/${organizationId}/intel/report`,
     );
     return response.data;
 

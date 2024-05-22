@@ -241,8 +241,8 @@ const WorkspaceProxyHealthPage = lazy(
 const ProvisionerDaemonsHealthPage = lazy(
   () => import("./pages/HealthPage/ProvisionerDaemonsPage"),
 );
-const InsightsSummaryPage = lazy(
-  () => import("./pages/IntelPage/IntelSummaryPage"),
+const IntelHomePage = lazy(
+  () => import("./pages/IntelPage/IntelHomePage"),
 );
 const InsightsToolsPage = lazy(
   () => import("./pages/IntelPage/IntelToolsPage"),
@@ -322,7 +322,7 @@ export const router = createBrowserRouter(
           </Route>
 
           <Route path="/intel">
-            <Route index element={<InsightsSummaryPage />} />
+            <Route index element={<IntelHomePage />} />
             <Route path="tools" element={<InsightsToolsPage />} />
             <Route path="commands" element={<InsightsCommandsPage />} />
             <Route path="editors" element={<InsightsEditorsPage />} />

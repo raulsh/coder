@@ -510,7 +510,7 @@ CREATE TABLE intel_cohorts (
 
 COMMENT ON COLUMN intel_cohorts.machine_metadata IS 'Key/value pairs that will be regex matched against to find machines. If null, all machines are matched.';
 
-CREATE TABLE intel_invocation_summaries (
+CREATE UNLOGGED TABLE intel_invocation_summaries (
     id uuid NOT NULL,
     starts_at timestamp with time zone NOT NULL,
     ends_at timestamp with time zone NOT NULL,

@@ -34,13 +34,8 @@ const CreateIntelCohortPage = () => {
         description: "",
         icon: "",
         tracked_executables: [],
-        regex_filters: {
-          architecture: ".*",
-          instance_id: ".*",
-          operating_system: ".*",
-          operating_system_platform: ".*",
-          operating_system_version: ".*",
-        },
+        // metadata_match: {
+        // },
       },
       validationSchema: Yup.object({
         name: nameValidator("Cohort Name"),

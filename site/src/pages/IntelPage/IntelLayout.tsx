@@ -17,25 +17,13 @@ const IntelLayout: FC<PropsWithChildren> = ({ children = <Outlet /> }) => {
   const location = useLocation();
   const paths = location.pathname.split("/");
   const activeTab = paths[2] ?? "summary";
-  const { organizationId } = useDashboard();
-  const cohortsQuery = useQuery(intelCohorts(organizationId));
-
-  if (cohortsQuery.isLoading) {
-    return <div>Loading...</div>;
-  }
 
   return (
     <Margins>
       <Helmet>
         <title>{pageTitle("Intel")}</title>
       </Helmet>
-      <PageHeader
-        actions={
-          <>
-            <CohortSelector />
-          </>
-        }
-      >
+      <PageHeader>
         <PageHeaderTitle>Intel</PageHeaderTitle>
       </PageHeader>
       <Tabs active={activeTab}>
@@ -56,68 +44,6 @@ const IntelLayout: FC<PropsWithChildren> = ({ children = <Outlet /> }) => {
       </Tabs>
       {children}
     </Margins>
-  );
-};
-
-const CohortSelector = () => {
-  const { organizationId } = useDashboard();
-  const cohortsQuery = useQuery(intelCohorts(organizationId))
-  const cohortByID = useMemo(() => {
-    if (!cohortsQuery.data) {
-      return
-    }
-    const cohortByID: Record<string, IntelCohort> = {}
-    cohortsQuery.data.forEach(cohort => {
-      cohortByID[cohort.id] = cohort
-    })
-    return cohortByID
-  }, [cohortsQuery.data])
-  const buttonRef = useRef<HTMLButtonElement>(null);
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [selectedCohorts, setSelectedCohorts] = useState<string[]>([]);
-  useEffect(() => {
-    if (cohortByID) {
-      setSelectedCohorts(Object.keys(cohortByID))
-    }
-  }, [cohortByID])
-
-  if (cohortsQuery.isLoading) {
-    return null
-  }
-  return (
-    <>
-      <Button
-        ref={buttonRef}
-        endIcon={<KeyboardArrowDown />}
-        css={css`
-          border-radius: 6px;
-          justify-content: space-between;
-          line-height: 120%;
-        `}
-        onClick={() => setIsMenuOpen(true)}
-      >
-        Select a Cohort
-      </Button>
-
-      <Menu
-        open={isMenuOpen}
-        onClose={() => setIsMenuOpen(false)}
-        anchorEl={buttonRef.current}
-      >
-        <MenuList>
-          {selectedCohorts.map(cohortID => {
-            const cohort = cohortByID?.[cohortID]
-            return (
-              <MenuItem key={cohortID} onClick={() => {
-                setSelectedCohorts(selectedCohorts.filter(id => id !== cohortID))
-              }}>
-                {cohort?.name}
-              </MenuItem>
-            )
-          })}
-        </MenuList>
-      </Menu>
-    </>
   );
 };
 

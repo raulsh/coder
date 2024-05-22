@@ -40,7 +40,7 @@ const meta: Meta<typeof IntelHomePage> = {
         data: [] as IntelCohort[],
       },
       {
-        key: intelReportKey([]),
+        key: intelReportKey(),
         data: {
           invocations: 1000,
           git_auth_providers: {},

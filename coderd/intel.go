@@ -58,7 +58,8 @@ func (api *API) intelReport(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 	summaries, err := api.Database.GetIntelInvocationSummaries(ctx, database.GetIntelInvocationSummariesParams{
-		StartsAt: req.StartsAt,
+		StartsAt:        req.StartsAt,
+		MachineMetadata: []byte("{}"),
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{

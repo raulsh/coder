@@ -3054,19 +3054,18 @@ SELECT id, starts_at, ends_at, binary_name, binary_args, binary_paths, working_d
 	($2 :: jsonb = '{}' OR EXISTS (
         SELECT 1
         FROM jsonb_each_text(machine_metadata) AS mdata(key, value)
-        JOIN jsonb_each_text($3 :: jsonb) AS cdata(key, regex)
+        JOIN jsonb_each_text($2 :: jsonb) AS cdata(key, regex)
         ON mdata.key = cdata.key AND mdata.value ~ regex
     ))
 `
 
 type GetIntelInvocationSummariesParams struct {
 	StartsAt        time.Time       `db:"starts_at" json:"starts_at"`
-	Metadata        json.RawMessage `db:"metadata" json:"metadata"`
 	MachineMetadata json.RawMessage `db:"machine_metadata" json:"machine_metadata"`
 }
 
 func (q *sqlQuerier) GetIntelInvocationSummaries(ctx context.Context, arg GetIntelInvocationSummariesParams) ([]IntelInvocationSummary, error) {
-	rows, err := q.db.QueryContext(ctx, getIntelInvocationSummaries, arg.StartsAt, arg.Metadata, arg.MachineMetadata)
+	rows, err := q.db.QueryContext(ctx, getIntelInvocationSummaries, arg.StartsAt, arg.MachineMetadata)
 	if err != nil {
 		return nil, err
 	}

@@ -13,17 +13,14 @@ export const intelCohorts = (
   };
 };
 
-export const intelReportKey = (cohortIDs: string[]): string[] => [
+export const intelReportKey = (): string[] => [
   "intel",
   "report",
-  ...cohortIDs,
 ];
 
-export const intelReport = (
-  cohortIDs: string[],
-): UseQueryOptions<IntelReport> => {
+export const intelReport = (organizationId: string): UseQueryOptions<IntelReport> => {
   return {
-    queryKey: intelReportKey(cohortIDs),
-    queryFn: () => API.getIntelReport(cohortIDs),
+    queryKey: intelReportKey(),
+    queryFn: () => API.getIntelReport(organizationId),
   };
 };

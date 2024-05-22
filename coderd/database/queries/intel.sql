@@ -221,7 +221,7 @@ DELETE FROM intel_invocations;
 
 -- name: GetIntelInvocationSummaries :many
 SELECT * FROM intel_invocation_summaries WHERE starts_at >= @starts_at AND
-	(@metadata :: jsonb = '{}' OR EXISTS (
+	(@machine_metadata :: jsonb = '{}' OR EXISTS (
         SELECT 1
         FROM jsonb_each_text(machine_metadata) AS mdata(key, value)
         JOIN jsonb_each_text(@machine_metadata :: jsonb) AS cdata(key, regex)

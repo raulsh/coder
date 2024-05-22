@@ -23,10 +23,10 @@ import (
 	"github.com/coder/serpent"
 )
 
-func (r *RootCmd) intelDaemon() *serpent.Command {
+func (r *RootCmd) intel() *serpent.Command {
 	cmd := &serpent.Command{
-		Use:   "inteld",
-		Short: "Manage the Intel Daemon",
+		Use:   "intel",
+		Short: "Manage Coder Intel",
 		Handler: func(i *serpent.Invocation) error {
 			return nil
 		},
