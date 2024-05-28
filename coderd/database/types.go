@@ -114,6 +114,28 @@ func (m StringMapOfInt) Value() (driver.Value, error) {
 	return json.Marshal(m)
 }
 
+type StringMapOfStringMapOfInt map[string]StringMapOfInt
+
+func (m *StringMapOfStringMapOfInt) Scan(src interface{}) error {
+	if src == nil {
+		return nil
+	}
+	switch src := src.(type) {
+	case []byte:
+		err := json.Unmarshal(src, m)
+		if err != nil {
+			return err
+		}
+	default:
+		return xerrors.Errorf("unsupported Scan, storing driver.Value type %T into type %T", src, m)
+	}
+	return nil
+}
+
+func (m StringMapOfStringMapOfInt) Value() (driver.Value, error) {
+	return json.Marshal(m)
+}
+
 type StringMapOfRegex map[string]*regexp.Regexp
 
 func (m *StringMapOfRegex) Scan(src interface{}) error {
@@ -168,4 +190,23 @@ func (m NullStringMapOfRegex) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return m.StringMapOfRegex.Value()
+}
+
+// StringArray is a type that can be used to interop with jsonb that is supposed
+// to structure as a string array. A normal []string type cannot be used, as that
+// will use PostgreSQL's array type.
+type StringArray []string
+
+func (a *StringArray) Scan(src interface{}) error {
+	switch v := src.(type) {
+	case string:
+		return json.Unmarshal([]byte(v), a)
+	case []byte:
+		return json.Unmarshal(v, a)
+	}
+	return xerrors.Errorf("unexpected type %T", src)
+}
+
+func (a StringArray) Value() (driver.Value, error) {
+	return json.Marshal(a)
 }

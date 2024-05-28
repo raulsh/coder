@@ -1,6 +1,6 @@
-import type { UseQueryOptions } from "react-query";
+import type { QueryClient, UseQueryOptions } from "react-query";
 import { API } from "api/api";
-import type { IntelCohort, IntelReport } from "api/typesGenerated";
+import type { CreateIntelCohortRequest, IntelCohort, IntelReport } from "api/typesGenerated";
 
 export const intelCohortsKey = ["intel", "cohorts"];
 
@@ -24,3 +24,12 @@ export const intelReport = (organizationId: string): UseQueryOptions<IntelReport
     queryFn: () => API.getIntelReport(organizationId),
   };
 };
+
+export const createIntelCohort = (organizationId: string) => {
+  return {
+    mutationFn: async (request: CreateIntelCohortRequest) => {
+      const newCohort = await API.createIntelCohort(organizationId, request);
+      return newCohort;
+    },
+  }
+}

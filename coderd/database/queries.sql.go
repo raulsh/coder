@@ -3078,7 +3078,7 @@ func (q *sqlQuerier) GetIntelInvocationSummaries(ctx context.Context, arg GetInt
 			&i.StartsAt,
 			&i.EndsAt,
 			&i.BinaryName,
-			pq.Array(&i.BinaryArgs),
+			&i.BinaryArgs,
 			&i.BinaryPaths,
 			&i.WorkingDirectories,
 			&i.GitRemoteUrls,

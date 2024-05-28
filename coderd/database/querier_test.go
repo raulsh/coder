@@ -682,9 +682,9 @@ func requireUsersMatch(t testing.TB, expected []database.User, found []database.
 // TestIntelReports ensures the in-memory database and PostgreSQL database
 // return the same values for various test scenarios. The query is quite
 // complex, so it's good to manually verify the outputs.
-func TestIntelReports(t *testing.T) {
+func TestIntelReport(t *testing.T) {
 	t.Parallel()
-	t.Run("MultipleCohorts", func(t *testing.T) {
+	t.Run("MultipleMachines", func(t *testing.T) {
 		// Ensures that multiple cohorts with a matching remote URL
 		// are properly returned!
 		t.Parallel()
@@ -717,6 +717,10 @@ func TestIntelReports(t *testing.T) {
 		err := db.UpsertIntelInvocationSummaries(context.Background())
 		require.NoError(t, err)
 
-		time.Sleep(time.Hour)
+		summaries, err := db.GetIntelInvocationSummaries(context.Background(), database.GetIntelInvocationSummariesParams{
+			MachineMetadata: []byte("{}"),
+		})
+		require.NoError(t, err)
+		require.Len(t, summaries, 1)
 	})
 }

@@ -3,30 +3,35 @@ import {
   Button,
   Chip,
   FormControl,
-  FormHelperText,
-  Input,
-  TextField,
+  TextField
 } from "@mui/material";
+import { createIntelCohort } from "api/queries/intel";
+import * as TypesGen from "api/typesGenerated";
+import { FormFields, FormSection, HorizontalForm } from "components/Form/Form";
+import { FormFooter } from "components/FormFooter/FormFooter";
+import { IconField } from "components/IconField/IconField";
 import { Margins } from "components/Margins/Margins";
 import {
   PageHeader,
   PageHeaderSubtitle,
   PageHeaderTitle,
 } from "components/PageHeader/PageHeader";
-import { Stack } from "components/Stack/Stack";
-import { FieldArray, FormikContextType, useFormik } from "formik";
-import * as TypesGen from "api/typesGenerated";
+import { FormikContextType, useFormik } from "formik";
+import { useDashboard } from "modules/dashboard/useDashboard";
+import { useCallback, useState } from "react";
+import { useMutation } from "react-query";
+import { useNavigate } from "react-router-dom";
 import {
   getFormHelpers,
   nameValidator,
   onChangeTrimmed,
 } from "utils/formUtils";
-import { FormFields, FormSection, HorizontalForm } from "components/Form/Form";
 import * as Yup from "yup";
-import { IconField } from "components/IconField/IconField";
-import { useCallback, useState } from "react";
 
 const CreateIntelCohortPage = () => {
+  const { organizationId } = useDashboard()
+  const navigate = useNavigate()
+  const createIntelCohortMutation = useMutation(createIntelCohort(organizationId))
   const form: FormikContextType<TypesGen.CreateIntelCohortRequest> =
     useFormik<TypesGen.CreateIntelCohortRequest>({
       initialValues: {
@@ -34,15 +39,15 @@ const CreateIntelCohortPage = () => {
         description: "",
         icon: "",
         tracked_executables: [],
-        // metadata_match: {
-        // },
+        metadata_match: {},
       },
       validationSchema: Yup.object({
         name: nameValidator("Cohort Name"),
       }),
       enableReinitialize: true,
-      onSubmit: (request) => {
-        console.log("submit", request);
+      onSubmit: async (request) => {
+        await createIntelCohortMutation.mutateAsync(request)
+        navigate("/intel")
       },
     });
 
@@ -102,56 +107,44 @@ const CreateIntelCohortPage = () => {
           </FormFields>
         </FormSection>
 
-        <FormSection
+        {/* <FormSection
           title="Machines"
           description="The Cohort will target all registered machines by default."
         >
           <FormFields>
-            <Stack direction="row">
-              <TextField
-                {...getFieldHelpers("regex_filters.operating_system")}
-                disabled={isSubmitting}
-                // resetMutation facilitates the clearing of validation errors
-                onChange={onChangeTrimmed(form)}
-                fullWidth
-                label="Operating System"
-                helperText="e.g: linux, darwin, windows"
-              />
-
-              <TextField
-                {...getFieldHelpers("regex_filters.operating_system_platform")}
-                disabled={isSubmitting}
-                // resetMutation facilitates the clearing of validation errors
-                onChange={onChangeTrimmed(form)}
-                fullWidth
-                label="Operating System Platform"
-                helperText="e.g: 22.02"
-              />
-            </Stack>
-
-            <Stack direction="row">
-              <TextField
-                {...getFieldHelpers("regex_filters.operating_system_version")}
-                disabled={isSubmitting}
-                // resetMutation facilitates the clearing of validation errors
-                onChange={onChangeTrimmed(form)}
-                fullWidth
-                label="Operating System Version"
-                helperText="e.g: 22.02"
-              />
-
-              <TextField
-                {...getFieldHelpers("regex_filters.architecture")}
-                disabled={isSubmitting}
-                // resetMutation facilitates the clearing of validation errors
-                onChange={onChangeTrimmed(form)}
-                fullWidth
-                label="Architecture"
-                helperText="e.g: arm, arm64, 386, amd64"
-              />
-            </Stack>
+            {form.values.metadata_match && Object.entries(form.values.metadata_match).map(([key, value]) => (
+              <Stack key={key} direction="row">
+                <TextField
+                  {...getFieldHelpers(`metadata_match.${key}`)}
+                  disabled={isSubmitting}
+                  // resetMutation facilitates the clearing of validation errors
+                  onChange={onChangeTrimmed(form)}
+                  fullWidth
+                  label={key}
+                  helperText="e.g: 22.02"
+                />
+                <Button
+                  onClick={() => {
+                    const newMetadataMatch = { ...form.values.metadata_match };
+                    delete newMetadataMatch[key];
+                    form.setFieldValue("metadata_match", newMetadataMatch);
+                  }}
+                >
+                  Remove
+                </Button>
+              </Stack>
+            ))}
+            <Button onClick={() => {
+              form.setFieldValue("metadata_match", {
+                ...form.values.metadata_match,
+                "": "",
+              });
+            }}>
+              New Metadata Match
+            </Button>
           </FormFields>
-        </FormSection>
+        </FormSection> */}
+
         <FormSection title="Tracked Executables" description="Machines that match the selector above will track binaries specified here. On Windows, `.exe` is automatically appended.">
           <FormFields>
             <IntelBinariesInput
@@ -160,6 +153,11 @@ const CreateIntelCohortPage = () => {
             />
           </FormFields>
         </FormSection>
+
+        <FormFooter
+          isLoading={isSubmitting}
+          onCancel={() => undefined}
+        />
       </HorizontalForm>
     </Margins>
   );

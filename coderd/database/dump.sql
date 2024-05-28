@@ -1713,6 +1713,8 @@ CREATE INDEX idx_audit_log_user_id ON audit_logs USING btree (user_id);
 
 CREATE INDEX idx_audit_logs_time_desc ON audit_logs USING btree ("time" DESC);
 
+CREATE UNIQUE INDEX idx_custom_roles_name_lower ON custom_roles USING btree (lower(name));
+
 CREATE INDEX idx_intel_cohorts_id ON intel_cohorts USING btree (id);
 
 CREATE INDEX idx_intel_invocations_binary_args ON intel_invocations USING gin (binary_args);

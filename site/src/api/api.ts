@@ -1868,7 +1868,14 @@ class ApiMethods {
       `/api/v2/organizations/${organizationId}/intel/report`,
     );
     return response.data;
+  }
 
+  createIntelCohort = async (organizationId: string, data: TypesGen.CreateIntelCohortRequest) => {
+    const response = await this.axios.post<TypesGen.IntelCohort>(
+      `/api/v2/organizations/${organizationId}/intel/cohorts`,
+      data,
+    );
+    return response.data;
   }
 }
 

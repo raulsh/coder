@@ -59,25 +59,25 @@ sql:
               type: "NullStringMapOfRegex"
           - column: "intel_invocation_summaries.machine_metadata"
             go_type:
-              type: "map[string]map[string]int64"
+              type: "StringMapOfStringMapOfInt"
           - column: "intel_invocations.binary_args"
             go_type:
-              type: "[]string"
+              type: "StringArray"
           - column: "intel_invocation_summaries.binary_args"
             go_type:
-              type: "[]string"
+              type: "StringArray"
           - column: "intel_invocation_summaries.binary_paths"
             go_type:
-              type: "map[string]int64"
+              type: "StringMapOfInt"
           - column: "intel_invocation_summaries.working_directories"
             go_type:
-              type: "map[string]int64"
+              type: "StringMapOfInt"
           - column: "intel_invocation_summaries.git_remote_urls"
             go_type:
-              type: "map[string]int64"
+              type: "StringMapOfInt"
           - column: "intel_invocation_summaries.exit_codes"
             go_type:
-              type: "map[string]int64"
+              type: "StringMapOfInt"
         rename:
           template: TemplateTable
           template_with_user: Template

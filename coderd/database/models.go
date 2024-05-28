@@ -1874,36 +1874,36 @@ type IntelCohort struct {
 }
 
 type IntelInvocation struct {
-	ID               uuid.UUID `db:"id" json:"id"`
-	CreatedAt        time.Time `db:"created_at" json:"created_at"`
-	MachineID        uuid.UUID `db:"machine_id" json:"machine_id"`
-	UserID           uuid.UUID `db:"user_id" json:"user_id"`
-	BinaryHash       string    `db:"binary_hash" json:"binary_hash"`
-	BinaryName       string    `db:"binary_name" json:"binary_name"`
-	BinaryPath       string    `db:"binary_path" json:"binary_path"`
-	BinaryArgs       []string  `db:"binary_args" json:"binary_args"`
-	BinaryVersion    string    `db:"binary_version" json:"binary_version"`
-	WorkingDirectory string    `db:"working_directory" json:"working_directory"`
-	GitRemoteUrl     string    `db:"git_remote_url" json:"git_remote_url"`
-	ExitCode         int32     `db:"exit_code" json:"exit_code"`
-	DurationMs       float64   `db:"duration_ms" json:"duration_ms"`
+	ID               uuid.UUID   `db:"id" json:"id"`
+	CreatedAt        time.Time   `db:"created_at" json:"created_at"`
+	MachineID        uuid.UUID   `db:"machine_id" json:"machine_id"`
+	UserID           uuid.UUID   `db:"user_id" json:"user_id"`
+	BinaryHash       string      `db:"binary_hash" json:"binary_hash"`
+	BinaryName       string      `db:"binary_name" json:"binary_name"`
+	BinaryPath       string      `db:"binary_path" json:"binary_path"`
+	BinaryArgs       StringArray `db:"binary_args" json:"binary_args"`
+	BinaryVersion    string      `db:"binary_version" json:"binary_version"`
+	WorkingDirectory string      `db:"working_directory" json:"working_directory"`
+	GitRemoteUrl     string      `db:"git_remote_url" json:"git_remote_url"`
+	ExitCode         int32       `db:"exit_code" json:"exit_code"`
+	DurationMs       float64     `db:"duration_ms" json:"duration_ms"`
 }
 
 type IntelInvocationSummary struct {
-	ID                 uuid.UUID        `db:"id" json:"id"`
-	StartsAt           time.Time        `db:"starts_at" json:"starts_at"`
-	EndsAt             time.Time        `db:"ends_at" json:"ends_at"`
-	BinaryName         string           `db:"binary_name" json:"binary_name"`
-	BinaryArgs         []string         `db:"binary_args" json:"binary_args"`
-	BinaryPaths        map[string]int64 `db:"binary_paths" json:"binary_paths"`
-	WorkingDirectories map[string]int64 `db:"working_directories" json:"working_directories"`
-	GitRemoteUrls      map[string]int64 `db:"git_remote_urls" json:"git_remote_urls"`
-	ExitCodes          map[string]int64 `db:"exit_codes" json:"exit_codes"`
+	ID                 uuid.UUID      `db:"id" json:"id"`
+	StartsAt           time.Time      `db:"starts_at" json:"starts_at"`
+	EndsAt             time.Time      `db:"ends_at" json:"ends_at"`
+	BinaryName         string         `db:"binary_name" json:"binary_name"`
+	BinaryArgs         StringArray    `db:"binary_args" json:"binary_args"`
+	BinaryPaths        StringMapOfInt `db:"binary_paths" json:"binary_paths"`
+	WorkingDirectories StringMapOfInt `db:"working_directories" json:"working_directories"`
+	GitRemoteUrls      StringMapOfInt `db:"git_remote_urls" json:"git_remote_urls"`
+	ExitCodes          StringMapOfInt `db:"exit_codes" json:"exit_codes"`
 	// Aggregated machine metadata.
-	MachineMetadata  map[string]map[string]int64 `db:"machine_metadata" json:"machine_metadata"`
-	UniqueMachines   int64                       `db:"unique_machines" json:"unique_machines"`
-	TotalInvocations int64                       `db:"total_invocations" json:"total_invocations"`
-	MedianDurationMs float64                     `db:"median_duration_ms" json:"median_duration_ms"`
+	MachineMetadata  StringMapOfStringMapOfInt `db:"machine_metadata" json:"machine_metadata"`
+	UniqueMachines   int64                     `db:"unique_machines" json:"unique_machines"`
+	TotalInvocations int64                     `db:"total_invocations" json:"total_invocations"`
+	MedianDurationMs float64                   `db:"median_duration_ms" json:"median_duration_ms"`
 }
 
 type IntelMachine struct {

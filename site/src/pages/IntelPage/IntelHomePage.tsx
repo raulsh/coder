@@ -20,10 +20,6 @@ const IntelHomePage = () => {
 
   return (
     <IntelLayout>
-      <div>
-        {report.data.invocations}
-        Something something
-      </div>
       <div
         css={{
           display: "grid",

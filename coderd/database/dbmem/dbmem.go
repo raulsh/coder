@@ -8672,7 +8672,7 @@ func (q *FakeQuerier) UpsertIntelInvocationSummaries(_ context.Context) error {
 		WorkingDirectories map[string]int64
 		GitRemoteUrls      map[string]int64
 		ExitCodes          map[string]int64
-		MachineMetadata    map[string]map[string]int64
+		MachineMetadata    database.StringMapOfStringMapOfInt
 		DurationMS         []float64
 	}
 	invocationSummaries := make(map[string]summaryWithTypes)
@@ -8695,7 +8695,7 @@ func (q *FakeQuerier) UpsertIntelInvocationSummaries(_ context.Context) error {
 				WorkingDirectories: make(map[string]int64),
 				GitRemoteUrls:      make(map[string]int64),
 				ExitCodes:          make(map[string]int64),
-				MachineMetadata:    make(map[string]map[string]int64),
+				MachineMetadata:    make(database.StringMapOfStringMapOfInt),
 			}
 		}
 		summary.BinaryPaths[invocation.BinaryPath]++
