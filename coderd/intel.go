@@ -73,6 +73,10 @@ func (api *API) intelReport(rw http.ResponseWriter, r *http.Request) {
 		Intervals:        make([]codersdk.IntelInvocationSummary, 0, len(summaries)),
 	}
 	for _, summary := range summaries {
+		machineMetadata := map[string]map[string]int64{}
+		for k, v := range summary.MachineMetadata {
+			machineMetadata[k] = map[string]int64(v)
+		}
 		report.Intervals = append(report.Intervals, codersdk.IntelInvocationSummary{
 			ID:                 summary.ID,
 			StartsAt:           summary.StartsAt,
@@ -83,7 +87,7 @@ func (api *API) intelReport(rw http.ResponseWriter, r *http.Request) {
 			GitRemoteURLs:      summary.GitRemoteUrls,
 			WorkingDirectories: summary.WorkingDirectories,
 			BinaryPaths:        summary.BinaryPaths,
-			MachineMetadata:    summary.MachineMetadata,
+			MachineMetadata:    machineMetadata,
 			UniqueMachines:     summary.UniqueMachines,
 			TotalInvocations:   summary.TotalInvocations,
 			MedianDurationMS:   summary.MedianDurationMs,
@@ -441,28 +445,6 @@ func convertIntelCohorts(cohorts []database.IntelCohort) []codersdk.IntelCohort 
 				Description:        cohort.Description,
 				TrackedExecutables: cohort.TrackedExecutables,
 			},
-		}
-	}
-	return converted
-}
-
-func convertIntelInvocationSummaries(summaries []database.IntelInvocationSummary) []codersdk.IntelInvocationSummary {
-	converted := make([]codersdk.IntelInvocationSummary, len(summaries))
-	for i, summary := range summaries {
-		converted[i] = codersdk.IntelInvocationSummary{
-			ID:                 summary.ID,
-			StartsAt:           summary.StartsAt,
-			EndsAt:             summary.EndsAt,
-			BinaryName:         summary.BinaryName,
-			BinaryArgs:         summary.BinaryArgs,
-			GitRemoteURLs:      summary.GitRemoteUrls,
-			ExitCodes:          summary.ExitCodes,
-			WorkingDirectories: summary.WorkingDirectories,
-			BinaryPaths:        summary.BinaryPaths,
-			MachineMetadata:    summary.MachineMetadata,
-			UniqueMachines:     summary.UniqueMachines,
-			TotalInvocations:   summary.TotalInvocations,
-			MedianDurationMS:   summary.MedianDurationMs,
 		}
 	}
 	return converted
