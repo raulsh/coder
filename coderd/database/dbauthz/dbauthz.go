@@ -3525,7 +3525,7 @@ func (q *querier) UpsertIntelCohort(ctx context.Context, arg database.UpsertInte
 }
 
 func (q *querier) UpsertIntelInvocationSummaries(ctx context.Context) error {
-	if err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceSystem); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
 		return err
 	}
 	return q.db.UpsertIntelInvocationSummaries(ctx)

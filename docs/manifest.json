@@ -700,14 +700,14 @@
           "path": "cli/groups_list.md"
         },
         {
-          "title": "inteld",
-          "description": "Manage the Intel Daemon",
-          "path": "cli/inteld.md"
+          "title": "intel",
+          "description": "Manage Coder Intel",
+          "path": "cli/intel.md"
         },
         {
-          "title": "inteld start",
+          "title": "intel start",
           "description": "Start the Intel Daemon",
-          "path": "cli/inteld_start.md"
+          "path": "cli/intel_start.md"
         },
         {
           "title": "licenses",

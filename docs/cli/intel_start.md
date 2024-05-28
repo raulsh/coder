@@ -1,13 +1,13 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
 
-# inteld start
+# intel start
 
 Start the Intel Daemon
 
 ## Usage
 
 ```console
-coder inteld start [flags]
+coder intel start [flags]
 ```
 
 ## Options

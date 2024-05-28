@@ -234,7 +234,7 @@ export interface CreateIntelCohortRequest {
   readonly metadata_match?: Record<string, any>;
 }
 
-// From codersdk/users.go
+// From codersdk/organizations.go
 export interface CreateOrganizationRequest {
   readonly name: string;
 }
