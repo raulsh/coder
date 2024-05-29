@@ -837,6 +837,18 @@ func (q *querier) BatchUpdateWorkspaceLastUsedAt(ctx context.Context, arg databa
 	return q.db.BatchUpdateWorkspaceLastUsedAt(ctx, arg)
 }
 
+func (q *querier) BulkMarkNotificationMessageFailed(ctx context.Context, arg database.BulkMarkNotificationMessageFailedParams) (int64, error) {
+	panic("not implemented")
+}
+
+func (q *querier) BulkMarkNotificationMessagesInhibited(ctx context.Context, arg database.BulkMarkNotificationMessagesInhibitedParams) (int64, error) {
+	panic("not implemented")
+}
+
+func (q *querier) BulkMarkNotificationMessagesSent(ctx context.Context, arg database.BulkMarkNotificationMessagesSentParams) (int64, error) {
+	panic("not implemented")
+}
+
 func (q *querier) CleanTailnetCoordinators(ctx context.Context) error {
 	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceTailnetCoordinator); err != nil {
 		return err
@@ -986,7 +998,7 @@ func (q *querier) DeleteOAuth2ProviderAppTokensByAppAndUserID(ctx context.Contex
 	return q.db.DeleteOAuth2ProviderAppTokensByAppAndUserID(ctx, arg)
 }
 
-func (q *querier) DeleteOldNotificationMessages(ctx context.Context) error {
+func (q *querier) DeleteOldNotificationMessages(ctx context.Context, maxAttemptCount int32) error {
 	panic("not implemented")
 }
 
@@ -2758,18 +2770,6 @@ func (q *querier) ListWorkspaceAgentPortShares(ctx context.Context, workspaceID 
 	}
 
 	return q.db.ListWorkspaceAgentPortShares(ctx, workspaceID)
-}
-
-func (q *querier) MarkNotificationMessageFailed(ctx context.Context, arg database.MarkNotificationMessageFailedParams) (database.NotificationMessage, error) {
-	panic("not implemented")
-}
-
-func (q *querier) MarkNotificationMessageSent(ctx context.Context, arg database.MarkNotificationMessageSentParams) (database.NotificationMessage, error) {
-	panic("not implemented")
-}
-
-func (q *querier) MarkNotificationMessagesInhibited(ctx context.Context, arg database.MarkNotificationMessagesInhibitedParams) (database.NotificationMessage, error) {
-	panic("not implemented")
 }
 
 func (q *querier) ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(ctx context.Context, templateID uuid.UUID) error {
