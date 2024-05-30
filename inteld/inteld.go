@@ -19,6 +19,7 @@ import (
 	"github.com/ammario/tlru"
 	"github.com/elastic/go-sysinfo"
 	"github.com/hashicorp/yamux"
+	"github.com/kalafut/imohash"
 	"github.com/spf13/afero"
 	"golang.org/x/xerrors"
 
@@ -27,8 +28,6 @@ import (
 	"github.com/coder/coder/v2/inteld/pathman"
 	"github.com/coder/coder/v2/inteld/proto"
 	"github.com/coder/retry"
-
-	"github.com/kalafut/imohash"
 )
 
 type Dialer func(ctx context.Context, metadata map[string]string) (proto.DRPCIntelDaemonClient, error)

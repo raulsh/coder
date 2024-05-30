@@ -58,6 +58,8 @@ func (r *RootCmd) intelDaemonStart() *serpent.Command {
 			ctx, cancel := context.WithCancel(inv.Context())
 			defer cancel()
 
+			fmt.Println("HELP!!")
+
 			stopCtx, stopCancel := inv.SignalNotifyContext(ctx, StopSignalsNoInterrupt...)
 			defer stopCancel()
 			interruptCtx, interruptCancel := inv.SignalNotifyContext(ctx, InterruptSignals...)

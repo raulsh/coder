@@ -1,6 +1,7 @@
 package proto
 
 import (
+	"fmt"
 	"io"
 	"net"
 	"os"
@@ -57,10 +58,10 @@ func ReportInvocation(inv *ReportInvocationRequest) error {
 // ListenForInvocations starts a listener that listens for invocation requests
 // from the intel client in the most efficient way possible.
 func ListenForInvocations(sendFunc func(inv *ReportInvocationRequest)) (io.Closer, error) {
-	overrideAddress := os.Getenv("CODER_INTEL_DAEMON_ADDRESS")
-	if overrideAddress != "" {
-		return net.Listen("tcp", overrideAddress)
-	}
+	// overrideAddress := os.Getenv("CODER_INTEL_DAEMON_ADDRESS")
+	// if overrideAddress != "" {
+	// 	return net.Listen("tcp", overrideAddress)
+	// }
 	unmarshalAndSend := func(data []byte, count int) {
 		var inv ReportInvocationRequest
 		err := gproto.Unmarshal(data[:count], &inv)
@@ -102,6 +103,7 @@ func ListenForInvocations(sendFunc func(inv *ReportInvocationRequest)) (io.Close
 				if err != nil {
 					return
 				}
+				fmt.Println("got req")
 				go func() {
 					data := make([]byte, 1024)
 					read, err := conn.Read(data)
