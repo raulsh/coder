@@ -3,16 +3,15 @@ package notifications
 import (
 	"context"
 	"sync"
-	"sync/atomic"
 	"time"
 
+	"github.com/coder/coder/v2/coderd/notifications/dispatch"
+	"github.com/coder/coder/v2/coderd/notifications/render"
 	"github.com/google/uuid"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
-
-	"github.com/coder/coder/v2/coderd/database"
 )
 
 const (
@@ -44,19 +43,36 @@ type Manager struct {
 	store     Store
 	notifiers []*notifier
 
+	rendererProvider    *ProviderRegistry[Renderer]
+	dispatchersProvider *ProviderRegistry[Dispatcher]
+
 	stop    chan any
-	stopped atomic.Bool
+	stopped chan any
 }
 
-type Store interface {
-	AcquireNotificationMessages(ctx context.Context, params database.AcquireNotificationMessagesParams) ([]database.AcquireNotificationMessagesRow, error)
+func NewManager(store Store, log slog.Logger, rp *ProviderRegistry[Renderer], dp *ProviderRegistry[Dispatcher]) *Manager {
+	return &Manager{store: store, stop: make(chan any), stopped: make(chan any), log: log, rendererProvider: rp, dispatchersProvider: dp}
 }
 
-func NewManager(store Store, log slog.Logger) *Manager {
-	return &Manager{store: store, stop: make(chan any), log: log}
+func DefaultRenderers() *ProviderRegistry[Renderer] {
+	reg, err := NewProviderRegistry[Renderer](&render.TextRenderer{}, &render.HTMLRenderer{})
+	if err != nil {
+		panic(err)
+	}
+	return reg
+}
+
+func DefaultDispatchers() *ProviderRegistry[Dispatcher] {
+	reg, err := NewProviderRegistry[Dispatcher](&dispatch.SMTPDispatcher{})
+	if err != nil {
+		panic(err)
+	}
+	return reg
 }
 
 func (m *Manager) Run(ctx context.Context, nc int) error {
+	defer close(m.stopped)
+
 	select {
 	case <-m.stop:
 		m.log.Warn(ctx, "gracefully stopped")
@@ -77,7 +93,7 @@ func (m *Manager) Run(ctx context.Context, nc int) error {
 	for i := 0; i < nc; i++ {
 		eg.Go(func() error {
 			m.mu.Lock()
-			n := newNotifier(ctx, m.log, m.store)
+			n := newNotifier(ctx, m.log, m.store, m.rendererProvider, m.dispatchersProvider)
 			m.notifiers = append(m.notifiers, n)
 			m.mu.Unlock()
 			return n.run(ctx, success, failure)
@@ -156,21 +172,35 @@ func (m *Manager) bulkUpdate(ctx context.Context, success, failure <-chan dispat
 	wg.Wait()
 }
 
-func (m *Manager) Stop() {
-	if m.stopped.Load() {
-		return
+func (m *Manager) Stop(ctx context.Context) {
+	var deadlineStr string
+	deadline, ok := ctx.Deadline()
+	if ok {
+		deadlineStr = deadline.Format(time.RFC3339Nano)
+	} else {
+		deadlineStr = "not set"
 	}
 
-	m.stopped.Store(true)
+	m.log.Warn(ctx, "graceful stop requested", slog.F("deadline", deadlineStr))
+
 	for _, n := range m.notifiers {
 		n.stop()
 	}
 	close(m.stop)
+
+	// Wait for either the given context to complete or for all notifiers to exit.
+	select {
+	case <-ctx.Done():
+		m.log.Warn(ctx, "graceful stop timed out", slog.Error(ctx.Err()))
+		return
+	case <-m.stopped:
+		m.log.Info(ctx, "gracefully stopped")
+		return
+	}
 }
 
 type dispatchResult struct {
-	notifier  uuid.UUID
-	msg       uuid.UUID
-	err       error
-	retryable bool
+	notifier uuid.UUID
+	msg      uuid.UUID
+	err      error
 }
