@@ -295,6 +295,25 @@ Coder's LoadBalancer (`kubectl get svc -n coder`).
 See [troubleshooting templates](../templates/index.md#troubleshooting-templates)
 for more steps.
 
+## Monitoring
+
+We have created a [Helm chart](https://github.com/coder/observability) to easy monitor your Coder installation. This
+chart includes Prometheus for metrics, Loki for logs, and Grafana for dashboards. This chart contains a number of useful
+dashboards for understanding how your Coder deployment is behaving, as well as alerts for being automatically notified
+when your deployment is unhealthy.
+
+### Installation
+
+```bash
+helm repo add coder-observability https://helm.coder.com/observability
+helm upgrade --install coder-observability coder-observability/coder-observability --version 0.1.0 --namespace coder-observability --create-namespace
+```
+
+This will install the various components of the monitoring stack.
+
+It is unlikely to work completely out of the box without a little configuration. See
+the [chart's documentation](https://github.com/coder/observability/blob/main/README.md) for further details.
+
 ## Next steps
 
 - [Configuring Coder](../admin/configure.md)
