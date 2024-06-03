@@ -92,3 +92,16 @@ CREATE TABLE notification_preferences
     FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
     FOREIGN KEY (org_id) REFERENCES organizations (id) ON DELETE CASCADE
 );
+
+-- TODO: insert real templates with legit UUIDs
+-- TODO: autogenerate constants which reference the UUIDs
+INSERT INTO notification_templates (id, name, enabled, title_template, body_template, "group")
+VALUES ('a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', 'User Registration', true, 'Welcome {{.username}}!',
+        'Dear {{.username}}, thank you for registering on our platform. We are excited to have you!',
+        'User'),
+       ('b1eebc99-9c0b-4ef8-bb6d-6bb9bd380a14', 'Password Reset', true, 'Password Reset Request',
+        'Dear {{.username}}, we received a request to reset your password. If this was you, please click on the following link: {{.link}}',
+        'User'),
+       ('c2eebc99-9c0b-4ef8-bb6d-6bb9bd380a15', 'Workspace Unhealthy', true, 'Your workspace {{.name}} is unhealthy!',
+        'Dear {{.username}}, your workspace {{.name}} is unhealthy! Click <a href="{{.url}}">here</a> to view the errors.',
+        'Workspace');

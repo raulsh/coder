@@ -4,8 +4,9 @@ import (
 	html "html/template"
 	"strings"
 
-	"github.com/coder/coder/v2/coderd/notifications/types"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/coderd/notifications/types"
 )
 
 const HTML = "html"

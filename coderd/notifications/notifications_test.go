@@ -62,9 +62,15 @@ func TestStuff(t *testing.T) {
 	//
 	//t.Fail()
 
-	dp, err := notifications.NewProviderRegistry[notifications.Dispatcher](slowFailingSMTPProvider{})
+	dp, err := notifications.NewProviderRegistry[notifications.Dispatcher](slowFailingSMTPProvider{
+		delayFn: func() time.Duration {
+			return time.Second + time.Duration(rand.IntN(100))*time.Millisecond
+		},
+	})
 	require.NoError(t, err)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := slogtest.Make(t, &slogtest.Options{
+		IgnoreErrors: true, IgnoredErrorIs: []error{},
+	}).Leveled(slog.LevelDebug)
 	n := notifications.NewManager(
 		fakeDB{}, logger,
 		notifications.DefaultRenderers(),
@@ -78,20 +84,19 @@ func TestStuff(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		require.ErrorIs(t, n.Run(ctx, 3), context.Canceled)
+		require.ErrorIs(t, n.loop(ctx, 3), context.Canceled)
 	}()
 
 	select {
 	case <-ctx.Done():
 		return
-	//case <-time.After(time.Second * 3):
-	//	t.Logf("\n\n\n\nCANCELED\n\n\n\n")
-	//	cancel()
-	case <-time.After(time.Millisecond * 500):
-		t.Logf("\n\n\n\nSTOPPED\n\n\n\n")
-		nctx, ncancel := context.WithTimeout(ctx, time.Nanosecond*10)
-		t.Cleanup(ncancel)
-		n.Stop(nctx)
+		// case <-time.After(time.Second * 1):
+		//	t.Logf("\n\n\n\nCANCELED\n\n\n\n")
+		//	cancel()
+	// case <-time.After(time.Millisecond * 200):
+	//	t.Logf("\n\n\n\nSTOPPED\n\n\n\n")
+	//	n.Stop(ctx)
+	default:
 	}
 
 	wg.Wait()
@@ -100,8 +105,8 @@ func TestStuff(t *testing.T) {
 type fakeDB struct{}
 
 func (f fakeDB) AcquireNotificationMessages(ctx context.Context, params database.AcquireNotificationMessagesParams) ([]database.AcquireNotificationMessagesRow, error) {
-	out := make([]database.AcquireNotificationMessagesRow, 10)
-	for i := 0; i < 10; i++ {
+	out := make([]database.AcquireNotificationMessagesRow, 2)
+	for i := 0; i < cap(out); i++ {
 		out[i] = database.AcquireNotificationMessagesRow{
 			ID:                     uuid.New(),
 			Status:                 database.NotificationMessageStatusEnqueued,
@@ -118,24 +123,34 @@ func (f fakeDB) AcquireNotificationMessages(ctx context.Context, params database
 	return out, nil
 }
 
-type slowFailingSMTPProvider struct{}
+func (f fakeDB) BulkMarkNotificationMessagesSent(ctx context.Context, arg database.BulkMarkNotificationMessagesSentParams) (int64, error) {
+	return int64(len(arg.IDs)), nil
+}
+
+func (f fakeDB) BulkMarkNotificationMessagesFailed(ctx context.Context, arg database.BulkMarkNotificationMessagesFailedParams) (int64, error) {
+	return int64(len(arg.IDs)), nil
+}
+
+type slowFailingSMTPProvider struct {
+	delayFn func() time.Duration
+}
 
 func (f slowFailingSMTPProvider) Name() string {
 	return string(database.NotificationReceiverSmtp)
 }
 
-func (f slowFailingSMTPProvider) Validate(input types.Labels) bool {
-	return true
+func (f slowFailingSMTPProvider) Validate(input types.Labels) (bool, []string) {
+	return true, nil
 }
 
 func (f slowFailingSMTPProvider) Send(ctx context.Context, input types.Labels) error {
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
-	default:
+	case <-time.After(f.delayFn()):
+		break
 	}
 
-	<-time.After(time.Second)
 	// Fail half of requests.
 	if rand.IntN(10) < 5 {
 		return xerrors.New(fmt.Sprintf("oops"))

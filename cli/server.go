@@ -53,6 +53,9 @@ import (
 	"gopkg.in/yaml.v3"
 	"tailscale.com/tailcfg"
 
+	"github.com/coder/coder/v2/coderd/notifications"
+	"github.com/coder/coder/v2/coderd/notifications/types"
+
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
 	"github.com/coder/coder/v2/buildinfo"
@@ -981,6 +984,19 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			)
 			options.WorkspaceUsageTracker = tracker
 			defer tracker.Close()
+
+			// Manage notifications
+			nman := notifications.NewManager(ctx,
+				3, // TODO: configurable?
+				options.Database,
+				logger.Named("notifications"),
+				notifications.DefaultRenderers(),
+				notifications.DefaultDispatchers(),
+			)
+			options.NotificationsManager = nman
+			defer func() {
+				_ = shutdownWithTimeout(nman.Stop, 5*time.Second)
+			}()
 
 			// Wrap the server in middleware that redirects to the access URL if
 			// the request is not to a local IP.

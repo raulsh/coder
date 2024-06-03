@@ -3198,54 +3198,57 @@ WITH acquired AS (
         notification_messages
             SET updated_at = NOW(),
                 status = 'enqueued'::notification_message_status,
-                status_reason = 'Enqueued by notifier ' || $1::uuid,
-                leased_until = $2::time
-            WHERE id = (SELECT nm.id,
-                               nt.id,
-                               nt.title_template,
-                               nt.body_template,
-                               nm.input
-                        FROM notification_messages AS nm
-                                 LEFT JOIN notification_templates AS nt ON (nm.notification_template_id = nt.id)
-                                 LEFT JOIN notification_preferences np ON (np.notification_template_id = nt.id)
-                        WHERE (
-                            (
-                                -- message is in acquirable states
-                                nm.status NOT IN (
-                                    -- don't enqueue currently enqueued messages
-                                                  'enqueued'::notification_message_status,
-                                    -- don't enqueue inhibited messages (these will get deleted)
-                                                  'inhibited'::notification_message_status
-                                    )
-                                )
-                                -- or somehow the message was left in enqueued for longer than its lease period
-                                OR (
-                                nm.status = 'enqueued'::notification_message_status
-                                    AND nm.leased_until < NOW()
-                                )
-                            )
-                          -- exclude all messages which have exceeded the max attempts; these will be purged later
-                          AND (nm.attempt_count < $3::int)
-                          -- if set, do not retry until we've exceeded the wait time
-                          AND (nm.next_retry_after IS NOT NULL AND nm.next_retry_after < NOW())
-                          -- only enqueue if user/org has not disabled this template
-                          AND (np.disabled = FALSE
-                            AND (np.user_id = $4::uuid OR np.org_id = $5::uuid)
-                            )
-                        ORDER BY nm.created_at ASC
-                            FOR UPDATE
-                                SKIP LOCKED
-                        LIMIT $6)
-        RETURNING id
-)
-SELECT nm.id, nm.notification_template_id, nm.receiver, nm.status, nm.status_reason, nm.created_by, nm.input, nm.attempt_count, nm.targets, nm.created_at, nm.updated_at, nm.leased_until, nm.next_retry_after, nm.sent_at, nm.failed_at, nm.dedupe_hash, nt.name AS template_name, nt.title_template, nt.body_template
+                status_reason = 'Enqueued by notifier ' || $1::int,
+                leased_until = $2::timestamptz
+            WHERE id IN (SELECT nm.id
+                         FROM notification_messages AS nm
+                                  LEFT JOIN notification_templates AS nt ON (nm.notification_template_id = nt.id)
+                                  LEFT JOIN notification_preferences np ON (np.notification_template_id = nt.id)
+                         WHERE (
+                             (
+                                 -- message is in acquirable states
+                                 nm.status IN (
+                                               'pending'::notification_message_status,
+                                               'failed'::notification_message_status
+                                     )
+                                 )
+                                 -- or somehow the message was left in enqueued for longer than its lease period
+                                 OR (
+                                 nm.status = 'enqueued'::notification_message_status
+                                     AND nm.leased_until < NOW()
+                                 )
+                             )
+                           -- exclude all messages which have exceeded the max attempts; these will be purged later
+                           AND (nm.attempt_count IS NULL OR nm.attempt_count < $3::int)
+                           -- if set, do not retry until we've exceeded the wait time
+                           AND (
+                             CASE
+                                 WHEN nm.next_retry_after IS NOT NULL THEN nm.next_retry_after < NOW()
+                                 ELSE true
+                                 END
+                             )
+                           -- only enqueue if user/org has not disabled this template
+                           -- TODO: validate this
+                           AND (
+                             CASE
+                                 WHEN np.disabled = FALSE THEN
+                                     (np.user_id = $4::uuid OR np.org_id = $5::uuid)
+                                 ELSE TRUE
+                                 END
+                             )
+                         ORDER BY nm.created_at ASC
+                             FOR UPDATE OF nm
+                                 SKIP LOCKED
+                         LIMIT $6)
+            RETURNING id)
+SELECT nm.id, nm.input, nm.targets, nm.receiver, nt.name AS template_name, nt.title_template, nt.body_template
 FROM acquired
          JOIN notification_messages nm ON acquired.id = nm.id
          JOIN notification_templates nt ON nm.notification_template_id = nt.id
 `
 
 type AcquireNotificationMessagesParams struct {
-	NotifierID      uuid.UUID `db:"notifier_id" json:"notifier_id"`
+	NotifierID      int32     `db:"notifier_id" json:"notifier_id"`
 	LeasedUntil     time.Time `db:"leased_until" json:"leased_until"`
 	MaxAttemptCount int32     `db:"max_attempt_count" json:"max_attempt_count"`
 	UserID          uuid.UUID `db:"user_id" json:"user_id"`
@@ -3254,25 +3257,13 @@ type AcquireNotificationMessagesParams struct {
 }
 
 type AcquireNotificationMessagesRow struct {
-	ID                     uuid.UUID                 `db:"id" json:"id"`
-	NotificationTemplateID uuid.UUID                 `db:"notification_template_id" json:"notification_template_id"`
-	Receiver               NotificationReceiver      `db:"receiver" json:"receiver"`
-	Status                 NotificationMessageStatus `db:"status" json:"status"`
-	StatusReason           sql.NullString            `db:"status_reason" json:"status_reason"`
-	CreatedBy              string                    `db:"created_by" json:"created_by"`
-	Input                  StringMap                 `db:"input" json:"input"`
-	AttemptCount           sql.NullInt32             `db:"attempt_count" json:"attempt_count"`
-	Targets                []uuid.UUID               `db:"targets" json:"targets"`
-	CreatedAt              time.Time                 `db:"created_at" json:"created_at"`
-	UpdatedAt              sql.NullTime              `db:"updated_at" json:"updated_at"`
-	LeasedUntil            sql.NullTime              `db:"leased_until" json:"leased_until"`
-	NextRetryAfter         sql.NullTime              `db:"next_retry_after" json:"next_retry_after"`
-	SentAt                 sql.NullTime              `db:"sent_at" json:"sent_at"`
-	FailedAt               sql.NullTime              `db:"failed_at" json:"failed_at"`
-	DedupeHash             string                    `db:"dedupe_hash" json:"dedupe_hash"`
-	TemplateName           string                    `db:"template_name" json:"template_name"`
-	TitleTemplate          string                    `db:"title_template" json:"title_template"`
-	BodyTemplate           string                    `db:"body_template" json:"body_template"`
+	ID            uuid.UUID            `db:"id" json:"id"`
+	Input         StringMap            `db:"input" json:"input"`
+	Targets       []uuid.UUID          `db:"targets" json:"targets"`
+	Receiver      NotificationReceiver `db:"receiver" json:"receiver"`
+	TemplateName  string               `db:"template_name" json:"template_name"`
+	TitleTemplate string               `db:"title_template" json:"title_template"`
+	BodyTemplate  string               `db:"body_template" json:"body_template"`
 }
 
 // Acquires the lease for a given count of notification messages that aren't already locked, or ones which are leased
@@ -3299,21 +3290,9 @@ func (q *sqlQuerier) AcquireNotificationMessages(ctx context.Context, arg Acquir
 		var i AcquireNotificationMessagesRow
 		if err := rows.Scan(
 			&i.ID,
-			&i.NotificationTemplateID,
-			&i.Receiver,
-			&i.Status,
-			&i.StatusReason,
-			&i.CreatedBy,
 			&i.Input,
-			&i.AttemptCount,
 			pq.Array(&i.Targets),
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.LeasedUntil,
-			&i.NextRetryAfter,
-			&i.SentAt,
-			&i.FailedAt,
-			&i.DedupeHash,
+			&i.Receiver,
 			&i.TemplateName,
 			&i.TitleTemplate,
 			&i.BodyTemplate,
@@ -3332,10 +3311,10 @@ func (q *sqlQuerier) AcquireNotificationMessages(ctx context.Context, arg Acquir
 }
 
 const bulkMarkNotificationMessagesFailed = `-- name: BulkMarkNotificationMessagesFailed :execrows
-WITH new_values AS (SELECT UNNEST($1::uuid[])               AS id,
-                           UNNEST($2::timestamptz[]) AS failed_at,
-                           UNNEST($3::text[])          AS status,
-                           UNNEST($4::text[])    AS status_reason)
+WITH new_values AS (SELECT UNNEST($1::uuid[])                             AS id,
+                           UNNEST($2::timestamptz[])               AS failed_at,
+                           UNNEST($3::notification_message_status[]) AS status,
+                           UNNEST($4::text[])                  AS status_reason)
 UPDATE notification_messages
 SET updated_at       = NOW(),
     attempt_count    = attempt_count + 1,
@@ -3349,10 +3328,10 @@ WHERE notification_messages.id = subquery.id
 `
 
 type BulkMarkNotificationMessagesFailedParams struct {
-	IDs           []uuid.UUID `db:"ids" json:"ids"`
-	FailedAts     []time.Time `db:"failed_ats" json:"failed_ats"`
-	Statuses      []string    `db:"statuses" json:"statuses"`
-	StatusReasons []string    `db:"status_reasons" json:"status_reasons"`
+	IDs           []uuid.UUID                 `db:"ids" json:"ids"`
+	FailedAts     []time.Time                 `db:"failed_ats" json:"failed_ats"`
+	Statuses      []NotificationMessageStatus `db:"statuses" json:"statuses"`
+	StatusReasons []string                    `db:"status_reasons" json:"status_reasons"`
 }
 
 func (q *sqlQuerier) BulkMarkNotificationMessagesFailed(ctx context.Context, arg BulkMarkNotificationMessagesFailedParams) (int64, error) {

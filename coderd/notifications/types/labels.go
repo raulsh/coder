@@ -1,6 +1,8 @@
 package types
 
-import "fmt"
+import (
+	"fmt"
+)
 
 // Labels represents the metadata defined in a notification message, which will be used to augment the notification
 // display and delivery.
@@ -46,4 +48,14 @@ func (l Labels) Contains(ks ...string) bool {
 	}
 
 	return true
+}
+
+func (l Labels) Missing(ks ...string) (out []string) {
+	for _, k := range ks {
+		if _, has := l[k]; !has {
+			out = append(out, k)
+		}
+	}
+
+	return out
 }

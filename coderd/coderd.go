@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/andybalholm/brotli"
+	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/google/uuid"
@@ -207,6 +208,7 @@ type Options struct {
 	DatabaseRolluper *dbrollup.Rolluper
 	// WorkspaceUsageTracker tracks workspace usage by the CLI.
 	WorkspaceUsageTracker *workspaceusage.Tracker
+	NotificationsManager  *notifications.Manager
 }
 
 // @title Coder API

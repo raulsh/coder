@@ -2,14 +2,18 @@ package notifications
 
 import (
 	"context"
+	"encoding/json"
 	"sync"
 	"time"
 
-	"github.com/coder/coder/v2/coderd/notifications/dispatch"
-	"github.com/coder/coder/v2/coderd/notifications/render"
 	"github.com/google/uuid"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/notifications/dispatch"
+	"github.com/coder/coder/v2/coderd/notifications/render"
+	"github.com/coder/coder/v2/coderd/notifications/types"
 
 	"cdr.dev/slog"
 )
@@ -18,6 +22,12 @@ const (
 	MaxAttempts          = 5           // TODO: configurable
 	BulkUpdateBufferSize = 50          // TODO: configurable
 	BulkUpdateInterval   = time.Second // TODO: configurable
+)
+
+var (
+	TemplateUserRegistration   = uuid.MustParse("a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11")
+	TemplatePasswordReset      = uuid.MustParse("b1eebc99-9c0b-4ef8-bb6d-6bb9bd380a14")
+	TemplateWorkspaceUnhealthy = uuid.MustParse("c2eebc99-9c0b-4ef8-bb6d-6bb9bd380a15")
 )
 
 // Manager manages all notifications being enqueued and dispatched.
@@ -37,23 +47,34 @@ const (
 // forever, such as if we split notifiers out into separate targets for greater processing throughput; in this case we
 // will need an alternative mechanism for handling backpressure.
 type Manager struct {
-	mu  sync.Mutex
-	log slog.Logger
+	log   slog.Logger
+	store Store
 
-	store     Store
-	notifiers []*notifier
+	notifiers  []*notifier
+	notifierMu sync.Mutex
 
 	rendererProvider    *ProviderRegistry[Renderer]
 	dispatchersProvider *ProviderRegistry[Dispatcher]
 
-	stop    chan any
-	stopped chan any
+	stopMu sync.Mutex
+	stop   chan any
+	done   chan any
 }
 
-func NewManager(store Store, log slog.Logger, rp *ProviderRegistry[Renderer], dp *ProviderRegistry[Dispatcher]) *Manager {
-	return &Manager{store: store, stop: make(chan any), stopped: make(chan any), log: log, rendererProvider: rp, dispatchersProvider: dp}
+func NewManager(ctx context.Context, notifiers int, store Store, log slog.Logger, rp *ProviderRegistry[Renderer], dp *ProviderRegistry[Dispatcher]) *Manager {
+	man := &Manager{store: store, stop: make(chan any), done: make(chan any), log: log, rendererProvider: rp, dispatchersProvider: dp}
+
+	// Closes when Stop() is called or context is canceled.
+	go func() {
+		err := man.loop(ctx, notifiers)
+		if err != nil {
+			log.Error(ctx, "notification manager exited with error", slog.Error(err))
+		}
+	}()
+	return man
 }
 
+// DefaultRenderers builds a set of known renderers and panics if any error occurs.
 func DefaultRenderers() *ProviderRegistry[Renderer] {
 	reg, err := NewProviderRegistry[Renderer](&render.TextRenderer{}, &render.HTMLRenderer{})
 	if err != nil {
@@ -62,6 +83,7 @@ func DefaultRenderers() *ProviderRegistry[Renderer] {
 	return reg
 }
 
+// DefaultDispatchers builds a set of known dispatchers and panics if any error occurs.
 func DefaultDispatchers() *ProviderRegistry[Dispatcher] {
 	reg, err := NewProviderRegistry[Dispatcher](&dispatch.SMTPDispatcher{})
 	if err != nil {
@@ -70,9 +92,14 @@ func DefaultDispatchers() *ProviderRegistry[Dispatcher] {
 	return reg
 }
 
-func (m *Manager) Run(ctx context.Context, nc int) error {
-	defer close(m.stopped)
+func (m *Manager) loop(ctx context.Context, nc int) error {
+	defer func() {
+		close(m.done)
+		m.log.Info(context.Background(), "notification manager loop exited")
+	}()
 
+	// TODO: ensure process stop gracefully shuts down and communicates well
+	// Caught a terminal signal before notifiers were created, exit immediately.
 	select {
 	case <-m.stop:
 		m.log.Warn(ctx, "gracefully stopped")
@@ -92,10 +119,11 @@ func (m *Manager) Run(ctx context.Context, nc int) error {
 
 	for i := 0; i < nc; i++ {
 		eg.Go(func() error {
-			m.mu.Lock()
-			n := newNotifier(ctx, m.log, m.store, m.rendererProvider, m.dispatchersProvider)
+			i := i
+			m.notifierMu.Lock()
+			n := newNotifier(ctx, i+1, m.log, m.store, m.rendererProvider, m.dispatchersProvider)
 			m.notifiers = append(m.notifiers, n)
-			m.mu.Unlock()
+			m.notifierMu.Unlock()
 			return n.run(ctx, success, failure)
 		})
 	}
@@ -123,7 +151,8 @@ func (m *Manager) Run(ctx context.Context, nc int) error {
 				}
 				return
 			case <-m.stop:
-				// Drain buffers before stopping.
+				m.log.Warn(ctx, "graceful stop initiated; updating messages before stop",
+					slog.F("success_count", len(success)), slog.F("failure_count", len(failure)))
 				m.bulkUpdate(ctx, success, failure)
 				return
 			case <-tick.C:
@@ -133,74 +162,169 @@ func (m *Manager) Run(ctx context.Context, nc int) error {
 	}()
 
 	err := eg.Wait()
-	m.log.Info(ctx, "notification manager done")
+	m.log.Info(ctx, "loop exited", slog.F("err", err))
 	return err
+}
+
+func (m *Manager) Enqueue(ctx context.Context, templateId uuid.UUID, r database.NotificationReceiver, labels types.Labels, createdBy string, targets ...uuid.UUID) error {
+	input, err := json.Marshal(labels)
+	if err != nil {
+		return xerrors.Errorf("failed encoding input labels: %w", err)
+	}
+
+	msg, err := m.store.EnqueueNotificationMessage(ctx, database.EnqueueNotificationMessageParams{
+		ID:                     uuid.New(),
+		NotificationTemplateID: templateId,
+		Receiver:               r,
+		Input:                  input,
+		Targets:                targets,
+		CreatedBy:              createdBy,
+	})
+	if err != nil {
+		return xerrors.Errorf("failed to enqueue notification: %w", err)
+	}
+
+	m.log.Debug(ctx, "enqueued notification", slog.F("msg_id", msg.ID))
+	return nil
 }
 
 // bulkUpdate updates messages in the store based on the given successful and failed message dispatch results.
 func (m *Manager) bulkUpdate(ctx context.Context, success, failure <-chan dispatchResult) {
 	// Nothing to do.
-	if len(success)+len(failure) == 0 {
+	nSuccess := len(success)
+	nFailure := len(failure)
+	if nSuccess+nFailure == 0 {
 		return
 	}
 
-	m.log.Debug(ctx, "bulk update messages", slog.F("success_count", len(success)), slog.F("failure_count", len(failure)))
+	var (
+		successParams database.BulkMarkNotificationMessagesSentParams
+		failureParams database.BulkMarkNotificationMessagesFailedParams
+	)
+
+	// Read all the existing messages due for update from the channel, but don't range over the channels because they
+	// block until they are closed.
+	// If more items are added to the success or failure channels between measuring their lengths and now, those items
+	// will be processed on the next bulk update.
+
+	for i := 0; i < nSuccess; i++ {
+		res := <-success
+		successParams.IDs = append(successParams.IDs, res.msg)
+		successParams.SentAts = append(successParams.SentAts, res.ts)
+	}
+	for i := 0; i < nFailure; i++ {
+		res := <-failure
+		failureParams.IDs = append(failureParams.IDs, res.msg)
+		failureParams.FailedAts = append(failureParams.FailedAts, res.ts)
+		failureParams.Statuses = append(failureParams.Statuses, database.NotificationMessageStatusFailed)
+		var reason string
+		if res.err != nil {
+			reason = res.err.Error()
+		}
+		failureParams.StatusReasons = append(failureParams.StatusReasons, reason)
+	}
 
 	var wg sync.WaitGroup
 	wg.Add(2)
 
-	var sCount, fCount int
-
 	go func() {
 		defer wg.Done()
-		count := len(success)
-		for i := 0; i < count; i++ {
-			_ = <-success
-			sCount++
+		logger := m.log.With(slog.F("type", "update_sent"))
+
+		n, err := m.store.BulkMarkNotificationMessagesSent(ctx, successParams)
+		if err != nil {
+			logger.Error(ctx, "bulk update failed", slog.Error(err))
+			return
+		}
+
+		if int(n) == nSuccess {
+			logger.Debug(ctx, "bulk update completed", slog.F("updated", n))
+		} else {
+			logger.Warn(ctx, "bulk update completed with discrepancy", slog.F("input", nSuccess), slog.F("updated", n))
 		}
 	}()
 
 	go func() {
 		defer wg.Done()
-		count := len(failure)
-		for i := 0; i < count; i++ {
-			_ = <-failure
-			fCount++
+		logger := m.log.With(slog.F("type", "update_failed"))
+
+		n, err := m.store.BulkMarkNotificationMessagesFailed(ctx, failureParams)
+		if err != nil {
+			logger.Error(ctx, "bulk update failed", slog.Error(err))
+			return
+		}
+
+		if int(n) == nFailure {
+			logger.Debug(ctx, "bulk update completed", slog.F("updated", n))
+		} else {
+			logger.Warn(ctx, "bulk update completed with discrepancy", slog.F("input", nFailure), slog.F("updated", n))
 		}
 	}()
 
 	wg.Wait()
 }
 
-func (m *Manager) Stop(ctx context.Context) {
-	var deadlineStr string
-	deadline, ok := ctx.Deadline()
-	if ok {
-		deadlineStr = deadline.Format(time.RFC3339Nano)
-	} else {
-		deadlineStr = "not set"
-	}
-
-	m.log.Warn(ctx, "graceful stop requested", slog.F("deadline", deadlineStr))
-
-	for _, n := range m.notifiers {
-		n.stop()
-	}
-	close(m.stop)
-
-	// Wait for either the given context to complete or for all notifiers to exit.
+// Stop stops all notifiers; waits until all notifiers have stopped.
+//
+// TODO: by the time this is called, the notifiers have already had their context canceled
+func (m *Manager) Stop(ctx context.Context) error {
 	select {
 	case <-ctx.Done():
-		m.log.Warn(ctx, "graceful stop timed out", slog.Error(ctx.Err()))
-		return
-	case <-m.stopped:
-		m.log.Info(ctx, "gracefully stopped")
-		return
+		return ctx.Err()
+	default:
+	}
+
+	m.stopMu.Lock()
+	defer m.stopMu.Unlock()
+
+	m.log.Info(context.Background(), "graceful stop requested")
+
+	var wg sync.WaitGroup
+	wg.Add(len(m.notifiers))
+	for _, n := range m.notifiers {
+		time.Sleep(time.Second * 7)
+		m.log.Info(ctx, "stopping notifier", slog.F("id", n.id))
+		n.stop()
+		wg.Done()
+	}
+	wg.Wait()
+	close(m.stop)
+
+	select {
+	case <-ctx.Done():
+		var errStr string
+		if ctx.Err() != nil {
+			errStr = ctx.Err().Error()
+		}
+		// For some reason, slog.Error returns {} for a context error.
+		m.log.Error(context.Background(), "graceful stop failed", slog.F("err", errStr))
+		return ctx.Err()
+	case <-m.done:
+		m.log.Info(context.Background(), "gracefully stopped")
+		return nil
 	}
 }
 
 type dispatchResult struct {
-	notifier uuid.UUID
+	notifier int
 	msg      uuid.UUID
+	ts       time.Time
 	err      error
+}
+
+func newSuccessfulDispatch(notifier int, msg uuid.UUID) dispatchResult {
+	return dispatchResult{
+		notifier: notifier,
+		msg:      msg,
+		ts:       time.Now(),
+	}
+}
+
+func newFailedDispatch(notifier int, msg uuid.UUID, err error) dispatchResult {
+	return dispatchResult{
+		notifier: notifier,
+		msg:      msg,
+		ts:       time.Now(),
+		err:      err,
+	}
 }

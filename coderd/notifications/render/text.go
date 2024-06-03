@@ -4,8 +4,9 @@ import (
 	"strings"
 	text "text/template"
 
-	"github.com/coder/coder/v2/coderd/notifications/types"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/coderd/notifications/types"
 )
 
 const Text = "text"

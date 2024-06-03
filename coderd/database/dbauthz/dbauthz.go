@@ -786,7 +786,8 @@ func (q *querier) AcquireLock(ctx context.Context, id int64) error {
 }
 
 func (q *querier) AcquireNotificationMessages(ctx context.Context, arg database.AcquireNotificationMessagesParams) ([]database.AcquireNotificationMessagesRow, error) {
-	panic("not implemented")
+	// TODO: auth?
+	return q.db.AcquireNotificationMessages(ctx, arg)
 }
 
 // TODO: We need to create a ProvisionerJob resource type
@@ -834,15 +835,18 @@ func (q *querier) BatchUpdateWorkspaceLastUsedAt(ctx context.Context, arg databa
 }
 
 func (q *querier) BulkMarkNotificationMessagesFailed(ctx context.Context, arg database.BulkMarkNotificationMessagesFailedParams) (int64, error) {
-	panic("not implemented")
+	// TODO: auth?
+	return q.db.BulkMarkNotificationMessagesFailed(ctx, arg)
 }
 
 func (q *querier) BulkMarkNotificationMessagesInhibited(ctx context.Context, arg database.BulkMarkNotificationMessagesInhibitedParams) (int64, error) {
-	panic("not implemented")
+	// TODO: auth?
+	return q.db.BulkMarkNotificationMessagesInhibited(ctx, arg)
 }
 
 func (q *querier) BulkMarkNotificationMessagesSent(ctx context.Context, arg database.BulkMarkNotificationMessagesSentParams) (int64, error) {
-	panic("not implemented")
+	// TODO: auth?
+	return q.db.BulkMarkNotificationMessagesSent(ctx, arg)
 }
 
 func (q *querier) CleanTailnetCoordinators(ctx context.Context) error {
@@ -995,7 +999,8 @@ func (q *querier) DeleteOAuth2ProviderAppTokensByAppAndUserID(ctx context.Contex
 }
 
 func (q *querier) DeleteOldNotificationMessages(ctx context.Context, maxAttemptCount int32) error {
-	panic("not implemented")
+	// TODO: auth?
+	return q.db.DeleteOldNotificationMessages(ctx, maxAttemptCount)
 }
 
 func (q *querier) DeleteOldProvisionerDaemons(ctx context.Context) error {
@@ -1093,7 +1098,8 @@ func (q *querier) DeleteWorkspaceAgentPortSharesByTemplate(ctx context.Context, 
 }
 
 func (q *querier) EnqueueNotificationMessage(ctx context.Context, arg database.EnqueueNotificationMessageParams) (database.NotificationMessage, error) {
-	panic("not implemented")
+	// TODO: auth?
+	return q.db.EnqueueNotificationMessage(ctx, arg)
 }
 
 func (q *querier) FavoriteWorkspace(ctx context.Context, id uuid.UUID) error {
@@ -2458,7 +2464,8 @@ func (q *querier) InsertMissingGroups(ctx context.Context, arg database.InsertMi
 }
 
 func (q *querier) InsertNotificationTemplate(ctx context.Context, arg database.InsertNotificationTemplateParams) (database.NotificationTemplate, error) {
-	panic("not implemented")
+	// TODO: auth?
+	return q.db.InsertNotificationTemplate(ctx, arg)
 }
 
 func (q *querier) InsertOAuth2ProviderApp(ctx context.Context, arg database.InsertOAuth2ProviderAppParams) (database.OAuth2ProviderApp, error) {

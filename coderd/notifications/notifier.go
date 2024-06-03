@@ -2,15 +2,18 @@ package notifications
 
 import (
 	"context"
-	"sync/atomic"
+	"fmt"
+	"strings"
+	"sync"
 	"time"
+
+	"github.com/google/uuid"
+	"golang.org/x/sync/errgroup"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/notifications/render"
 	"github.com/coder/coder/v2/coderd/notifications/types"
-	"github.com/google/uuid"
-	"golang.org/x/sync/errgroup"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
 )
@@ -26,25 +29,26 @@ const (
 // notifier is a consumer of the notifications_messages queue. It dequeues messages from that table and processes them
 // through a pipeline of fetch -> render -> dispatch.
 type notifier struct {
-	id    uuid.UUID
+	id    int
 	ctx   context.Context
 	log   slog.Logger
 	store Store
 
 	tick        *time.Ticker
-	stopped     atomic.Bool
+	stopOnce    sync.Once
 	quit        chan any
+	done        chan any
 	renderers   *ProviderRegistry[Renderer]
 	dispatchers *ProviderRegistry[Dispatcher]
 }
 
-func newNotifier(ctx context.Context, log slog.Logger, db Store, rp *ProviderRegistry[Renderer], dp *ProviderRegistry[Dispatcher]) *notifier {
-	id := uuid.New()
+func newNotifier(ctx context.Context, id int, log slog.Logger, db Store, rp *ProviderRegistry[Renderer], dp *ProviderRegistry[Dispatcher]) *notifier {
 	return &notifier{
 		id:          id,
 		ctx:         ctx,
 		log:         log.With(slog.F("notifier", id)),
 		quit:        make(chan any),
+		done:        make(chan any),
 		tick:        time.NewTicker(NotifierFetchInterval),
 		store:       db,
 		renderers:   rp,
@@ -54,7 +58,10 @@ func newNotifier(ctx context.Context, log slog.Logger, db Store, rp *ProviderReg
 
 // run is the main loop of the notifier.
 func (n *notifier) run(ctx context.Context, success chan<- dispatchResult, failure chan<- dispatchResult) error {
-	defer n.tick.Stop()
+	defer func() {
+		close(n.done)
+		n.log.Info(context.Background(), "exited")
+	}()
 
 	// TODO: idea from Cian: instead of querying the database on a short interval, we could wait for pubsub notifications.
 	//		 if 100 notifications are enqueued, we shouldn't activate this routine for each one; so how to debounce these?
@@ -63,14 +70,14 @@ func (n *notifier) run(ctx context.Context, success chan<- dispatchResult, failu
 	for {
 		err := n.process(ctx, success, failure)
 		if err != nil {
-			return err
+			n.log.Error(ctx, "failed to process messages", slog.Error(err))
 		}
 
 		select {
 		case <-ctx.Done():
-			return xerrors.Errorf("[%s] %w", n.id, ctx.Err())
+			return xerrors.Errorf("notifier %d context canceled: %w", n.id, ctx.Err())
 		case <-n.quit:
-			return xerrors.Errorf("[%s] stopped!", n.id)
+			return xerrors.Errorf("notifier %d stopped", n.id)
 		case <-n.tick.C:
 			// sleep until next invocation
 		}
@@ -86,24 +93,15 @@ func (n *notifier) process(ctx context.Context, success chan<- dispatchResult, f
 		return xerrors.Errorf("fetch messages: %w", err)
 	}
 
-	//
-	//
-	//
-	//
-	//
-	// TODO: stop() should wait until dispatches are done, unless the context is canceled and then all dispatches should exit.
-	//
-	//
-	//
-	//
-	//
+	n.log.Debug(ctx, "dequeued messages", slog.F("count", len(msgs)))
+
 	var eg errgroup.Group
 	for _, msg := range msgs {
 		// A message failing to be prepared correctly should not affect other messages.
 		input, err := n.prepare(ctx, msg)
 		if err != nil {
 			n.log.Warn(ctx, "message preparation failed", slog.F("msg_id", msg.ID), slog.Error(err))
-			failure <- dispatchResult{notifier: n.id, msg: msg.ID, err: err}
+			failure <- newFailedDispatch(n.id, msg.ID, err)
 			continue
 		}
 
@@ -137,7 +135,7 @@ func (n *notifier) fetch(ctx context.Context) ([]database.AcquireNotificationMes
 
 	msgs, err := n.store.AcquireNotificationMessages(ctx, database.AcquireNotificationMessagesParams{
 		Count:       NotifierQueueSize,
-		NotifierID:  n.id,
+		NotifierID:  int32(n.id),
 		LeasedUntil: deadline,
 		UserID:      uuid.New(), // TODO: use real user ID
 		OrgID:       uuid.New(), // TODO: use real org ID
@@ -162,15 +160,13 @@ func (n *notifier) prepare(ctx context.Context, msg database.AcquireNotification
 		input = types.Labels{}
 	}
 	// Debug information.
-	input.SetValue("notifier_id", n.id)
+	input.Set("notifier_id", fmt.Sprintf("%d", n.id))
 	input.SetValue("msg_id", msg.ID)
 
 	var err error
 	switch msg.Receiver {
 	case database.NotificationReceiverSmtp:
-		var (
-			subject, body string
-		)
+		var subject, body string
 
 		if subject, err = n.render(ctx, render.Text, msg.TitleTemplate, input); err != nil {
 			return nil, xerrors.Errorf("SMTP render subject: %w", err)
@@ -184,7 +180,7 @@ func (n *notifier) prepare(ctx context.Context, msg database.AcquireNotification
 			"body":    body,
 		})
 	default:
-		err = xerrors.Errorf("unrecognised receiver: %s", msg.Receiver)
+		err = xerrors.Errorf("unrecognized receiver: %s", msg.Receiver)
 	}
 
 	return input, err
@@ -208,6 +204,14 @@ func (n *notifier) dispatch(ctx context.Context, msgId uuid.UUID, provider strin
 		return xerrors.Errorf("resolve dispatch provider: %w", err)
 	}
 
+	logger := n.log.With(slog.F("msg_id", msgId), slog.F("receiver", provider))
+
+	if ok, missing := d.Validate(input); !ok {
+		logger.Warn(ctx, "message failed dispatcher validation", slog.F("missing_labels", strings.Join(missing, ", ")))
+		failure <- newFailedDispatch(n.id, msgId, xerrors.Errorf("failed validation, missing %v labels", missing))
+		return nil
+	}
+
 	if err = d.Send(ctx, input); err != nil {
 		// Don't try to accumulate message responses if the context has been canceled.
 		// This message's lease will expire in the store and will be requeued.
@@ -217,11 +221,11 @@ func (n *notifier) dispatch(ctx context.Context, msgId uuid.UUID, provider strin
 			return err
 		}
 
-		n.log.Warn(ctx, "message dispatch failed", slog.F("msg_id", msgId), slog.Error(err))
-		failure <- dispatchResult{notifier: n.id, msg: msgId, err: err}
+		logger.Warn(ctx, "message dispatch failed", slog.Error(err))
+		failure <- newFailedDispatch(n.id, msgId, err)
 	} else {
-		n.log.Debug(ctx, "message dispatch succeeded", slog.F("msg_id", msgId))
-		success <- dispatchResult{notifier: n.id, msg: msgId}
+		logger.Debug(ctx, "message dispatch succeeded")
+		success <- newSuccessfulDispatch(n.id, msgId)
 	}
 
 	return nil
@@ -249,10 +253,10 @@ func (n *notifier) render(ctx context.Context, provider string, template string,
 // This is a graceful stop, so any in-flight notifications will be completed before the notifier stops.
 // Once a notifier has stopped, it cannot be restarted.
 func (n *notifier) stop() {
-	if n.stopped.Load() {
-		return
-	}
-	n.stopped.Store(true)
-	n.tick.Stop()
-	close(n.quit)
+	n.stopOnce.Do(func() {
+		n.tick.Stop()
+		close(n.quit)
+
+		<-n.done
+	})
 }

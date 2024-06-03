@@ -15,8 +15,9 @@ func (s *SMTPDispatcher) Name() string {
 	return string(database.NotificationReceiverSmtp)
 }
 
-func (s *SMTPDispatcher) Validate(input types.Labels) bool {
-	return input.Contains("to", "from", "subject", "body")
+func (s *SMTPDispatcher) Validate(input types.Labels) (bool, []string) {
+	missing := input.Missing("to", "from", "subject", "body")
+	return len(missing) == 0, missing
 }
 
 func (s *SMTPDispatcher) Send(ctx context.Context, input types.Labels) error {
