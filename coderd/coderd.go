@@ -19,7 +19,6 @@ import (
 	"time"
 
 	"github.com/andybalholm/brotli"
-	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/google/uuid"
@@ -36,6 +35,8 @@ import (
 	"tailscale.com/tailcfg"
 	"tailscale.com/types/key"
 	"tailscale.com/util/singleflight"
+
+	"github.com/coder/coder/v2/coderd/notifications"
 
 	"cdr.dev/slog"
 	agentproto "github.com/coder/coder/v2/agent/proto"

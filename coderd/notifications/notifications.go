@@ -68,7 +68,7 @@ func NewManager(ctx context.Context, notifiers int, store Store, log slog.Logger
 	go func() {
 		err := man.loop(ctx, notifiers)
 		if err != nil {
-			log.Error(ctx, "notification manager exited with error", slog.Error(err))
+			log.Error(ctx, "notification manager stopped with error", slog.Error(err))
 		}
 	}()
 	return man
@@ -95,10 +95,9 @@ func DefaultDispatchers() *ProviderRegistry[Dispatcher] {
 func (m *Manager) loop(ctx context.Context, nc int) error {
 	defer func() {
 		close(m.done)
-		m.log.Info(context.Background(), "notification manager loop exited")
+		m.log.Info(context.Background(), "notification manager stopped")
 	}()
 
-	// TODO: ensure process stop gracefully shuts down and communicates well
 	// Caught a terminal signal before notifiers were created, exit immediately.
 	select {
 	case <-m.stop:
@@ -119,7 +118,6 @@ func (m *Manager) loop(ctx context.Context, nc int) error {
 
 	for i := 0; i < nc; i++ {
 		eg.Go(func() error {
-			i := i
 			m.notifierMu.Lock()
 			n := newNotifier(ctx, i+1, m.log, m.store, m.rendererProvider, m.dispatchersProvider)
 			m.notifiers = append(m.notifiers, n)
@@ -128,7 +126,7 @@ func (m *Manager) loop(ctx context.Context, nc int) error {
 		})
 	}
 
-	go func() {
+	eg.Go(func() error {
 		// Every interval, collect the messages in the channels and bulk update them in the database.
 		tick := time.NewTicker(BulkUpdateInterval)
 		defer tick.Stop()
@@ -145,24 +143,31 @@ func (m *Manager) loop(ctx context.Context, nc int) error {
 				// consequential, and we may need a more sophisticated mechanism.
 				//
 				// TODO: mention the above tradeoff in documentation.
+				m.log.Warn(ctx, "exiting ungracefully", slog.Error(ctx.Err()))
+
 				if len(success)+len(failure) > 0 {
 					m.log.Warn(ctx, "content canceled with pending updates in buffer, these messages will be sent again after lease expires",
 						slog.F("success_count", len(success)), slog.F("failure_count", len(failure)))
 				}
-				return
+				return ctx.Err()
 			case <-m.stop:
-				m.log.Warn(ctx, "graceful stop initiated; updating messages before stop",
-					slog.F("success_count", len(success)), slog.F("failure_count", len(failure)))
-				m.bulkUpdate(ctx, success, failure)
-				return
+				if len(success)+len(failure) > 0 {
+					m.log.Warn(ctx, "flushing buffered updates before stop",
+						slog.F("success_count", len(success)), slog.F("failure_count", len(failure)))
+					m.bulkUpdate(ctx, success, failure)
+					m.log.Warn(ctx, "flushing updates done")
+				}
+				return nil
 			case <-tick.C:
 				m.bulkUpdate(ctx, success, failure)
 			}
 		}
-	}()
+	})
 
 	err := eg.Wait()
-	m.log.Info(ctx, "loop exited", slog.F("err", err))
+	if err != nil {
+		m.log.Error(ctx, "manager loop exited with error", slog.Error(err))
+	}
 	return err
 }
 
@@ -190,6 +195,12 @@ func (m *Manager) Enqueue(ctx context.Context, templateId uuid.UUID, r database.
 
 // bulkUpdate updates messages in the store based on the given successful and failed message dispatch results.
 func (m *Manager) bulkUpdate(ctx context.Context, success, failure <-chan dispatchResult) {
+	select {
+	case <-ctx.Done():
+		return
+	default:
+	}
+
 	// Nothing to do.
 	nSuccess := len(success)
 	nFailure := len(failure)
@@ -279,17 +290,20 @@ func (m *Manager) Stop(ctx context.Context) error {
 
 	m.log.Info(context.Background(), "graceful stop requested")
 
-	var wg sync.WaitGroup
-	wg.Add(len(m.notifiers))
+	// Stop all notifiers.
+	var eg errgroup.Group
 	for _, n := range m.notifiers {
-		time.Sleep(time.Second * 7)
-		m.log.Info(ctx, "stopping notifier", slog.F("id", n.id))
-		n.stop()
-		wg.Done()
+		eg.Go(func() error {
+			n.stop()
+			return nil
+		})
 	}
-	wg.Wait()
+	_ = eg.Wait()
+
+	// Signal the stop channel to cause loop to exit.
 	close(m.stop)
 
+	// Wait for the manager loop to exit or the context to be canceled, whichever comes first.
 	select {
 	case <-ctx.Done():
 		var errStr string

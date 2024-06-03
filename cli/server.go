@@ -986,16 +986,14 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			defer tracker.Close()
 
 			// Manage notifications
-			nman := notifications.NewManager(ctx,
+			notificationsManager := notifications.NewManager(ctx,
 				3, // TODO: configurable?
 				options.Database,
-				logger.Named("notifications"),
+				logger.Named("notifications-manager"),
 				notifications.DefaultRenderers(),
 				notifications.DefaultDispatchers(),
 			)
-			options.NotificationsManager = nman
-			defer func() {
-				_ = shutdownWithTimeout(nman.Stop, 5*time.Second)
+			options.NotificationsManager = notificationsManager
 			}()
 
 			// Wrap the server in middleware that redirects to the access URL if
@@ -1078,10 +1076,10 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			case <-stopCtx.Done():
 				exitErr = stopCtx.Err()
 				waitForProvisionerJobs = true
-				_, _ = io.WriteString(inv.Stdout, cliui.Bold("Stop caught, waiting for provisioner jobs to complete and gracefully exiting. Use ctrl+\\ to force quit"))
+				_, _ = io.WriteString(inv.Stdout, cliui.Bold("Stop caught, waiting for provisioner jobs to complete and gracefully exiting. Use ctrl+\\ to force quit\n"))
 			case <-interruptCtx.Done():
 				exitErr = interruptCtx.Err()
-				_, _ = io.WriteString(inv.Stdout, cliui.Bold("Interrupt caught, gracefully exiting. Use ctrl+\\ to force quit"))
+				_, _ = io.WriteString(inv.Stdout, cliui.Bold("Interrupt caught, gracefully exiting. Use ctrl+\\ to force quit\n"))
 			case <-tunnelDone:
 				exitErr = xerrors.New("dev tunnel closed unexpectedly")
 			case <-pubsubWatchdogTimeout:
@@ -1116,6 +1114,20 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			}
 			// Cancel any remaining in-flight requests.
 			shutdownConns()
+
+			// Stop the notification manager, which will cause any buffered updates to the store to be flushed.
+			// If the Stop() call times out, messages that were sent but not reflected as such in the store will have
+			// their leases expire after a period of time and will be re-queued for sending.
+			// TODO: reference config for lease time
+			// TODO: link error to documentation page
+			cliui.Info(inv.Stdout, "Shutting down notifications manager..."+"\n")
+			err = shutdownWithTimeout(notificationsManager.Stop, 5*time.Second)
+			if err != nil {
+				cliui.Warnf(inv.Stderr, "Notifications manager shutdown took longer than 5s, "+
+					"this may result in duplicate notifications being sent: %s\n", err)
+			} else {
+				cliui.Info(inv.Stdout, "Gracefully shut down notifications manager\n")
+			}
 
 			// Shut down provisioners before waiting for WebSockets
 			// connections to close.

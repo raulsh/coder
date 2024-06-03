@@ -46,7 +46,7 @@ func newNotifier(ctx context.Context, id int, log slog.Logger, db Store, rp *Pro
 	return &notifier{
 		id:          id,
 		ctx:         ctx,
-		log:         log.With(slog.F("notifier", id)),
+		log:         log.Named("notifier").With(slog.F("id", id)),
 		quit:        make(chan any),
 		done:        make(chan any),
 		tick:        time.NewTicker(NotifierFetchInterval),
@@ -60,7 +60,7 @@ func newNotifier(ctx context.Context, id int, log slog.Logger, db Store, rp *Pro
 func (n *notifier) run(ctx context.Context, success chan<- dispatchResult, failure chan<- dispatchResult) error {
 	defer func() {
 		close(n.done)
-		n.log.Info(context.Background(), "exited")
+		n.log.Info(context.Background(), "gracefully stopped")
 	}()
 
 	// TODO: idea from Cian: instead of querying the database on a short interval, we could wait for pubsub notifications.
@@ -77,7 +77,7 @@ func (n *notifier) run(ctx context.Context, success chan<- dispatchResult, failu
 		case <-ctx.Done():
 			return xerrors.Errorf("notifier %d context canceled: %w", n.id, ctx.Err())
 		case <-n.quit:
-			return xerrors.Errorf("notifier %d stopped", n.id)
+			return nil
 		case <-n.tick.C:
 			// sleep until next invocation
 		}
@@ -106,10 +106,6 @@ func (n *notifier) process(ctx context.Context, success chan<- dispatchResult, f
 		}
 
 		eg.Go(func() error {
-			// Capture loop variables.
-			msg := msg
-			input := input
-
 			// Dispatch must only return an error for exceptional cases, NOT for failed messages.
 			// The first message to return an error cancels the errgroup's context, and all in-flight dispatches will be canceled.
 			// TODO: validate this
@@ -134,11 +130,12 @@ func (n *notifier) fetch(ctx context.Context) ([]database.AcquireNotificationMes
 	defer cancel()
 
 	msgs, err := n.store.AcquireNotificationMessages(ctx, database.AcquireNotificationMessagesParams{
-		Count:       NotifierQueueSize,
-		NotifierID:  int32(n.id),
-		LeasedUntil: deadline,
-		UserID:      uuid.New(), // TODO: use real user ID
-		OrgID:       uuid.New(), // TODO: use real org ID
+		Count:           NotifierQueueSize,
+		MaxAttemptCount: MaxAttempts,
+		NotifierID:      int32(n.id),
+		LeasedUntil:     deadline,
+		UserID:          uuid.New(), // TODO: use real user ID
+		OrgID:           uuid.New(), // TODO: use real org ID
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("acquire messages: %w", err)
@@ -254,9 +251,10 @@ func (n *notifier) render(ctx context.Context, provider string, template string,
 // Once a notifier has stopped, it cannot be restarted.
 func (n *notifier) stop() {
 	n.stopOnce.Do(func() {
+		n.log.Info(context.Background(), "graceful stop requested")
+
 		n.tick.Stop()
 		close(n.quit)
-
 		<-n.done
 	})
 }
