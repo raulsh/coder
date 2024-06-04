@@ -24,12 +24,6 @@ const (
 	BulkUpdateInterval   = time.Second // TODO: configurable
 )
 
-var (
-	TemplateUserRegistration   = uuid.MustParse("a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11")
-	TemplatePasswordReset      = uuid.MustParse("b1eebc99-9c0b-4ef8-bb6d-6bb9bd380a14")
-	TemplateWorkspaceUnhealthy = uuid.MustParse("c2eebc99-9c0b-4ef8-bb6d-6bb9bd380a15")
-)
-
 // Manager manages all notifications being enqueued and dispatched.
 //
 // Manager maintains a group of notifiers: these consume the queue of notification messages in the store.
@@ -61,17 +55,8 @@ type Manager struct {
 	done   chan any
 }
 
-func NewManager(ctx context.Context, notifiers int, store Store, log slog.Logger, rp *ProviderRegistry[Renderer], dp *ProviderRegistry[Dispatcher]) *Manager {
-	man := &Manager{store: store, stop: make(chan any), done: make(chan any), log: log, rendererProvider: rp, dispatchersProvider: dp}
-
-	// Closes when Stop() is called or context is canceled.
-	go func() {
-		err := man.loop(ctx, notifiers)
-		if err != nil {
-			log.Error(ctx, "notification manager stopped with error", slog.Error(err))
-		}
-	}()
-	return man
+func NewManager(store Store, log slog.Logger, rp *ProviderRegistry[Renderer], dp *ProviderRegistry[Dispatcher]) *Manager {
+	return &Manager{store: store, stop: make(chan any), done: make(chan any), log: log, rendererProvider: rp, dispatchersProvider: dp}
 }
 
 // DefaultRenderers builds a set of known renderers and panics if any error occurs.
@@ -90,6 +75,17 @@ func DefaultDispatchers() *ProviderRegistry[Dispatcher] {
 		panic(err)
 	}
 	return reg
+}
+
+// StartNotifiers initiates the control loop in the background, which spawns a given number of notifier goroutines.
+func (m *Manager) StartNotifiers(ctx context.Context, notifiers int) {
+	// Closes when Stop() is called or context is canceled.
+	go func() {
+		err := m.loop(ctx, notifiers)
+		if err != nil {
+			m.log.Error(ctx, "notification manager stopped with error", slog.Error(err))
+		}
+	}()
 }
 
 func (m *Manager) loop(ctx context.Context, nc int) error {
@@ -171,10 +167,10 @@ func (m *Manager) loop(ctx context.Context, nc int) error {
 	return err
 }
 
-func (m *Manager) Enqueue(ctx context.Context, templateId uuid.UUID, r database.NotificationReceiver, labels types.Labels, createdBy string, targets ...uuid.UUID) error {
+func (m *Manager) Enqueue(ctx context.Context, templateId uuid.UUID, r database.NotificationReceiver, labels types.Labels, createdBy string, targets ...uuid.UUID) (uuid.UUID, error) {
 	input, err := json.Marshal(labels)
 	if err != nil {
-		return xerrors.Errorf("failed encoding input labels: %w", err)
+		return uuid.UUID{}, xerrors.Errorf("failed encoding input labels: %w", err)
 	}
 
 	msg, err := m.store.EnqueueNotificationMessage(ctx, database.EnqueueNotificationMessageParams{
@@ -186,11 +182,11 @@ func (m *Manager) Enqueue(ctx context.Context, templateId uuid.UUID, r database.
 		CreatedBy:              createdBy,
 	})
 	if err != nil {
-		return xerrors.Errorf("failed to enqueue notification: %w", err)
+		return uuid.UUID{}, xerrors.Errorf("failed to enqueue notification: %w", err)
 	}
 
 	m.log.Debug(ctx, "enqueued notification", slog.F("msg_id", msg.ID))
-	return nil
+	return msg.ID, nil
 }
 
 // bulkUpdate updates messages in the store based on the given successful and failed message dispatch results.
@@ -289,6 +285,12 @@ func (m *Manager) Stop(ctx context.Context) error {
 	defer m.stopMu.Unlock()
 
 	m.log.Info(context.Background(), "graceful stop requested")
+
+	// If the notifiers haven't been started, we don't need to wait for anything.
+	// This is only really during testing when we want to enqueue messages only but not deliver them.
+	if len(m.notifiers) == 0 {
+		close(m.done)
+	}
 
 	// Stop all notifiers.
 	var eg errgroup.Group

@@ -711,6 +711,20 @@ func (m metricsStore) GetNotificationBanners(ctx context.Context) (string, error
 	return r0, r1
 }
 
+func (m metricsStore) GetNotificationMessagesCountByStatus(ctx context.Context) ([]database.GetNotificationMessagesCountByStatusRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetNotificationMessagesCountByStatus(ctx)
+	m.queryLatencies.WithLabelValues("GetNotificationMessagesCountByStatus").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m metricsStore) GetNotificationsMessagesCountByTemplate(ctx context.Context) ([]database.GetNotificationsMessagesCountByTemplateRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetNotificationsMessagesCountByTemplate(ctx)
+	m.queryLatencies.WithLabelValues("GetNotificationsMessagesCountByTemplate").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) GetOAuth2ProviderAppByID(ctx context.Context, id uuid.UUID) (database.OAuth2ProviderApp, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetOAuth2ProviderAppByID(ctx, id)

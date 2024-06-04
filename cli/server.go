@@ -53,9 +53,6 @@ import (
 	"gopkg.in/yaml.v3"
 	"tailscale.com/tailcfg"
 
-	"github.com/coder/coder/v2/coderd/notifications"
-	"github.com/coder/coder/v2/coderd/notifications/types"
-
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
 	"github.com/coder/coder/v2/buildinfo"
@@ -77,6 +74,7 @@ import (
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/gitsshkey"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/oauthpki"
 	"github.com/coder/coder/v2/coderd/prometheusmetrics"
 	"github.com/coder/coder/v2/coderd/prometheusmetrics/insights"
@@ -986,15 +984,9 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			defer tracker.Close()
 
 			// Manage notifications
-			notificationsManager := notifications.NewManager(ctx,
-				3, // TODO: configurable?
-				options.Database,
-				logger.Named("notifications-manager"),
-				notifications.DefaultRenderers(),
-				notifications.DefaultDispatchers(),
-			)
+			notificationsManager := notifications.NewManager(options.Database, logger.Named("notifications-manager"), notifications.DefaultRenderers(), notifications.DefaultDispatchers())
+			notificationsManager.StartNotifiers(ctx, 3) // TODO: configurable
 			options.NotificationsManager = notificationsManager
-			}()
 
 			// Wrap the server in middleware that redirects to the access URL if
 			// the request is not to a local IP.

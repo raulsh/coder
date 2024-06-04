@@ -6,6 +6,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/notifications/types"
+	"github.com/google/uuid"
 )
 
 type SMTPDispatcher struct{}
@@ -20,13 +21,13 @@ func (s *SMTPDispatcher) Validate(input types.Labels) (bool, []string) {
 	return len(missing) == 0, missing
 }
 
-func (s *SMTPDispatcher) Send(ctx context.Context, input types.Labels) error {
+func (s *SMTPDispatcher) Send(ctx context.Context, msgID uuid.UUID, input types.Labels) error {
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
 	default:
 	}
 
-	fmt.Printf("would've sent %v\n", input)
+	fmt.Printf("[%s] would've sent %v\n", msgID, input)
 	return nil
 }

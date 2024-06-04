@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/google/uuid"
 	"github.com/lib/pq"
 	"golang.org/x/exp/constraints"
@@ -62,6 +63,7 @@ func New() database.Store {
 			auditLogs:                 make([]database.AuditLog, 0),
 			files:                     make([]database.File, 0),
 			gitSSHKey:                 make([]database.GitSSHKey, 0),
+			notificationMessages:      make([]database.NotificationMessage, 0),
 			parameterSchemas:          make([]database.ParameterSchema, 0),
 			provisionerDaemons:        make([]database.ProvisionerDaemon, 0),
 			workspaceAgents:           make([]database.WorkspaceAgent, 0),
@@ -154,6 +156,7 @@ type data struct {
 	groups                        []database.Group
 	jfrogXRayScans                []database.JfrogXrayScan
 	licenses                      []database.License
+	notificationMessages          []database.NotificationMessage
 	oauth2ProviderApps            []database.OAuth2ProviderApp
 	oauth2ProviderAppSecrets      []database.OAuth2ProviderAppSecret
 	oauth2ProviderAppCodes        []database.OAuth2ProviderAppCode
@@ -910,7 +913,33 @@ func (q *FakeQuerier) AcquireNotificationMessages(ctx context.Context, arg datab
 		return nil, err
 	}
 
-	panic("not implemented")
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	var out []database.AcquireNotificationMessagesRow
+	for _, nm := range q.notificationMessages {
+		if len(out) >= int(arg.Count) {
+			break
+		}
+
+		// Mimic mutation in database query.
+		nm.UpdatedAt = sql.NullTime{Time: time.Now(), Valid: true}
+		nm.Status = database.NotificationMessageStatusEnqueued
+		nm.StatusReason = sql.NullString{String: fmt.Sprintf("Enqueued by notifier %d", arg.NotifierID), Valid: true}
+		nm.LeasedUntil = sql.NullTime{Time: time.Now().Add(notifications.NotifierLeasePeriod), Valid: true}
+
+		out = append(out, database.AcquireNotificationMessagesRow{
+			ID:            nm.ID,
+			Input:         nm.Input,
+			Targets:       nm.Targets,
+			Receiver:      nm.Receiver,
+			TemplateName:  "test template",
+			TitleTemplate: "This is a title with {{.variable}}",
+			BodyTemplate:  "This is a body with {{.variable}}",
+		})
+	}
+
+	return out, nil
 }
 
 func (q *FakeQuerier) AcquireProvisionerJob(_ context.Context, arg database.AcquireProvisionerJobParams) (database.ProvisionerJob, error) {
@@ -1757,7 +1786,28 @@ func (q *FakeQuerier) EnqueueNotificationMessage(ctx context.Context, arg databa
 		return database.NotificationMessage{}, err
 	}
 
-	panic("not implemented")
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	var input database.StringMap
+	err = json.Unmarshal(arg.Input, &input)
+	if err != nil {
+		return database.NotificationMessage{}, err
+	}
+
+	nm := database.NotificationMessage{
+		ID:                     arg.ID,
+		Receiver:               arg.Receiver,
+		Input:                  input,
+		NotificationTemplateID: arg.NotificationTemplateID,
+		Targets:                arg.Targets,
+		CreatedBy:              arg.CreatedBy,
+		// Default fields.
+		CreatedAt: time.Now(),
+		Status:    database.NotificationMessageStatusPending,
+	}
+
+	return nm, err
 }
 
 func (q *FakeQuerier) FavoriteWorkspace(_ context.Context, arg uuid.UUID) error {
@@ -2598,6 +2648,52 @@ func (q *FakeQuerier) GetNotificationBanners(_ context.Context) (string, error) 
 	}
 
 	return string(q.notificationBanners), nil
+}
+
+func (q *FakeQuerier) GetNotificationMessagesCountByStatus(context.Context) ([]database.GetNotificationMessagesCountByStatusRow, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	count := make(map[database.NotificationMessageStatus]int64)
+	for _, nm := range q.notificationMessages {
+		sc, found := count[nm.Status]
+		if !found {
+			count[nm.Status] = 0
+		}
+		sc += 1
+	}
+
+	var out []database.GetNotificationMessagesCountByStatusRow
+	for status, total := range count {
+		out = append(out, database.GetNotificationMessagesCountByStatusRow{
+			Status: status,
+			Count:  total,
+		})
+	}
+	return out, nil
+}
+
+func (q *FakeQuerier) GetNotificationsMessagesCountByTemplate(context.Context) ([]database.GetNotificationsMessagesCountByTemplateRow, error) {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	count := make(map[uuid.UUID]int64)
+	for _, nm := range q.notificationMessages {
+		sc, found := count[nm.NotificationTemplateID]
+		if !found {
+			count[nm.NotificationTemplateID] = 0
+		}
+		sc += 1
+	}
+
+	var out []database.GetNotificationsMessagesCountByTemplateRow
+	for id, total := range count {
+		out = append(out, database.GetNotificationsMessagesCountByTemplateRow{
+			ID:    id,
+			Count: total,
+		})
+	}
+	return out, nil
 }
 
 func (q *FakeQuerier) GetOAuth2ProviderAppByID(_ context.Context, id uuid.UUID) (database.OAuth2ProviderApp, error) {

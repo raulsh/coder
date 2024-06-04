@@ -3481,6 +3481,75 @@ func (q *sqlQuerier) EnqueueNotificationMessage(ctx context.Context, arg Enqueue
 	return i, err
 }
 
+const getNotificationMessagesCountByStatus = `-- name: GetNotificationMessagesCountByStatus :many
+SELECT status, COUNT(*) as "count"
+FROM notification_messages
+GROUP BY status
+`
+
+type GetNotificationMessagesCountByStatusRow struct {
+	Status NotificationMessageStatus `db:"status" json:"status"`
+	Count  int64                     `db:"count" json:"count"`
+}
+
+func (q *sqlQuerier) GetNotificationMessagesCountByStatus(ctx context.Context) ([]GetNotificationMessagesCountByStatusRow, error) {
+	rows, err := q.db.QueryContext(ctx, getNotificationMessagesCountByStatus)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetNotificationMessagesCountByStatusRow
+	for rows.Next() {
+		var i GetNotificationMessagesCountByStatusRow
+		if err := rows.Scan(&i.Status, &i.Count); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getNotificationsMessagesCountByTemplate = `-- name: GetNotificationsMessagesCountByTemplate :many
+SELECT nt.id, COUNT(*) as "count"
+FROM notification_messages nm
+         INNER JOIN notification_templates nt ON (nm.notification_template_id = nt.id)
+GROUP BY nt.id
+`
+
+type GetNotificationsMessagesCountByTemplateRow struct {
+	ID    uuid.UUID `db:"id" json:"id"`
+	Count int64     `db:"count" json:"count"`
+}
+
+func (q *sqlQuerier) GetNotificationsMessagesCountByTemplate(ctx context.Context) ([]GetNotificationsMessagesCountByTemplateRow, error) {
+	rows, err := q.db.QueryContext(ctx, getNotificationsMessagesCountByTemplate)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetNotificationsMessagesCountByTemplateRow
+	for rows.Next() {
+		var i GetNotificationsMessagesCountByTemplateRow
+		if err := rows.Scan(&i.ID, &i.Count); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const insertNotificationTemplate = `-- name: InsertNotificationTemplate :one
 INSERT INTO notification_templates (id, name, enabled, title_template, body_template, "group")
 VALUES ($1,

@@ -5,6 +5,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/notifications/types"
+	"github.com/google/uuid"
 )
 
 // Store defines the API between the notifications system and the storage.
@@ -33,5 +34,5 @@ type Dispatcher interface {
 	// a slice of missing labels.
 	Validate(input types.Labels) (bool, []string)
 	// Send delivers the notification.
-	Send(ctx context.Context, input types.Labels) error
+	Send(ctx context.Context, msgID uuid.UUID, input types.Labels) error
 }

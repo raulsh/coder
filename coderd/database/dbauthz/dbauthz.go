@@ -1394,6 +1394,16 @@ func (q *querier) GetNotificationBanners(ctx context.Context) (string, error) {
 	return q.db.GetNotificationBanners(ctx)
 }
 
+func (q *querier) GetNotificationMessagesCountByStatus(ctx context.Context) ([]database.GetNotificationMessagesCountByStatusRow, error) {
+	// TODO: auth?
+	return q.db.GetNotificationMessagesCountByStatus(ctx)
+}
+
+func (q *querier) GetNotificationsMessagesCountByTemplate(ctx context.Context) ([]database.GetNotificationsMessagesCountByTemplateRow, error) {
+	// TODO: auth?
+	return q.db.GetNotificationsMessagesCountByTemplate(ctx)
+}
+
 func (q *querier) GetOAuth2ProviderAppByID(ctx context.Context, id uuid.UUID) (database.OAuth2ProviderApp, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceOauth2App); err != nil {
 		return database.OAuth2ProviderApp{}, err

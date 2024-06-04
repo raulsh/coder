@@ -142,3 +142,14 @@ WHERE id =
            )
           -- ensure we don't clash with the notifier
            FOR UPDATE SKIP LOCKED);
+
+-- name: GetNotificationMessagesCountByStatus :many
+SELECT status, COUNT(*) as "count"
+FROM notification_messages
+GROUP BY status;
+
+-- name: GetNotificationsMessagesCountByTemplate :many
+SELECT nt.id, COUNT(*) as "count"
+FROM notification_messages nm
+         INNER JOIN notification_templates nt ON (nm.notification_template_id = nt.id)
+GROUP BY nt.id;

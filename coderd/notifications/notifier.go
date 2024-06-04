@@ -21,7 +21,7 @@ import (
 const (
 	// TODO: configurable?
 	NotifierQueueSize       = 10
-	NotifierLeaseLength     = time.Minute * 10
+	NotifierLeasePeriod     = time.Minute * 10
 	NotifierFetchInterval   = time.Second * 15
 	NotifierDispatchTimeout = time.Second * 30
 )
@@ -125,7 +125,7 @@ func (n *notifier) process(ctx context.Context, success chan<- dispatchResult, f
 // fetch retrieves messages from the queue by "acquiring a lease" whereby this notifier is the exclusive handler of these
 // messages until they are dispatched - or until the lease expires (in exceptional cases).
 func (n *notifier) fetch(ctx context.Context) ([]database.AcquireNotificationMessagesRow, error) {
-	ctx, cancel := context.WithTimeout(ctx, NotifierLeaseLength)
+	ctx, cancel := context.WithTimeout(ctx, NotifierLeasePeriod)
 	deadline, _ := ctx.Deadline()
 	defer cancel()
 
@@ -186,7 +186,7 @@ func (n *notifier) prepare(ctx context.Context, msg database.AcquireNotification
 // dispatch sends a given notification message to its defined receiver.
 // This method *only* returns an error when a context error occurs; any other error is interpreted as a failure to
 // deliver the notification and as such the message will be marked as failed (to later be optionally retried).
-func (n *notifier) dispatch(ctx context.Context, msgId uuid.UUID, provider string, input types.Labels, success, failure chan<- dispatchResult) error {
+func (n *notifier) dispatch(ctx context.Context, msgID uuid.UUID, provider string, input types.Labels, success, failure chan<- dispatchResult) error {
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
@@ -201,15 +201,15 @@ func (n *notifier) dispatch(ctx context.Context, msgId uuid.UUID, provider strin
 		return xerrors.Errorf("resolve dispatch provider: %w", err)
 	}
 
-	logger := n.log.With(slog.F("msg_id", msgId), slog.F("receiver", provider))
+	logger := n.log.With(slog.F("msg_id", msgID), slog.F("receiver", provider))
 
 	if ok, missing := d.Validate(input); !ok {
 		logger.Warn(ctx, "message failed dispatcher validation", slog.F("missing_labels", strings.Join(missing, ", ")))
-		failure <- newFailedDispatch(n.id, msgId, xerrors.Errorf("failed validation, missing %v labels", missing))
+		failure <- newFailedDispatch(n.id, msgID, xerrors.Errorf("failed validation, missing %v labels", missing))
 		return nil
 	}
 
-	if err = d.Send(ctx, input); err != nil {
+	if err = d.Send(ctx, msgID, input); err != nil {
 		// Don't try to accumulate message responses if the context has been canceled.
 		// This message's lease will expire in the store and will be requeued.
 		// It's possible this will lead to a message being delivered more than once, and that is why Stop() is preferable
@@ -219,10 +219,10 @@ func (n *notifier) dispatch(ctx context.Context, msgId uuid.UUID, provider strin
 		}
 
 		logger.Warn(ctx, "message dispatch failed", slog.Error(err))
-		failure <- newFailedDispatch(n.id, msgId, err)
+		failure <- newFailedDispatch(n.id, msgID, err)
 	} else {
 		logger.Debug(ctx, "message dispatch succeeded")
-		success <- newSuccessfulDispatch(n.id, msgId)
+		success <- newSuccessfulDispatch(n.id, msgID)
 	}
 
 	return nil
