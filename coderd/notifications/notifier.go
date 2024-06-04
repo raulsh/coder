@@ -209,7 +209,7 @@ func (n *notifier) dispatch(ctx context.Context, msgID uuid.UUID, provider strin
 		return nil
 	}
 
-	if err = d.Send(ctx, msgID, input); err != nil {
+	if _, err = d.Send(ctx, msgID, input); err != nil {
 		// Don't try to accumulate message responses if the context has been canceled.
 		// This message's lease will expire in the store and will be requeued.
 		// It's possible this will lead to a message being delivered more than once, and that is why Stop() is preferable

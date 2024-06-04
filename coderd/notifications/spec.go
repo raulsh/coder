@@ -34,5 +34,8 @@ type Dispatcher interface {
 	// a slice of missing labels.
 	Validate(input types.Labels) (bool, []string)
 	// Send delivers the notification.
-	Send(ctx context.Context, msgID uuid.UUID, input types.Labels) error
+	// The first return param indicates whether a retry can be attempted (i.e. a temporary error), and the second returns
+	// any error that may have arisen.
+	// If (false, nil) is returned, that is considered a successful dispatch.
+	Send(ctx context.Context, msgID uuid.UUID, input types.Labels) (bool, error)
 }

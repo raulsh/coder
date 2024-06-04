@@ -3,6 +3,7 @@ package notifications_test
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"testing"
 
 	"cdr.dev/slog"
@@ -10,9 +11,13 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/notifications"
+	"github.com/coder/coder/v2/coderd/notifications/dispatch"
 	"github.com/coder/coder/v2/coderd/notifications/types"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/serpent"
 	"github.com/google/uuid"
+	smtpmock "github.com/mocktools/go-smtp-mock/v2"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 )
@@ -49,33 +54,130 @@ func TestBasicNotificationRoundtrip(t *testing.T) {
 	fakeDispatchers, err := notifications.NewProviderRegistry[notifications.Dispatcher](dispatcher)
 	require.NoError(t, err)
 
-	manager := notifications.NewManager(db, logger, notifications.DefaultRenderers(), fakeDispatchers)
-	manager.StartNotifiers(ctx, 1)
+	cfg := codersdk.NotificationsConfig{}
+	manager := notifications.NewManager(cfg, db, logger, nil, fakeDispatchers)
 	t.Cleanup(func() {
 		require.NoError(t, manager.Stop(ctx))
 	})
 
 	// when
-	id, err := manager.Enqueue(ctx, notifications.TemplateWorkspaceDeleted, database.NotificationReceiverSmtp, types.Labels{}, "test")
+	sid, err := manager.Enqueue(ctx, notifications.TemplateWorkspaceDeleted, database.NotificationReceiverSmtp,
+		types.Labels{"type": "success"}, "test")
 	require.NoError(t, err)
+	fid, err := manager.Enqueue(ctx, notifications.TemplateWorkspaceDeleted, database.NotificationReceiverSmtp,
+		types.Labels{"type": "failure"}, "test")
+	require.NoError(t, err)
+	_, err = manager.Enqueue(ctx, notifications.TemplateWorkspaceDeleted, database.NotificationReceiverSmtp,
+		types.Labels{}, "test") // no "type" field
+	require.NoError(t, err) // validation error is not returned immediately, only on dispatch
+
+	manager.StartNotifiers(ctx, 1)
 
 	// then
-	require.Eventually(t, func() bool { return dispatcher.sent == id }, testutil.WaitLong, testutil.IntervalMedium)
+	require.Eventually(t, func() bool { return dispatcher.succeeded == sid }, testutil.WaitLong, testutil.IntervalMedium)
+	require.Eventually(t, func() bool { return dispatcher.failed == fid }, testutil.WaitLong, testutil.IntervalMedium)
+}
+
+func TestSMTPDispatch(t *testing.T) {
+	// setup
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("This test requires postgres")
+	}
+	connectionURL, closeFunc, err := dbtestutil.Open()
+	require.NoError(t, err)
+	t.Cleanup(closeFunc)
+
+	sqlDB, err := sql.Open("postgres", connectionURL)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		sqlDB.Close()
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
+	t.Cleanup(cancel)
+	db := database.New(sqlDB)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true, IgnoredErrorIs: []error{}}).Leveled(slog.LevelDebug)
+
+	// start mock SMTP server
+	server := smtpmock.New(smtpmock.ConfigurationAttr{
+		LogToStdout:       true,
+		LogServerActivity: true,
+	})
+	require.NoError(t, server.Start())
+	t.Cleanup(func() {
+		require.NoError(t, server.Stop())
+	})
+
+	// given
+	const from = "danny@coder.com"
+	cfg := codersdk.NotificationsConfig{
+		SMTP: codersdk.NotificationsEmailConfig{
+			From:      from,
+			Smarthost: serpent.HostPort{Host: "localhost", Port: fmt.Sprintf("%d", server.PortNumber())},
+			Hello:     "localhost",
+		},
+	}
+	dispatcher := &interceptingSMTPDispatcher{SMTPDispatcher: dispatch.NewSMTPDispatcher(cfg.SMTP, logger)}
+	fakeDispatchers, err := notifications.NewProviderRegistry[notifications.Dispatcher](dispatcher)
+	require.NoError(t, err)
+
+	manager := notifications.NewManager(codersdk.NotificationsConfig{}, db, logger, nil, fakeDispatchers)
+	t.Cleanup(func() {
+		require.NoError(t, manager.Stop(ctx))
+	})
+
+	// when
+	_, err = manager.Enqueue(ctx, notifications.TemplateWorkspaceDeleted, database.NotificationReceiverSmtp,
+		types.Labels{"to": "bob@coder.com"}, "test")
+	require.NoError(t, err)
+
+	manager.StartNotifiers(ctx, 1)
+
+	// then
+	require.Eventually(t, func() bool {
+		require.NoError(t, dispatcher.err)
+		require.False(t, dispatcher.retryable)
+		return dispatcher.sent
+	}, testutil.WaitLong, testutil.IntervalMedium)
+
+	msgs := server.MessagesAndPurge()
+	require.Len(t, msgs, 1)
+	require.Contains(t, msgs[0].MailfromRequest(), from)
 }
 
 type fakeDispatcher struct {
-	sent uuid.UUID
+	succeeded uuid.UUID
+	failed    uuid.UUID
 }
 
 func (f *fakeDispatcher) Name() string {
 	return string(database.NotificationReceiverSmtp)
 }
 
-func (f *fakeDispatcher) Validate(_ types.Labels) (bool, []string) {
-	return true, nil
+func (f *fakeDispatcher) Validate(input types.Labels) (bool, []string) {
+	missing := input.Missing("type")
+	return len(missing) == 0, missing
 }
 
-func (f *fakeDispatcher) Send(_ context.Context, msgID uuid.UUID, _ types.Labels) error {
-	f.sent = msgID
-	return nil
+func (f *fakeDispatcher) Send(ctx context.Context, msgID uuid.UUID, input types.Labels) (bool, error) {
+	if input.Get("type") == "success" {
+		f.succeeded = msgID
+	} else {
+		f.failed = msgID
+	}
+	return false, nil
+}
+
+type interceptingSMTPDispatcher struct {
+	*dispatch.SMTPDispatcher
+
+	sent      bool
+	retryable bool
+	err       error
+}
+
+func (i *interceptingSMTPDispatcher) Send(ctx context.Context, msgID uuid.UUID, input types.Labels) (bool, error) {
+	i.retryable, i.err = i.SMTPDispatcher.Send(ctx, msgID, input)
+	i.sent = true
+	return i.retryable, i.err
 }

@@ -984,7 +984,9 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			defer tracker.Close()
 
 			// Manage notifications
-			notificationsManager := notifications.NewManager(options.Database, logger.Named("notifications-manager"), notifications.DefaultRenderers(), notifications.DefaultDispatchers())
+			cfg := options.DeploymentValues.Notifications
+			notificationsManager := notifications.NewManager(cfg, options.Database,
+				logger.Named("notifications-manager"), nil, nil)
 			notificationsManager.StartNotifiers(ctx, 3) // TODO: configurable
 			options.NotificationsManager = notificationsManager
 

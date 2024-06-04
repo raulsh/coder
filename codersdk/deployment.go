@@ -204,6 +204,7 @@ type DeploymentValues struct {
 	Healthcheck                     HealthcheckConfig                    `json:"healthcheck,omitempty" typescript:",notnull"`
 	CLIUpgradeMessage               serpent.String                       `json:"cli_upgrade_message,omitempty" typescript:",notnull"`
 	TermsOfServiceURL               serpent.String                       `json:"terms_of_service_url,omitempty" typescript:",notnull"`
+	Notifications                   NotificationsConfig                  `json:"notifications,omitempty" typescript:",notnull"`
 
 	Config      serpent.YAMLConfigPath `json:"config,omitempty" typescript:",notnull"`
 	WriteConfig serpent.Bool           `json:"write_config,omitempty" typescript:",notnull"`
@@ -454,6 +455,37 @@ type HealthcheckConfig struct {
 	ThresholdDatabase serpent.Duration `json:"threshold_database" typescript:",notnull"`
 }
 
+type NotificationsConfig struct {
+	SMTP NotificationsEmailConfig `json:"email" typescript:",notnull"`
+}
+
+type NotificationsEmailConfig struct {
+	// The sender's address.
+	From serpent.String `json:"from" typescript:",notnull"`
+	// The intermediary SMTP host through which emails are sent (host:port).
+	Smarthost serpent.HostPort `json:"smarthost" typescript:",notnull"`
+	// The hostname identifying the SMTP server.
+	Hello serpent.String `json:"hello" typescript:",notnull"`
+
+	// TODO: Auth and Headers
+	//// Authentication details.
+	//Auth struct {
+	//	// Username for CRAM-MD5/LOGIN/PLAIN auth; authentication is disabled if this is left blank.
+	//	Username serpent.String `json:"username" typescript:",notnull"`
+	//	// Password to use for LOGIN/PLAIN auth.
+	//	Password serpent.String `json:"password" typescript:",notnull"`
+	//	// File from which to load the password to use for LOGIN/PLAIN auth.
+	//	PasswordFile serpent.String `json:"password_file" typescript:",notnull"`
+	//	// Secret to use for CRAM-MD5 auth.
+	//	Secret serpent.String `json:"secret" typescript:",notnull"`
+	//	// Identity used for PLAIN auth.
+	//	Identity serpent.String `json:"identity" typescript:",notnull"`
+	//} `json:"auth" typescript:",notnull"`
+	//// Additional headers to use in the SMTP request.
+	//Headers map[string]string `json:"headers" typescript:",notnull"`
+	// TODO: TLS
+}
+
 const (
 	annotationFormatDuration = "format_duration"
 	annotationEnterpriseKey  = "enterprise"
@@ -598,6 +630,15 @@ when required by your organization's security policy.`,
 		deploymentGroupConfig = serpent.Group{
 			Name:        "Config",
 			Description: `Use a YAML configuration file when your server launch become unwieldy.`,
+		}
+		deploymentGroupNotifications = serpent.Group{
+			Name: "Notifications",
+			YAML: "notifications",
+		}
+		deploymentGroupNotificationsEmail = serpent.Group{
+			Name:   "Email",
+			Parent: &deploymentGroupNotifications,
+			YAML:   "email",
 		}
 	)
 
@@ -2004,6 +2045,35 @@ Write out the current server config as YAML to stdout.`,
 			Group:       &deploymentGroupIntrospectionHealthcheck,
 			YAML:        "thresholdDatabase",
 			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
+		},
+		// Notifications Options
+		{
+			Name:        "Notifications: Email: From Address",
+			Description: "The sender's address to use.",
+			Flag:        "notifications-email-from",
+			Env:         "CODER_NOTIFICATIONS_EMAIL_FROM",
+			Value:       &c.Notifications.SMTP.From,
+			Group:       &deploymentGroupNotificationsEmail,
+			YAML:        "from",
+		},
+		{
+			Name:        "Notifications: Email: Smarthost",
+			Description: "The intermediary SMTP host through which emails are sent.",
+			Flag:        "notifications-email-smarthost",
+			Env:         "CODER_NOTIFICATIONS_EMAIL_SMARTHOST",
+			Value:       &c.Notifications.SMTP.Smarthost,
+			Group:       &deploymentGroupNotificationsEmail,
+			YAML:        "smarthost",
+		},
+		{
+			Name:        "Notifications: Email: Hello",
+			Description: "The hostname identifying the SMTP server.",
+			Flag:        "notifications-email-hello",
+			Env:         "CODER_NOTIFICATIONS_EMAIL_HELLO",
+			Default:     "localhost",
+			Value:       &c.Notifications.SMTP.Hello,
+			Group:       &deploymentGroupNotificationsEmail,
+			YAML:        "hello",
 		},
 	}
 

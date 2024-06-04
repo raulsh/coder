@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/google/uuid"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
@@ -41,8 +42,9 @@ const (
 // forever, such as if we split notifiers out into separate targets for greater processing throughput; in this case we
 // will need an alternative mechanism for handling backpressure.
 type Manager struct {
-	log   slog.Logger
+	cfg   codersdk.NotificationsConfig
 	store Store
+	log   slog.Logger
 
 	notifiers  []*notifier
 	notifierMu sync.Mutex
@@ -55,13 +57,21 @@ type Manager struct {
 	done   chan any
 }
 
-func NewManager(store Store, log slog.Logger, rp *ProviderRegistry[Renderer], dp *ProviderRegistry[Dispatcher]) *Manager {
-	return &Manager{store: store, stop: make(chan any), done: make(chan any), log: log, rendererProvider: rp, dispatchersProvider: dp}
+func NewManager(cfg codersdk.NotificationsConfig, store Store, log slog.Logger, rp *ProviderRegistry[Renderer], dp *ProviderRegistry[Dispatcher]) *Manager {
+	if rp == nil {
+		rp = DefaultRenderers(cfg, log)
+	}
+	if dp == nil {
+		dp = DefaultDispatchers(cfg, log)
+	}
+	return &Manager{cfg: cfg, store: store, stop: make(chan any), done: make(chan any), log: log, rendererProvider: rp, dispatchersProvider: dp}
 }
 
 // DefaultRenderers builds a set of known renderers and panics if any error occurs.
-func DefaultRenderers() *ProviderRegistry[Renderer] {
-	reg, err := NewProviderRegistry[Renderer](&render.TextRenderer{}, &render.HTMLRenderer{})
+func DefaultRenderers(cfg codersdk.NotificationsConfig, log slog.Logger) *ProviderRegistry[Renderer] {
+	reg, err := NewProviderRegistry[Renderer](
+		&render.TextRenderer{},
+		&render.HTMLRenderer{})
 	if err != nil {
 		panic(err)
 	}
@@ -69,8 +79,10 @@ func DefaultRenderers() *ProviderRegistry[Renderer] {
 }
 
 // DefaultDispatchers builds a set of known dispatchers and panics if any error occurs.
-func DefaultDispatchers() *ProviderRegistry[Dispatcher] {
-	reg, err := NewProviderRegistry[Dispatcher](&dispatch.SMTPDispatcher{})
+func DefaultDispatchers(cfg codersdk.NotificationsConfig, log slog.Logger) *ProviderRegistry[Dispatcher] {
+	reg, err := NewProviderRegistry[Dispatcher](
+		dispatch.NewSMTPDispatcher(cfg.SMTP, log.Named("dispatcher-smtp")),
+	)
 	if err != nil {
 		panic(err)
 	}
