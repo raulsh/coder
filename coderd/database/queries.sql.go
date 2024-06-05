@@ -3331,10 +3331,10 @@ func (q *sqlQuerier) AcquireNotificationMessages(ctx context.Context, arg Acquir
 }
 
 const bulkMarkNotificationMessagesFailed = `-- name: BulkMarkNotificationMessagesFailed :execrows
-WITH new_values AS (SELECT UNNEST($1::uuid[])                             AS id,
-                           UNNEST($2::timestamptz[])               AS failed_at,
-                           UNNEST($3::notification_message_status[]) AS status,
-                           UNNEST($4::text[])                  AS status_reason)
+WITH new_values AS (SELECT UNNEST($3::uuid[])                             AS id,
+                           UNNEST($4::timestamptz[])               AS failed_at,
+                           UNNEST($5::notification_message_status[]) AS status,
+                           UNNEST($6::text[])                  AS status_reason)
 UPDATE notification_messages
 SET updated_at       = NOW(),
     attempt_count    = attempt_count + 1,
@@ -3342,13 +3342,17 @@ SET updated_at       = NOW(),
     status_reason    = subquery.status_reason,
     failed_at        = subquery.failed_at,
     leased_until     = NULL,
-    next_retry_after = NOW() + INTERVAL '10m' -- TODO: configurable? This will also be irrelevant for messages which have exceeded their attempts
+    next_retry_after = CASE
+                           WHEN (attempt_count + 1 < $1::int)
+                               THEN NOW() + CONCAT($2::int, ' seconds')::interval END
 FROM (SELECT id, status, status_reason, failed_at
       FROM new_values) AS subquery
 WHERE notification_messages.id = subquery.id
 `
 
 type BulkMarkNotificationMessagesFailedParams struct {
+	MaxAttempts   int32                       `db:"max_attempts" json:"max_attempts"`
+	RetryInterval int32                       `db:"retry_interval" json:"retry_interval"`
 	IDs           []uuid.UUID                 `db:"ids" json:"ids"`
 	FailedAts     []time.Time                 `db:"failed_ats" json:"failed_ats"`
 	Statuses      []NotificationMessageStatus `db:"statuses" json:"statuses"`
@@ -3357,6 +3361,8 @@ type BulkMarkNotificationMessagesFailedParams struct {
 
 func (q *sqlQuerier) BulkMarkNotificationMessagesFailed(ctx context.Context, arg BulkMarkNotificationMessagesFailedParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, bulkMarkNotificationMessagesFailed,
+		arg.MaxAttempts,
+		arg.RetryInterval,
 		pq.Array(arg.IDs),
 		pq.Array(arg.FailedAts),
 		pq.Array(arg.Statuses),

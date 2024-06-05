@@ -34,6 +34,9 @@ const (
 	labelTo      = "to"
 	labelSubject = "subject"
 	labelBody    = "body"
+
+	// TODO: configurable
+	timeout = time.Second * 30
 )
 
 type SMTPDispatcher struct {
@@ -85,12 +88,14 @@ func (s *SMTPDispatcher) Send(ctx context.Context, msgID uuid.UUID, input types.
 	if smarthostPort == "465" {
 		// TODO: implement TLS
 		return false, xerrors.New("TLS is not currently supported")
-	} else {
-		var d net.Dialer
-		conn, err = d.DialContext(ctx, "tcp", fmt.Sprintf("%s:%s", smarthost, smarthostPort))
-		if err != nil {
-			return true, xerrors.Errorf("establish connection to server: %w", err)
-		}
+	}
+
+	var d net.Dialer
+	dialCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	conn, err = d.DialContext(dialCtx, "tcp", fmt.Sprintf("%s:%s", smarthost, smarthostPort))
+	if err != nil {
+		return true, xerrors.Errorf("establish connection to server: %w", err)
 	}
 
 	// Create an SMTP client.

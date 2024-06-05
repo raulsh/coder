@@ -22,9 +22,11 @@ import (
 )
 
 const (
-	MaxAttempts          = 5           // TODO: configurable
-	BulkUpdateBufferSize = 50          // TODO: configurable
-	BulkUpdateInterval   = time.Second // TODO: configurable
+	// TODO: configurable
+	MaxAttempts          = 5
+	RetryInterval        = time.Minute * 5
+	BulkUpdateBufferSize = 50
+	BulkUpdateInterval   = time.Second
 )
 
 // Manager manages all notifications being enqueued and dispatched.
@@ -291,6 +293,8 @@ func (m *Manager) bulkUpdate(ctx context.Context, success, failure <-chan dispat
 		defer wg.Done()
 		logger := m.log.With(slog.F("type", "update_failed"))
 
+		failureParams.MaxAttempts = MaxAttempts
+		failureParams.RetryInterval = int32(RetryInterval.Seconds())
 		n, err := m.store.BulkMarkNotificationMessagesFailed(ctx, failureParams)
 		if err != nil {
 			logger.Error(ctx, "bulk update failed", slog.Error(err))

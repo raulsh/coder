@@ -105,7 +105,9 @@ SET updated_at       = NOW(),
     status_reason    = subquery.status_reason,
     failed_at        = subquery.failed_at,
     leased_until     = NULL,
-    next_retry_after = NOW() + INTERVAL '10m' -- TODO: configurable? This will also be irrelevant for messages which have exceeded their attempts
+    next_retry_after = CASE
+                           WHEN (attempt_count + 1 < @max_attempts::int)
+                               THEN NOW() + CONCAT(@retry_interval::int, ' seconds')::interval END
 FROM (SELECT id, status, status_reason, failed_at
       FROM new_values) AS subquery
 WHERE notification_messages.id = subquery.id;

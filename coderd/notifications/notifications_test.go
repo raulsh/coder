@@ -104,13 +104,13 @@ func TestSMTPDispatch(t *testing.T) {
 	defer ps.Close()
 
 	// start mock SMTP server
-	server := smtpmock.New(smtpmock.ConfigurationAttr{
+	mockSMTPSrv := smtpmock.New(smtpmock.ConfigurationAttr{
 		LogToStdout:       true,
 		LogServerActivity: true,
 	})
-	require.NoError(t, server.Start())
+	require.NoError(t, mockSMTPSrv.Start())
 	t.Cleanup(func() {
-		require.NoError(t, server.Stop())
+		require.NoError(t, mockSMTPSrv.Stop())
 	})
 
 	// given
@@ -118,7 +118,7 @@ func TestSMTPDispatch(t *testing.T) {
 	cfg := codersdk.NotificationsConfig{
 		SMTP: codersdk.NotificationsEmailConfig{
 			From:      from,
-			Smarthost: serpent.HostPort{Host: "localhost", Port: fmt.Sprintf("%d", server.PortNumber())},
+			Smarthost: serpent.HostPort{Host: "localhost", Port: fmt.Sprintf("%d", mockSMTPSrv.PortNumber())},
 			Hello:     "localhost",
 		},
 	}
@@ -151,7 +151,7 @@ func TestSMTPDispatch(t *testing.T) {
 		return dispatcher.sent
 	}, testutil.WaitLong, testutil.IntervalMedium)
 
-	msgs := server.MessagesAndPurge()
+	msgs := mockSMTPSrv.MessagesAndPurge()
 	require.Len(t, msgs, 1)
 	require.Contains(t, msgs[0].MsgRequest(), fmt.Sprintf("From: %s", from))
 	require.Contains(t, msgs[0].MsgRequest(), fmt.Sprintf("To: %s", user.Email))
