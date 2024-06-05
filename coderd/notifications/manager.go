@@ -58,9 +58,9 @@ type Manager struct {
 	rendererProvider    *ProviderRegistry[Renderer]
 	dispatchersProvider *ProviderRegistry[Dispatcher]
 
-	stopMu sync.Mutex
-	stop   chan any
-	done   chan any
+	stopOnce sync.Once
+	stop     chan any
+	done     chan any
 }
 
 func NewManager(cfg codersdk.NotificationsConfig, ps pubsub.Pubsub, store Store, log slog.Logger, rp *ProviderRegistry[Renderer], dp *ProviderRegistry[Dispatcher]) *Manager {
@@ -107,7 +107,9 @@ func (m *Manager) StartNotifiers(ctx context.Context, notifiers int) {
 	}()
 }
 
-func (m *Manager) loop(ctx context.Context, nc int) error {
+// loop contains the main business logic of the notification manager. It is responsible for subscribing to notification
+// events, creating notifiers, and publishing bulk dispatch result updates to the store.
+func (m *Manager) loop(ctx context.Context, notifiers int) error {
 	defer func() {
 		close(m.done)
 		m.log.Info(context.Background(), "notification manager stopped")
@@ -125,6 +127,9 @@ func (m *Manager) loop(ctx context.Context, nc int) error {
 	}
 
 	// Subscribe to enqueue events.
+	//
+	// Using pubsub allows us to centralize the business logic for enqueueing a notification, without passing an instance
+	// of this type to all codepaths which need to send notifications.
 	cancelEnqueueSubscribe, err := m.pubsub.Subscribe(EnqueueChannel(), m.enqueueNotification)
 	if err != nil {
 		m.log.Error(ctx, "cannot subscribe to notification", slog.Error(err))
@@ -132,14 +137,20 @@ func (m *Manager) loop(ctx context.Context, nc int) error {
 	}
 	defer cancelEnqueueSubscribe()
 
-	var eg errgroup.Group
-
 	var (
+		// Buffer successful/failed notification dispatches in memory to reduce load on the store.
+		//
+		// We keep separate buffered for success/failure right now because the bulk updates are already a bit janky,
+		// see BulkMarkNotificationMessagesSent/BulkMarkNotificationMessagesFailed. If we had the ability to batch updates,
+		// like is offered in https://docs.sqlc.dev/en/stable/reference/query-annotations.html#batchmany, we'd have a cleaner
+		// approach to this - but for now this will work fine.
 		success = make(chan dispatchResult, BulkUpdateBufferSize)
 		failure = make(chan dispatchResult, BulkUpdateBufferSize)
 	)
 
-	for i := 0; i < nc; i++ {
+	// Create a specific number of notifiers to run concurrently.
+	var eg errgroup.Group
+	for i := 0; i < notifiers; i++ {
 		eg.Go(func() error {
 			m.notifierMu.Lock()
 			n := newNotifier(ctx, i+1, m.log, m.store, m.rendererProvider, m.dispatchersProvider)
@@ -194,17 +205,23 @@ func (m *Manager) loop(ctx context.Context, nc int) error {
 	return err
 }
 
+// enqueueNotification receives a message from pubsub which should contain an EnqueueNotifyMessage payload. This payload
+// is used to enqueue a notification message in the database.
+// TODO: plumbing to determine user/org preferences for notification method for the given template.
 func (m *Manager) enqueueNotification(ctx context.Context, message []byte) {
-	// TODO: plumbing to determine which method(s), if any, should be used for this notification template
 	var req EnqueueNotifyMessage
 	if err := json.Unmarshal(message, &req); err != nil {
 		m.log.Warn(ctx, "could not unmarshal notification message request", slog.Error(err), slog.F("msg", message))
 		return
 	}
 
+	// We don't care about the results here; they are logged anyway; besides, the pubsub publisher doesn't have a way
+	// of responding to errors anyway.
 	_, _ = m.Enqueue(ctx, req.UserID, req.Template, database.NotificationMethodSmtp, req.Input, req.CreatedBy, req.TargetIDs...)
 }
 
+// Enqueue queues a notification message for later delivery.
+// Messages will be dequeued by a notifier later and dispatched.
 func (m *Manager) Enqueue(ctx context.Context, userID, templateID uuid.UUID, method database.NotificationMethod, labels types.Labels, createdBy string, targets ...uuid.UUID) (uuid.UUID, error) {
 	input, err := json.Marshal(labels)
 	if err != nil {
@@ -236,9 +253,10 @@ func (m *Manager) bulkUpdate(ctx context.Context, success, failure <-chan dispat
 	default:
 	}
 
-	// Nothing to do.
 	nSuccess := len(success)
 	nFailure := len(failure)
+
+	// Nothing to do.
 	if nSuccess+nFailure == 0 {
 		return
 	}
@@ -250,6 +268,8 @@ func (m *Manager) bulkUpdate(ctx context.Context, success, failure <-chan dispat
 
 	// Read all the existing messages due for update from the channel, but don't range over the channels because they
 	// block until they are closed.
+	//
+	// This is vulnerable to TOCTOU.
 	// If more items are added to the success or failure channels between measuring their lengths and now, those items
 	// will be processed on the next bulk update.
 
@@ -270,6 +290,7 @@ func (m *Manager) bulkUpdate(ctx context.Context, success, failure <-chan dispat
 		failureParams.StatusReasons = append(failureParams.StatusReasons, reason)
 	}
 
+	// Execute bulk updates for success/failure concurrently.
 	var wg sync.WaitGroup
 	wg.Add(2)
 
@@ -312,54 +333,56 @@ func (m *Manager) bulkUpdate(ctx context.Context, success, failure <-chan dispat
 	wg.Wait()
 }
 
-// Stop stops all notifiers; waits until all notifiers have stopped.
-//
-// TODO: by the time this is called, the notifiers have already had their context canceled
+// Stop stops all notifiers and waits until they have stopped.
 func (m *Manager) Stop(ctx context.Context) error {
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	default:
-	}
-
-	m.stopMu.Lock()
-	defer m.stopMu.Unlock()
-
-	m.log.Info(context.Background(), "graceful stop requested")
-
-	// If the notifiers haven't been started, we don't need to wait for anything.
-	// This is only really during testing when we want to enqueue messages only but not deliver them.
-	if len(m.notifiers) == 0 {
-		close(m.done)
-	}
-
-	// Stop all notifiers.
-	var eg errgroup.Group
-	for _, n := range m.notifiers {
-		eg.Go(func() error {
-			n.stop()
-			return nil
-		})
-	}
-	_ = eg.Wait()
-
-	// Signal the stop channel to cause loop to exit.
-	close(m.stop)
-
-	// Wait for the manager loop to exit or the context to be canceled, whichever comes first.
-	select {
-	case <-ctx.Done():
-		var errStr string
-		if ctx.Err() != nil {
-			errStr = ctx.Err().Error()
+	var err error
+	m.stopOnce.Do(func() {
+		select {
+		case <-ctx.Done():
+			err = ctx.Err()
+			return
+		default:
 		}
-		// For some reason, slog.Error returns {} for a context error.
-		m.log.Error(context.Background(), "graceful stop failed", slog.F("err", errStr))
-		return ctx.Err()
-	case <-m.done:
-		m.log.Info(context.Background(), "gracefully stopped")
-		return nil
-	}
+
+		m.log.Info(context.Background(), "graceful stop requested")
+
+		// If the notifiers haven't been started, we don't need to wait for anything.
+		// This is only really during testing when we want to enqueue messages only but not deliver them.
+		if len(m.notifiers) == 0 {
+			close(m.done)
+		}
+
+		// Stop all notifiers.
+		var eg errgroup.Group
+		for _, n := range m.notifiers {
+			eg.Go(func() error {
+				n.stop()
+				return nil
+			})
+		}
+		_ = eg.Wait()
+
+		// Signal the stop channel to cause loop to exit.
+		close(m.stop)
+
+		// Wait for the manager loop to exit or the context to be canceled, whichever comes first.
+		select {
+		case <-ctx.Done():
+			var errStr string
+			if ctx.Err() != nil {
+				errStr = ctx.Err().Error()
+			}
+			// For some reason, slog.Error returns {} for a context error.
+			m.log.Error(context.Background(), "graceful stop failed", slog.F("err", errStr))
+			err = ctx.Err()
+			return
+		case <-m.done:
+			m.log.Info(context.Background(), "gracefully stopped")
+			return
+		}
+	})
+
+	return err
 }
 
 type dispatchResult struct {
