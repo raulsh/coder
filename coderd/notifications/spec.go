@@ -26,7 +26,7 @@ type Renderer interface {
 	Render(template string, input types.Labels) (string, error)
 }
 
-// Dispatcher is responsible for delivering a notification to a given receiver.
+// Dispatcher is responsible for delivering a notification by a given method.
 type Dispatcher interface {
 	Provider
 

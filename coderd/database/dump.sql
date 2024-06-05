@@ -83,7 +83,7 @@ CREATE TYPE notification_message_status AS ENUM (
     'unknown'
 );
 
-CREATE TYPE notification_receiver AS ENUM (
+CREATE TYPE notification_method AS ENUM (
     'smtp',
     'webhook'
 );
@@ -210,13 +210,14 @@ CREATE TYPE workspace_transition AS ENUM (
     'delete'
 );
 
-CREATE FUNCTION compute_dedupe_hash() RETURNS trigger
+CREATE FUNCTION compute_notification_message_dedupe_hash() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
 BEGIN
     NEW.dedupe_hash := CONCAT_WS(':',
                                  NEW.notification_template_id,
-                                 NEW.receiver,
+                                 NEW.user_id,
+                                 NEW.method,
                                  NEW.input::text,
                                  ARRAY_TO_STRING(NEW.targets, ','),
                                  DATE_TRUNC('hour', NEW.created_at AT TIME ZONE 'UTC')::text
@@ -560,7 +561,7 @@ CREATE TABLE notification_messages (
     id uuid NOT NULL,
     notification_template_id uuid NOT NULL,
     user_id uuid NOT NULL,
-    receiver notification_receiver NOT NULL,
+    method notification_method NOT NULL,
     status notification_message_status DEFAULT 'pending'::notification_message_status NOT NULL,
     status_reason text,
     created_by text NOT NULL,

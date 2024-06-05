@@ -112,7 +112,7 @@ func (n *notifier) process(ctx context.Context, success chan<- dispatchResult, f
 			// Dispatch must only return an error for exceptional cases, NOT for failed messages.
 			// The first message to return an error cancels the errgroup's context, and all in-flight dispatches will be canceled.
 			// TODO: validate this
-			return n.dispatch(ctx, msg.ID, string(msg.Receiver), input, success, failure)
+			return n.dispatch(ctx, msg.ID, string(msg.Method), input, success, failure)
 		})
 	}
 
@@ -169,8 +169,8 @@ func (n *notifier) prepare(ctx context.Context, msg database.AcquireNotification
 	input.Set("user_name", msg.UserName)
 
 	var err error
-	switch msg.Receiver {
-	case database.NotificationReceiverSmtp:
+	switch msg.Method {
+	case database.NotificationMethodSmtp:
 		var subject, body string
 
 		if subject, err = n.render(ctx, render.Text, msg.TitleTemplate, input); err != nil {
@@ -187,13 +187,13 @@ func (n *notifier) prepare(ctx context.Context, msg database.AcquireNotification
 			"to":      msg.UserEmail,
 		})
 	default:
-		err = xerrors.Errorf("unrecognized receiver: %s", msg.Receiver)
+		err = xerrors.Errorf("unrecognized method: %s", msg.Method)
 	}
 
 	return input, err
 }
 
-// dispatch sends a given notification message to its defined receiver.
+// dispatch sends a given notification message to its defined method.
 // This method *only* returns an error when a context error occurs; any other error is interpreted as a failure to
 // deliver the notification and as such the message will be marked as failed (to later be optionally retried).
 func (n *notifier) dispatch(ctx context.Context, msgID uuid.UUID, provider string, input types.Labels, success, failure chan<- dispatchResult) error {
@@ -211,7 +211,7 @@ func (n *notifier) dispatch(ctx context.Context, msgID uuid.UUID, provider strin
 		return xerrors.Errorf("resolve dispatch provider: %w", err)
 	}
 
-	logger := n.log.With(slog.F("msg_id", msgID), slog.F("receiver", provider))
+	logger := n.log.With(slog.F("msg_id", msgID), slog.F("method", provider))
 
 	if ok, missing := d.Validate(input); !ok {
 		logger.Warn(ctx, "message failed dispatcher validation", slog.F("missing_labels", strings.Join(missing, ", ")))

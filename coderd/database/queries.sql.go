@@ -3246,7 +3246,7 @@ SELECT
     nm.id,
     nm.input,
     nm.targets,
-    nm.receiver,
+    nm.method,
     -- template
     nt.name                                                    AS template_name,
     nt.title_template,
@@ -3271,16 +3271,16 @@ type AcquireNotificationMessagesParams struct {
 }
 
 type AcquireNotificationMessagesRow struct {
-	ID            uuid.UUID            `db:"id" json:"id"`
-	Input         StringMap            `db:"input" json:"input"`
-	Targets       []uuid.UUID          `db:"targets" json:"targets"`
-	Receiver      NotificationReceiver `db:"receiver" json:"receiver"`
-	TemplateName  string               `db:"template_name" json:"template_name"`
-	TitleTemplate string               `db:"title_template" json:"title_template"`
-	BodyTemplate  string               `db:"body_template" json:"body_template"`
-	UserID        uuid.UUID            `db:"user_id" json:"user_id"`
-	UserName      string               `db:"user_name" json:"user_name"`
-	UserEmail     string               `db:"user_email" json:"user_email"`
+	ID            uuid.UUID          `db:"id" json:"id"`
+	Input         StringMap          `db:"input" json:"input"`
+	Targets       []uuid.UUID        `db:"targets" json:"targets"`
+	Method        NotificationMethod `db:"method" json:"method"`
+	TemplateName  string             `db:"template_name" json:"template_name"`
+	TitleTemplate string             `db:"title_template" json:"title_template"`
+	BodyTemplate  string             `db:"body_template" json:"body_template"`
+	UserID        uuid.UUID          `db:"user_id" json:"user_id"`
+	UserName      string             `db:"user_name" json:"user_name"`
+	UserEmail     string             `db:"user_email" json:"user_email"`
 }
 
 // Acquires the lease for a given count of notification messages that aren't already locked, or ones which are leased
@@ -3309,7 +3309,7 @@ func (q *sqlQuerier) AcquireNotificationMessages(ctx context.Context, arg Acquir
 			&i.ID,
 			&i.Input,
 			pq.Array(&i.Targets),
-			&i.Receiver,
+			&i.Method,
 			&i.TemplateName,
 			&i.TitleTemplate,
 			&i.BodyTemplate,
@@ -3459,25 +3459,25 @@ func (q *sqlQuerier) DeleteOldNotificationMessages(ctx context.Context, maxAttem
 }
 
 const enqueueNotificationMessage = `-- name: EnqueueNotificationMessage :one
-INSERT INTO notification_messages (id, notification_template_id, user_id, receiver, input, targets, created_by)
+INSERT INTO notification_messages (id, notification_template_id, user_id, method, input, targets, created_by)
 VALUES ($1,
         $2,
         $3,
-        $4::notification_receiver,
+        $4::notification_method,
         $5::jsonb,
         $6,
         $7)
-RETURNING id, notification_template_id, user_id, receiver, status, status_reason, created_by, input, attempt_count, targets, created_at, updated_at, leased_until, next_retry_after, sent_at, failed_at, dedupe_hash
+RETURNING id, notification_template_id, user_id, method, status, status_reason, created_by, input, attempt_count, targets, created_at, updated_at, leased_until, next_retry_after, sent_at, failed_at, dedupe_hash
 `
 
 type EnqueueNotificationMessageParams struct {
-	ID                     uuid.UUID            `db:"id" json:"id"`
-	NotificationTemplateID uuid.UUID            `db:"notification_template_id" json:"notification_template_id"`
-	UserID                 uuid.UUID            `db:"user_id" json:"user_id"`
-	Receiver               NotificationReceiver `db:"receiver" json:"receiver"`
-	Input                  json.RawMessage      `db:"input" json:"input"`
-	Targets                []uuid.UUID          `db:"targets" json:"targets"`
-	CreatedBy              string               `db:"created_by" json:"created_by"`
+	ID                     uuid.UUID          `db:"id" json:"id"`
+	NotificationTemplateID uuid.UUID          `db:"notification_template_id" json:"notification_template_id"`
+	UserID                 uuid.UUID          `db:"user_id" json:"user_id"`
+	Method                 NotificationMethod `db:"method" json:"method"`
+	Input                  json.RawMessage    `db:"input" json:"input"`
+	Targets                []uuid.UUID        `db:"targets" json:"targets"`
+	CreatedBy              string             `db:"created_by" json:"created_by"`
 }
 
 func (q *sqlQuerier) EnqueueNotificationMessage(ctx context.Context, arg EnqueueNotificationMessageParams) (NotificationMessage, error) {
@@ -3485,7 +3485,7 @@ func (q *sqlQuerier) EnqueueNotificationMessage(ctx context.Context, arg Enqueue
 		arg.ID,
 		arg.NotificationTemplateID,
 		arg.UserID,
-		arg.Receiver,
+		arg.Method,
 		arg.Input,
 		pq.Array(arg.Targets),
 		arg.CreatedBy,
@@ -3495,7 +3495,7 @@ func (q *sqlQuerier) EnqueueNotificationMessage(ctx context.Context, arg Enqueue
 		&i.ID,
 		&i.NotificationTemplateID,
 		&i.UserID,
-		&i.Receiver,
+		&i.Method,
 		&i.Status,
 		&i.StatusReason,
 		&i.CreatedBy,

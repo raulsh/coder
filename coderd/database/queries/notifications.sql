@@ -9,11 +9,11 @@ VALUES ($1,
 RETURNING *;
 
 -- name: EnqueueNotificationMessage :one
-INSERT INTO notification_messages (id, notification_template_id, user_id, receiver, input, targets, created_by)
+INSERT INTO notification_messages (id, notification_template_id, user_id, method, input, targets, created_by)
 VALUES (@id,
         @notification_template_id,
         @user_id,
-        @receiver::notification_receiver,
+        @method::notification_method,
         @input::jsonb,
         @targets,
         @created_by)
@@ -79,7 +79,7 @@ SELECT
     nm.id,
     nm.input,
     nm.targets,
-    nm.receiver,
+    nm.method,
     -- template
     nt.name                                                    AS template_name,
     nt.title_template,

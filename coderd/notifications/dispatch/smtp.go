@@ -50,7 +50,7 @@ func NewSMTPDispatcher(cfg codersdk.NotificationsEmailConfig, log slog.Logger) *
 
 func (s *SMTPDispatcher) Name() string {
 	// TODO: don't use database types
-	return string(database.NotificationReceiverSmtp)
+	return string(database.NotificationMethodSmtp)
 }
 
 func (s *SMTPDispatcher) Validate(input types.Labels) (bool, []string) {

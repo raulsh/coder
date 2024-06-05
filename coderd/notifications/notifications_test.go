@@ -67,12 +67,12 @@ func TestBasicNotificationRoundtrip(t *testing.T) {
 	user := coderdtest.CreateFirstUser(t, client)
 
 	// when
-	sid, err := manager.Enqueue(ctx, user.UserID, notifications.TemplateWorkspaceDeleted, database.NotificationReceiverSmtp, types.Labels{"type": "success"}, "test")
+	sid, err := manager.Enqueue(ctx, user.UserID, notifications.TemplateWorkspaceDeleted, database.NotificationMethodSmtp, types.Labels{"type": "success"}, "test")
 	require.NoError(t, err)
-	fid, err := manager.Enqueue(ctx, user.UserID, notifications.TemplateWorkspaceDeleted, database.NotificationReceiverSmtp, types.Labels{"type": "failure"}, "test")
+	fid, err := manager.Enqueue(ctx, user.UserID, notifications.TemplateWorkspaceDeleted, database.NotificationMethodSmtp, types.Labels{"type": "failure"}, "test")
 	require.NoError(t, err)
-	_, err = manager.Enqueue(ctx, user.UserID, notifications.TemplateWorkspaceDeleted, database.NotificationReceiverSmtp, types.Labels{}, "test") // no "type" field
-	require.NoError(t, err)                                                                                                                       // validation error is not returned immediately, only on dispatch
+	_, err = manager.Enqueue(ctx, user.UserID, notifications.TemplateWorkspaceDeleted, database.NotificationMethodSmtp, types.Labels{}, "test") // no "type" field
+	require.NoError(t, err)                                                                                                                     // validation error is not returned immediately, only on dispatch
 
 	manager.StartNotifiers(ctx, 1)
 
@@ -139,7 +139,7 @@ func TestSMTPDispatch(t *testing.T) {
 	})
 
 	// when
-	msgID, err := manager.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted, database.NotificationReceiverSmtp, types.Labels{}, "test")
+	msgID, err := manager.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted, database.NotificationMethodSmtp, types.Labels{}, "test")
 	require.NoError(t, err)
 
 	manager.StartNotifiers(ctx, 1)
@@ -164,7 +164,7 @@ type fakeDispatcher struct {
 }
 
 func (f *fakeDispatcher) Name() string {
-	return string(database.NotificationReceiverSmtp)
+	return string(database.NotificationMethodSmtp)
 }
 
 func (f *fakeDispatcher) Validate(input types.Labels) (bool, []string) {

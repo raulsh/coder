@@ -8,7 +8,7 @@ CREATE TYPE notification_message_status AS ENUM (
     'unknown'
     );
 
-CREATE TYPE notification_receiver AS ENUM (
+CREATE TYPE notification_method AS ENUM (
     'smtp',
     'webhook'
     );
@@ -27,16 +27,18 @@ CREATE TABLE notification_templates
 
 COMMENT ON TABLE notification_templates IS 'Templates from which to create notification messages.';
 
--- Compute a hash from the template, receiver, input params, targets, and current hour; this will help prevent duplicate
+-- Compute a hash from the template, user, method, input params, targets, and current hour; this will help prevent duplicate
 -- messages from being sent within the same hour.
 -- It is possible that a message could be sent at 12:59:59 and again at 13:00:00, but this should be good enough for now.
 -- This could have been a unique index, but we cannot immutably create an index on a timestamp with a timezone.
-CREATE OR REPLACE FUNCTION compute_dedupe_hash() RETURNS TRIGGER AS
+-- TODO: md5-hash this?
+CREATE OR REPLACE FUNCTION compute_notification_message_dedupe_hash() RETURNS TRIGGER AS
 $$
 BEGIN
     NEW.dedupe_hash := CONCAT_WS(':',
                                  NEW.notification_template_id,
-                                 NEW.receiver,
+                                 NEW.user_id,
+                                 NEW.method,
                                  NEW.input::text,
                                  ARRAY_TO_STRING(NEW.targets, ','),
                                  DATE_TRUNC('hour', NEW.created_at AT TIME ZONE 'UTC')::text
@@ -45,14 +47,17 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-COMMENT ON FUNCTION compute_dedupe_hash IS 'Computes a unique hash which will be used to prevent duplicate messages from being sent within the last hour';
+COMMENT ON FUNCTION compute_notification_message_dedupe_hash IS 'Computes a unique hash which will be used to prevent duplicate messages from being sent within the last hour';
+
+-- TODO: create a trigger to mark messages inhibited if notification_preferences disables them for a user/org
+--          this will need to unnest the targets and check if they intersect with users or orgs
 
 CREATE TABLE notification_messages
 (
     id                       uuid                        NOT NULL,
     notification_template_id uuid                        NOT NULL,
     user_id                  uuid                        NOT NULL,
-    receiver                 notification_receiver       NOT NULL,
+    method                   notification_method         NOT NULL,
     status                   notification_message_status NOT NULL DEFAULT 'pending'::notification_message_status,
     status_reason            text,
     created_by               text                        NOT NULL,

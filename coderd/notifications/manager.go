@@ -34,7 +34,7 @@ const (
 // Manager maintains a group of notifiers: these consume the queue of notification messages in the store.
 //
 // Notifiers dequeue messages from the store _n_ at a time and concurrently "dispatch" these messages, meaning they are
-// sent to their respective receivers (email, webhook, etc).
+// sent by their respective methods (email, webhook, etc).
 //
 // To reduce load on the store, successful and failed dispatches are accumulated in two separate buffers (success/failure)
 // in the Manager, and updates are sent to the store about which messages succeeded or failed every _n_ seconds.
@@ -194,17 +194,17 @@ func (m *Manager) loop(ctx context.Context, nc int) error {
 }
 
 func (m *Manager) enqueueNotification(ctx context.Context, message []byte) {
-	// TODO: plumbing to determine which receiver(s), if any, should be used for this notification template
+	// TODO: plumbing to determine which method(s), if any, should be used for this notification template
 	var req EnqueueNotifyMessage
 	if err := json.Unmarshal(message, &req); err != nil {
 		m.log.Warn(ctx, "could not unmarshal notification message request", slog.Error(err), slog.F("msg", message))
 		return
 	}
 
-	_, _ = m.Enqueue(ctx, req.UserID, req.Template, database.NotificationReceiverSmtp, req.Input, req.CreatedBy, req.TargetIDs...)
+	_, _ = m.Enqueue(ctx, req.UserID, req.Template, database.NotificationMethodSmtp, req.Input, req.CreatedBy, req.TargetIDs...)
 }
 
-func (m *Manager) Enqueue(ctx context.Context, userID, templateID uuid.UUID, r database.NotificationReceiver, labels types.Labels, createdBy string, targets ...uuid.UUID) (uuid.UUID, error) {
+func (m *Manager) Enqueue(ctx context.Context, userID, templateID uuid.UUID, r database.NotificationMethod, labels types.Labels, createdBy string, targets ...uuid.UUID) (uuid.UUID, error) {
 	input, err := json.Marshal(labels)
 	if err != nil {
 		return uuid.UUID{}, xerrors.Errorf("failed encoding input labels: %w", err)
@@ -214,7 +214,7 @@ func (m *Manager) Enqueue(ctx context.Context, userID, templateID uuid.UUID, r d
 		ID:                     uuid.New(),
 		UserID:                 userID,
 		NotificationTemplateID: templateID,
-		Receiver:               r,
+		Method:                 r,
 		Input:                  input,
 		Targets:                targets,
 		CreatedBy:              createdBy,

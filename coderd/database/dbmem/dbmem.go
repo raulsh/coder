@@ -932,7 +932,7 @@ func (q *FakeQuerier) AcquireNotificationMessages(ctx context.Context, arg datab
 			ID:            nm.ID,
 			Input:         nm.Input,
 			Targets:       nm.Targets,
-			Receiver:      nm.Receiver,
+			Method:        nm.Method,
 			TemplateName:  "test template",
 			TitleTemplate: "This is a title with {{.variable}}",
 			BodyTemplate:  "This is a body with {{.variable}}",
@@ -1797,7 +1797,8 @@ func (q *FakeQuerier) EnqueueNotificationMessage(ctx context.Context, arg databa
 
 	nm := database.NotificationMessage{
 		ID:                     arg.ID,
-		Receiver:               arg.Receiver,
+		UserID:                 arg.UserID,
+		Method:                 arg.Method,
 		Input:                  input,
 		NotificationTemplateID: arg.NotificationTemplateID,
 		Targets:                arg.Targets,

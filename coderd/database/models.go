@@ -733,61 +733,61 @@ func AllNotificationMessageStatusValues() []NotificationMessageStatus {
 	}
 }
 
-type NotificationReceiver string
+type NotificationMethod string
 
 const (
-	NotificationReceiverSmtp    NotificationReceiver = "smtp"
-	NotificationReceiverWebhook NotificationReceiver = "webhook"
+	NotificationMethodSmtp    NotificationMethod = "smtp"
+	NotificationMethodWebhook NotificationMethod = "webhook"
 )
 
-func (e *NotificationReceiver) Scan(src interface{}) error {
+func (e *NotificationMethod) Scan(src interface{}) error {
 	switch s := src.(type) {
 	case []byte:
-		*e = NotificationReceiver(s)
+		*e = NotificationMethod(s)
 	case string:
-		*e = NotificationReceiver(s)
+		*e = NotificationMethod(s)
 	default:
-		return fmt.Errorf("unsupported scan type for NotificationReceiver: %T", src)
+		return fmt.Errorf("unsupported scan type for NotificationMethod: %T", src)
 	}
 	return nil
 }
 
-type NullNotificationReceiver struct {
-	NotificationReceiver NotificationReceiver `json:"notification_receiver"`
-	Valid                bool                 `json:"valid"` // Valid is true if NotificationReceiver is not NULL
+type NullNotificationMethod struct {
+	NotificationMethod NotificationMethod `json:"notification_method"`
+	Valid              bool               `json:"valid"` // Valid is true if NotificationMethod is not NULL
 }
 
 // Scan implements the Scanner interface.
-func (ns *NullNotificationReceiver) Scan(value interface{}) error {
+func (ns *NullNotificationMethod) Scan(value interface{}) error {
 	if value == nil {
-		ns.NotificationReceiver, ns.Valid = "", false
+		ns.NotificationMethod, ns.Valid = "", false
 		return nil
 	}
 	ns.Valid = true
-	return ns.NotificationReceiver.Scan(value)
+	return ns.NotificationMethod.Scan(value)
 }
 
 // Value implements the driver Valuer interface.
-func (ns NullNotificationReceiver) Value() (driver.Value, error) {
+func (ns NullNotificationMethod) Value() (driver.Value, error) {
 	if !ns.Valid {
 		return nil, nil
 	}
-	return string(ns.NotificationReceiver), nil
+	return string(ns.NotificationMethod), nil
 }
 
-func (e NotificationReceiver) Valid() bool {
+func (e NotificationMethod) Valid() bool {
 	switch e {
-	case NotificationReceiverSmtp,
-		NotificationReceiverWebhook:
+	case NotificationMethodSmtp,
+		NotificationMethodWebhook:
 		return true
 	}
 	return false
 }
 
-func AllNotificationReceiverValues() []NotificationReceiver {
-	return []NotificationReceiver{
-		NotificationReceiverSmtp,
-		NotificationReceiverWebhook,
+func AllNotificationMethodValues() []NotificationMethod {
+	return []NotificationMethod{
+		NotificationMethodSmtp,
+		NotificationMethodWebhook,
 	}
 }
 
@@ -2012,7 +2012,7 @@ type NotificationMessage struct {
 	ID                     uuid.UUID                 `db:"id" json:"id"`
 	NotificationTemplateID uuid.UUID                 `db:"notification_template_id" json:"notification_template_id"`
 	UserID                 uuid.UUID                 `db:"user_id" json:"user_id"`
-	Receiver               NotificationReceiver      `db:"receiver" json:"receiver"`
+	Method                 NotificationMethod        `db:"method" json:"method"`
 	Status                 NotificationMessageStatus `db:"status" json:"status"`
 	StatusReason           sql.NullString            `db:"status_reason" json:"status_reason"`
 	CreatedBy              string                    `db:"created_by" json:"created_by"`
