@@ -3,7 +3,11 @@ package notifications_test
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"testing"
 
 	"cdr.dev/slog"
@@ -30,27 +34,14 @@ func TestMain(m *testing.M) {
 
 // TestBasicNotificationRoundtrip enqueues a message to the store, waits for it to be acquired by a notifier,
 // and passes it off to a fake dispatcher.
+// TODO: split this test up into table tests or separate tests.
+// TODO: implement retries, validate final statuses
 func TestBasicNotificationRoundtrip(t *testing.T) {
 	// setup
 	if !dbtestutil.WillUsePostgres() {
 		t.Skip("This test requires postgres")
 	}
-	connectionURL, closeFunc, err := dbtestutil.Open()
-	require.NoError(t, err)
-	t.Cleanup(closeFunc)
-
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
-	t.Cleanup(cancel)
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true, IgnoredErrorIs: []error{}}).Leveled(slog.LevelDebug)
-
-	sqlDB, err := sql.Open("postgres", connectionURL)
-	require.NoError(t, err)
-	defer sqlDB.Close()
-
-	db := database.New(sqlDB)
-	ps, err := pubsub.New(ctx, logger, sqlDB, connectionURL)
-	require.NoError(t, err)
-	defer ps.Close()
+	ctx, logger, db, ps := setup(t)
 
 	// given
 	dispatcher := &fakeDispatcher{}
@@ -86,22 +77,7 @@ func TestSMTPDispatch(t *testing.T) {
 	if !dbtestutil.WillUsePostgres() {
 		t.Skip("This test requires postgres")
 	}
-	connectionURL, closeFunc, err := dbtestutil.Open()
-	require.NoError(t, err)
-	t.Cleanup(closeFunc)
-
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
-	t.Cleanup(cancel)
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true, IgnoredErrorIs: []error{}}).Leveled(slog.LevelDebug)
-
-	sqlDB, err := sql.Open("postgres", connectionURL)
-	require.NoError(t, err)
-	defer sqlDB.Close()
-
-	db := database.New(sqlDB)
-	ps, err := pubsub.New(ctx, logger, sqlDB, connectionURL)
-	require.NoError(t, err)
-	defer ps.Close()
+	ctx, logger, db, ps := setup(t)
 
 	// start mock SMTP server
 	mockSMTPSrv := smtpmock.New(smtpmock.ConfigurationAttr{
@@ -126,7 +102,7 @@ func TestSMTPDispatch(t *testing.T) {
 	fakeDispatchers, err := notifications.NewProviderRegistry[notifications.Dispatcher](dispatcher)
 	require.NoError(t, err)
 
-	manager := notifications.NewManager(codersdk.NotificationsConfig{}, ps, db, logger, nil, fakeDispatchers)
+	manager := notifications.NewManager(cfg, ps, db, logger, nil, fakeDispatchers)
 	t.Cleanup(func() {
 		require.NoError(t, manager.Stop(ctx))
 	})
@@ -156,6 +132,101 @@ func TestSMTPDispatch(t *testing.T) {
 	require.Contains(t, msgs[0].MsgRequest(), fmt.Sprintf("From: %s", from))
 	require.Contains(t, msgs[0].MsgRequest(), fmt.Sprintf("To: %s", user.Email))
 	require.Contains(t, msgs[0].MsgRequest(), fmt.Sprintf("Message-Id: %s", msgID))
+}
+
+func TestWebhookDispatch(t *testing.T) {
+	// setup
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("This test requires postgres")
+	}
+	ctx, logger, db, ps := setup(t)
+
+	var (
+		msgID uuid.UUID
+		input types.Labels
+	)
+
+	sent := make(chan bool, 1)
+	// Mock server to simulate webhook endpoint.
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var payload dispatch.WebhookPayload
+		err := json.NewDecoder(r.Body).Decode(&payload)
+		require.NoError(t, err)
+
+		require.Equal(t, "application/json", r.Header.Get("Content-Type"))
+		require.EqualValues(t, 1, payload.Version)
+		require.Equal(t, msgID, payload.MsgID)
+		require.Equal(t, input.Get("a"), "b")
+		require.Equal(t, input.Get("c"), "d")
+		require.Equal(t, payload.NotificationType, "Workspace Deleted")
+
+		w.WriteHeader(http.StatusOK)
+		_, err = w.Write([]byte("noted."))
+		require.NoError(t, err)
+		sent <- true
+	}))
+	defer server.Close()
+
+	endpoint, err := url.Parse(server.URL)
+	require.NoError(t, err)
+
+	// given
+	cfg := codersdk.NotificationsConfig{
+		Webhook: codersdk.NotificationsWebhookConfig{
+			Endpoint: *serpent.URLOf(endpoint),
+		},
+	}
+	manager := notifications.NewManager(cfg, ps, db, logger, nil, nil)
+	t.Cleanup(func() {
+		require.NoError(t, manager.Stop(ctx))
+	})
+
+	client := coderdtest.New(t, &coderdtest.Options{Database: db, Pubsub: ps})
+	first := coderdtest.CreateFirstUser(t, client)
+	_, user := coderdtest.CreateAnotherUserMutators(t, client, first.OrganizationID, nil, func(r *codersdk.CreateUserRequest) {
+		r.Email = "bob@coder.com"
+		r.Username = "bob"
+	})
+
+	// when
+	input = types.Labels{
+		"a": "b",
+		"c": "d",
+	}
+	msgID, err = manager.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted, database.NotificationMethodWebhook, input, "test")
+	require.NoError(t, err)
+
+	manager.StartNotifiers(ctx, 1)
+
+	// then
+	require.Eventually(t, func() bool { return <-sent }, testutil.WaitShort, testutil.IntervalFast)
+}
+
+func setup(t *testing.T) (context.Context, slog.Logger, database.Store, *pubsub.PGPubsub) {
+	t.Helper()
+
+	connectionURL, closeFunc, err := dbtestutil.Open()
+	require.NoError(t, err)
+	t.Cleanup(closeFunc)
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
+	t.Cleanup(cancel)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true, IgnoredErrorIs: []error{}}).Leveled(slog.LevelDebug)
+
+	sqlDB, err := sql.Open("postgres", connectionURL)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, sqlDB.Close())
+	})
+
+	db := database.New(sqlDB)
+	ps, err := pubsub.New(ctx, logger, sqlDB, connectionURL)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, ps.Close())
+	})
+
+	return ctx, logger, db, ps
 }
 
 type fakeDispatcher struct {

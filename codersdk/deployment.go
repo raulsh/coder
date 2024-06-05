@@ -456,7 +456,8 @@ type HealthcheckConfig struct {
 }
 
 type NotificationsConfig struct {
-	SMTP NotificationsEmailConfig `json:"email" typescript:",notnull"`
+	SMTP    NotificationsEmailConfig   `json:"email" typescript:",notnull"`
+	Webhook NotificationsWebhookConfig `json:"webhook" typescript:",notnull"`
 }
 
 type NotificationsEmailConfig struct {
@@ -484,6 +485,10 @@ type NotificationsEmailConfig struct {
 	//// Additional headers to use in the SMTP request.
 	//Headers map[string]string `json:"headers" typescript:",notnull"`
 	// TODO: TLS
+}
+
+type NotificationsWebhookConfig struct {
+	Endpoint serpent.URL `json:"endpoint" typescript:",notnull"`
 }
 
 const (
@@ -639,6 +644,11 @@ when required by your organization's security policy.`,
 			Name:   "Email",
 			Parent: &deploymentGroupNotifications,
 			YAML:   "email",
+		}
+		deploymentGroupNotificationsWebhook = serpent.Group{
+			Name:   "Webhook",
+			Parent: &deploymentGroupNotifications,
+			YAML:   "webhook",
 		}
 	)
 
@@ -2073,6 +2083,15 @@ Write out the current server config as YAML to stdout.`,
 			Default:     "localhost",
 			Value:       &c.Notifications.SMTP.Hello,
 			Group:       &deploymentGroupNotificationsEmail,
+			YAML:        "hello",
+		},
+		{
+			Name:        "Notifications: Webhook: Endpoint",
+			Description: "The endpoint to which to send webhooks.",
+			Flag:        "notifications-webhook-endpoint",
+			Env:         "CODER_NOTIFICATIONS_WEBHOOK_ENDPOINT",
+			Value:       &c.Notifications.Webhook.Endpoint,
+			Group:       &deploymentGroupNotificationsWebhook,
 			YAML:        "hello",
 		},
 	}

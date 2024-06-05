@@ -161,6 +161,7 @@ func (n *notifier) prepare(ctx context.Context, msg database.AcquireNotification
 	}
 	// Debug information.
 	input.Set("notifier_id", fmt.Sprintf("%d", n.id))
+	input.Set("notification_type", msg.TemplateName)
 	input.SetValue("msg_id", msg.ID)
 
 	// Additional information.
@@ -185,6 +186,21 @@ func (n *notifier) prepare(ctx context.Context, msg database.AcquireNotification
 			"subject": subject,
 			"body":    body,
 			"to":      msg.UserEmail,
+		})
+	case database.NotificationMethodWebhook:
+		var title, body string
+
+		if title, err = n.render(ctx, render.Text, msg.TitleTemplate, input); err != nil {
+			return nil, xerrors.Errorf("webhook render title: %w", err)
+		}
+		if body, err = n.render(ctx, render.HTML, msg.BodyTemplate, input); err != nil {
+			return nil, xerrors.Errorf("webhook render body: %w", err)
+		}
+
+		// Set required labels.
+		input.Merge(types.Labels{
+			"title": title,
+			"body":  body,
 		})
 	default:
 		err = xerrors.Errorf("unrecognized method: %s", msg.Method)

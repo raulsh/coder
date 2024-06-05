@@ -87,7 +87,8 @@ func DefaultRenderers(cfg codersdk.NotificationsConfig, log slog.Logger) *Provid
 // DefaultDispatchers builds a set of known dispatchers and panics if any error occurs.
 func DefaultDispatchers(cfg codersdk.NotificationsConfig, log slog.Logger) *ProviderRegistry[Dispatcher] {
 	reg, err := NewProviderRegistry[Dispatcher](
-		dispatch.NewSMTPDispatcher(cfg.SMTP, log.Named("dispatcher-smtp")),
+		dispatch.NewSMTPDispatcher(cfg.SMTP, log.Named("dispatcher.smtp")),
+		dispatch.NewWebhookDispatcher(cfg.Webhook, log.Named("dispatcher.webhook")),
 	)
 	if err != nil {
 		panic(err)

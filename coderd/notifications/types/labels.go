@@ -59,3 +59,14 @@ func (l Labels) Missing(ks ...string) (out []string) {
 
 	return out
 }
+
+// Cut returns the given key from the labels, deleting it from labels.
+func (l Labels) Cut(k string) string {
+	v, ok := l.GetStrict(k)
+	if !ok {
+		return ""
+	}
+
+	l.Delete(k)
+	return v
+}
