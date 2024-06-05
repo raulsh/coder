@@ -81,7 +81,7 @@ CREATE TRIGGER set_dedupe_hash
     BEFORE INSERT OR UPDATE
     ON notification_messages
     FOR EACH ROW
-EXECUTE FUNCTION compute_dedupe_hash();
+EXECUTE FUNCTION compute_notification_message_dedupe_hash();
 
 CREATE INDEX idx_notification_messages_status ON notification_messages (status);
 

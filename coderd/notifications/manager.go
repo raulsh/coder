@@ -204,7 +204,7 @@ func (m *Manager) enqueueNotification(ctx context.Context, message []byte) {
 	_, _ = m.Enqueue(ctx, req.UserID, req.Template, database.NotificationMethodSmtp, req.Input, req.CreatedBy, req.TargetIDs...)
 }
 
-func (m *Manager) Enqueue(ctx context.Context, userID, templateID uuid.UUID, r database.NotificationMethod, labels types.Labels, createdBy string, targets ...uuid.UUID) (uuid.UUID, error) {
+func (m *Manager) Enqueue(ctx context.Context, userID, templateID uuid.UUID, method database.NotificationMethod, labels types.Labels, createdBy string, targets ...uuid.UUID) (uuid.UUID, error) {
 	input, err := json.Marshal(labels)
 	if err != nil {
 		return uuid.UUID{}, xerrors.Errorf("failed encoding input labels: %w", err)
@@ -214,7 +214,7 @@ func (m *Manager) Enqueue(ctx context.Context, userID, templateID uuid.UUID, r d
 		ID:                     uuid.New(),
 		UserID:                 userID,
 		NotificationTemplateID: templateID,
-		Method:                 r,
+		Method:                 method,
 		Input:                  input,
 		Targets:                targets,
 		CreatedBy:              createdBy,

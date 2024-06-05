@@ -226,7 +226,7 @@ BEGIN
 END;
 $$;
 
-COMMENT ON FUNCTION compute_dedupe_hash() IS 'Computes a unique hash which will be used to prevent duplicate messages from being sent within the last hour';
+COMMENT ON FUNCTION compute_notification_message_dedupe_hash() IS 'Computes a unique hash which will be used to prevent duplicate messages from being sent within the last hour';
 
 CREATE FUNCTION delete_deleted_oauth2_provider_app_token_api_key() RETURNS trigger
     LANGUAGE plpgsql
@@ -1799,7 +1799,7 @@ CREATE INDEX workspace_resources_job_id_idx ON workspace_resources USING btree (
 
 CREATE UNIQUE INDEX workspaces_owner_id_lower_idx ON workspaces USING btree (owner_id, lower((name)::text)) WHERE (deleted = false);
 
-CREATE TRIGGER set_dedupe_hash BEFORE INSERT OR UPDATE ON notification_messages FOR EACH ROW EXECUTE FUNCTION compute_dedupe_hash();
+CREATE TRIGGER set_dedupe_hash BEFORE INSERT OR UPDATE ON notification_messages FOR EACH ROW EXECUTE FUNCTION compute_notification_message_dedupe_hash();
 
 CREATE TRIGGER tailnet_notify_agent_change AFTER INSERT OR DELETE OR UPDATE ON tailnet_agents FOR EACH ROW EXECUTE FUNCTION tailnet_notify_agent_change();
 
