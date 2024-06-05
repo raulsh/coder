@@ -8,8 +8,10 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
+	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/dispatch"
 	"github.com/coder/coder/v2/coderd/notifications/types"
@@ -37,17 +39,18 @@ func TestBasicNotificationRoundtrip(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(closeFunc)
 
-	sqlDB, err := sql.Open("postgres", connectionURL)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		sqlDB.Close()
-	})
-
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 	t.Cleanup(cancel)
-	db := database.New(sqlDB)
-
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true, IgnoredErrorIs: []error{}}).Leveled(slog.LevelDebug)
+
+	sqlDB, err := sql.Open("postgres", connectionURL)
+	require.NoError(t, err)
+	defer sqlDB.Close()
+
+	db := database.New(sqlDB)
+	ps, err := pubsub.New(ctx, logger, sqlDB, connectionURL)
+	require.NoError(t, err)
+	defer ps.Close()
 
 	// given
 	dispatcher := &fakeDispatcher{}
@@ -55,21 +58,21 @@ func TestBasicNotificationRoundtrip(t *testing.T) {
 	require.NoError(t, err)
 
 	cfg := codersdk.NotificationsConfig{}
-	manager := notifications.NewManager(cfg, db, logger, nil, fakeDispatchers)
+	manager := notifications.NewManager(cfg, ps, db, logger, nil, fakeDispatchers)
 	t.Cleanup(func() {
 		require.NoError(t, manager.Stop(ctx))
 	})
 
+	client := coderdtest.New(t, &coderdtest.Options{Database: db, Pubsub: ps})
+	user := coderdtest.CreateFirstUser(t, client)
+
 	// when
-	sid, err := manager.Enqueue(ctx, notifications.TemplateWorkspaceDeleted, database.NotificationReceiverSmtp,
-		types.Labels{"type": "success"}, "test")
+	sid, err := manager.Enqueue(ctx, user.UserID, notifications.TemplateWorkspaceDeleted, database.NotificationReceiverSmtp, types.Labels{"type": "success"}, "test")
 	require.NoError(t, err)
-	fid, err := manager.Enqueue(ctx, notifications.TemplateWorkspaceDeleted, database.NotificationReceiverSmtp,
-		types.Labels{"type": "failure"}, "test")
+	fid, err := manager.Enqueue(ctx, user.UserID, notifications.TemplateWorkspaceDeleted, database.NotificationReceiverSmtp, types.Labels{"type": "failure"}, "test")
 	require.NoError(t, err)
-	_, err = manager.Enqueue(ctx, notifications.TemplateWorkspaceDeleted, database.NotificationReceiverSmtp,
-		types.Labels{}, "test") // no "type" field
-	require.NoError(t, err) // validation error is not returned immediately, only on dispatch
+	_, err = manager.Enqueue(ctx, user.UserID, notifications.TemplateWorkspaceDeleted, database.NotificationReceiverSmtp, types.Labels{}, "test") // no "type" field
+	require.NoError(t, err)                                                                                                                       // validation error is not returned immediately, only on dispatch
 
 	manager.StartNotifiers(ctx, 1)
 
@@ -87,16 +90,18 @@ func TestSMTPDispatch(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(closeFunc)
 
-	sqlDB, err := sql.Open("postgres", connectionURL)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		sqlDB.Close()
-	})
-
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 	t.Cleanup(cancel)
-	db := database.New(sqlDB)
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true, IgnoredErrorIs: []error{}}).Leveled(slog.LevelDebug)
+
+	sqlDB, err := sql.Open("postgres", connectionURL)
+	require.NoError(t, err)
+	defer sqlDB.Close()
+
+	db := database.New(sqlDB)
+	ps, err := pubsub.New(ctx, logger, sqlDB, connectionURL)
+	require.NoError(t, err)
+	defer ps.Close()
 
 	// start mock SMTP server
 	server := smtpmock.New(smtpmock.ConfigurationAttr{
@@ -121,14 +126,20 @@ func TestSMTPDispatch(t *testing.T) {
 	fakeDispatchers, err := notifications.NewProviderRegistry[notifications.Dispatcher](dispatcher)
 	require.NoError(t, err)
 
-	manager := notifications.NewManager(codersdk.NotificationsConfig{}, db, logger, nil, fakeDispatchers)
+	manager := notifications.NewManager(codersdk.NotificationsConfig{}, ps, db, logger, nil, fakeDispatchers)
 	t.Cleanup(func() {
 		require.NoError(t, manager.Stop(ctx))
 	})
 
+	client := coderdtest.New(t, &coderdtest.Options{Database: db, Pubsub: ps})
+	first := coderdtest.CreateFirstUser(t, client)
+	_, user := coderdtest.CreateAnotherUserMutators(t, client, first.OrganizationID, nil, func(r *codersdk.CreateUserRequest) {
+		r.Email = "bob@coder.com"
+		r.Username = "bob"
+	})
+
 	// when
-	_, err = manager.Enqueue(ctx, notifications.TemplateWorkspaceDeleted, database.NotificationReceiverSmtp,
-		types.Labels{"to": "bob@coder.com"}, "test")
+	msgID, err := manager.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted, database.NotificationReceiverSmtp, types.Labels{}, "test")
 	require.NoError(t, err)
 
 	manager.StartNotifiers(ctx, 1)
@@ -142,7 +153,9 @@ func TestSMTPDispatch(t *testing.T) {
 
 	msgs := server.MessagesAndPurge()
 	require.Len(t, msgs, 1)
-	require.Contains(t, msgs[0].MailfromRequest(), from)
+	require.Contains(t, msgs[0].MsgRequest(), fmt.Sprintf("From: %s", from))
+	require.Contains(t, msgs[0].MsgRequest(), fmt.Sprintf("To: %s", user.Email))
+	require.Contains(t, msgs[0].MsgRequest(), fmt.Sprintf("Message-Id: %s", msgID))
 }
 
 type fakeDispatcher struct {

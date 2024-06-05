@@ -51,12 +51,13 @@ CREATE TABLE notification_messages
 (
     id                       uuid                        NOT NULL,
     notification_template_id uuid                        NOT NULL,
+    user_id                  uuid                        NOT NULL,
     receiver                 notification_receiver       NOT NULL,
     status                   notification_message_status NOT NULL DEFAULT 'pending'::notification_message_status,
     status_reason            text,
     created_by               text                        NOT NULL,
     input                    jsonb                       NOT NULL,
-    attempt_count            int,
+    attempt_count            int                                  DEFAULT 0,
     targets                  uuid[],
     created_at               timestamp with time zone    NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at               timestamp with time zone,
@@ -67,6 +68,7 @@ CREATE TABLE notification_messages
     dedupe_hash              text                        NOT NULL,
     PRIMARY KEY (id),
     FOREIGN KEY (notification_template_id) REFERENCES notification_templates (id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
     UNIQUE (dedupe_hash)
 );
 
@@ -96,4 +98,5 @@ CREATE TABLE notification_preferences
 -- TODO: autogenerate constants which reference the UUIDs
 INSERT INTO notification_templates (id, name, enabled, title_template, body_template, "group")
 VALUES ('f517da0b-cdc9-410f-ab89-a86107c420ed', 'Workspace Deleted', true, 'Workspace "{{.name}}" deleted',
-        'Your workspace "{{.name}}" was deleted.', 'Workspace Events');
+        'Hi {{.user_name}}<br>Your workspace <strong>{{.name}}</strong> was deleted.<br>The specified reason was <strong>{{.reason}}</strong>.',
+        'Workspace Events');

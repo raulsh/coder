@@ -559,12 +559,13 @@ ALTER SEQUENCE licenses_id_seq OWNED BY licenses.id;
 CREATE TABLE notification_messages (
     id uuid NOT NULL,
     notification_template_id uuid NOT NULL,
+    user_id uuid NOT NULL,
     receiver notification_receiver NOT NULL,
     status notification_message_status DEFAULT 'pending'::notification_message_status NOT NULL,
     status_reason text,
     created_by text NOT NULL,
     input jsonb NOT NULL,
-    attempt_count integer,
+    attempt_count integer DEFAULT 0,
     targets uuid[],
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at timestamp with time zone,
@@ -1848,6 +1849,9 @@ ALTER TABLE ONLY jfrog_xray_scans
 
 ALTER TABLE ONLY notification_messages
     ADD CONSTRAINT notification_messages_notification_template_id_fkey FOREIGN KEY (notification_template_id) REFERENCES notification_templates(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY notification_messages
+    ADD CONSTRAINT notification_messages_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY notification_preferences
     ADD CONSTRAINT notification_preferences_notification_template_id_fkey FOREIGN KEY (notification_template_id) REFERENCES notification_templates(id) ON DELETE CASCADE;

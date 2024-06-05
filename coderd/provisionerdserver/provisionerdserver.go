@@ -14,6 +14,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	semconv "go.opentelemetry.io/otel/semconv/v1.14.0"
@@ -1392,6 +1393,7 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 				// This is for deleting a workspace!
 				return nil
 			}
+			s.notifyWorkspaceDeleted(ctx, workspace, workspaceBuild)
 
 			err = db.UpdateWorkspaceDeletedByID(ctx, database.UpdateWorkspaceDeletedByIDParams{
 				ID:      workspaceBuild.WorkspaceID,
@@ -1507,6 +1509,39 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 
 	s.Logger.Debug(ctx, "stage CompleteJob done", slog.F("job_id", jobID))
 	return &proto.Empty{}, nil
+}
+
+func (s *server) notifyWorkspaceDeleted(ctx context.Context, workspace database.Workspace, build database.WorkspaceBuild) {
+	var reason string
+	if build.Reason.Valid() {
+		switch build.Reason {
+		case database.BuildReasonInitiator:
+			reason = "initiated by user"
+		case database.BuildReasonAutodelete:
+			reason = "autodeleted due to dormancy"
+		default:
+			reason = string(build.Reason)
+		}
+	}
+
+	data, err := json.Marshal(notifications.EnqueueNotifyMessage{
+		UserID:   workspace.OwnerID,
+		Template: notifications.TemplateWorkspaceDeleted,
+		Input: map[string]string{
+			"name":   workspace.Name,
+			"reason": reason,
+		},
+		CreatedBy: "provisionerdserver",
+		TargetIDs: []uuid.UUID{workspace.ID, workspace.OwnerID, workspace.TemplateID, workspace.OrganizationID},
+	})
+	if err != nil {
+		s.Logger.Warn(ctx, "marshal notification message", slog.Error(err))
+		return
+	}
+	if err = s.Pubsub.Publish(notifications.EnqueueChannel(), data); err != nil {
+		s.Logger.Warn(ctx, "failed to enqueue notification message", slog.Error(err))
+		return
+	}
 }
 
 func (s *server) startTrace(ctx context.Context, name string, opts ...trace.SpanStartOption) (context.Context, trace.Span) {

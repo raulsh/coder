@@ -3241,10 +3241,24 @@ WITH acquired AS (
                                  SKIP LOCKED
                          LIMIT $6)
             RETURNING id)
-SELECT nm.id, nm.input, nm.targets, nm.receiver, nt.name AS template_name, nt.title_template, nt.body_template
+SELECT
+    -- message
+    nm.id,
+    nm.input,
+    nm.targets,
+    nm.receiver,
+    -- template
+    nt.name                                                    AS template_name,
+    nt.title_template,
+    nt.body_template,
+    -- user
+    nm.user_id,
+    COALESCE(NULLIF(u.name, ''), NULLIF(u.username, ''))::text AS user_name,
+    u.email                                                    AS user_email
 FROM acquired
          JOIN notification_messages nm ON acquired.id = nm.id
          JOIN notification_templates nt ON nm.notification_template_id = nt.id
+         JOIN users u ON nm.user_id = u.id
 `
 
 type AcquireNotificationMessagesParams struct {
@@ -3264,6 +3278,9 @@ type AcquireNotificationMessagesRow struct {
 	TemplateName  string               `db:"template_name" json:"template_name"`
 	TitleTemplate string               `db:"title_template" json:"title_template"`
 	BodyTemplate  string               `db:"body_template" json:"body_template"`
+	UserID        uuid.UUID            `db:"user_id" json:"user_id"`
+	UserName      string               `db:"user_name" json:"user_name"`
+	UserEmail     string               `db:"user_email" json:"user_email"`
 }
 
 // Acquires the lease for a given count of notification messages that aren't already locked, or ones which are leased
@@ -3296,6 +3313,9 @@ func (q *sqlQuerier) AcquireNotificationMessages(ctx context.Context, arg Acquir
 			&i.TemplateName,
 			&i.TitleTemplate,
 			&i.BodyTemplate,
+			&i.UserID,
+			&i.UserName,
+			&i.UserEmail,
 		); err != nil {
 			return nil, err
 		}
@@ -3321,6 +3341,7 @@ SET updated_at       = NOW(),
     status           = subquery.status,
     status_reason    = subquery.status_reason,
     failed_at        = subquery.failed_at,
+    leased_until     = NULL,
     next_retry_after = NOW() + INTERVAL '10m' -- TODO: configurable? This will also be irrelevant for messages which have exceeded their attempts
 FROM (SELECT id, status, status_reason, failed_at
       FROM new_values) AS subquery
@@ -3376,6 +3397,7 @@ WITH new_values AS (SELECT UNNEST($1::uuid[])             AS id,
                            UNNEST($2::timestamptz[]) AS sent_at)
 UPDATE notification_messages
 SET updated_at       = NOW(),
+    attempt_count    = attempt_count + 1,
     status           = 'sent'::notification_message_status,
     sent_at          = subquery.sent_at,
     leased_until     = NULL,
@@ -3431,19 +3453,21 @@ func (q *sqlQuerier) DeleteOldNotificationMessages(ctx context.Context, maxAttem
 }
 
 const enqueueNotificationMessage = `-- name: EnqueueNotificationMessage :one
-INSERT INTO notification_messages (id, notification_template_id, receiver, input, targets, created_by)
+INSERT INTO notification_messages (id, notification_template_id, user_id, receiver, input, targets, created_by)
 VALUES ($1,
         $2,
-        $3::notification_receiver,
-        $4::jsonb,
-        $5,
-        $6)
-RETURNING id, notification_template_id, receiver, status, status_reason, created_by, input, attempt_count, targets, created_at, updated_at, leased_until, next_retry_after, sent_at, failed_at, dedupe_hash
+        $3,
+        $4::notification_receiver,
+        $5::jsonb,
+        $6,
+        $7)
+RETURNING id, notification_template_id, user_id, receiver, status, status_reason, created_by, input, attempt_count, targets, created_at, updated_at, leased_until, next_retry_after, sent_at, failed_at, dedupe_hash
 `
 
 type EnqueueNotificationMessageParams struct {
 	ID                     uuid.UUID            `db:"id" json:"id"`
 	NotificationTemplateID uuid.UUID            `db:"notification_template_id" json:"notification_template_id"`
+	UserID                 uuid.UUID            `db:"user_id" json:"user_id"`
 	Receiver               NotificationReceiver `db:"receiver" json:"receiver"`
 	Input                  json.RawMessage      `db:"input" json:"input"`
 	Targets                []uuid.UUID          `db:"targets" json:"targets"`
@@ -3454,6 +3478,7 @@ func (q *sqlQuerier) EnqueueNotificationMessage(ctx context.Context, arg Enqueue
 	row := q.db.QueryRowContext(ctx, enqueueNotificationMessage,
 		arg.ID,
 		arg.NotificationTemplateID,
+		arg.UserID,
 		arg.Receiver,
 		arg.Input,
 		pq.Array(arg.Targets),
@@ -3463,6 +3488,7 @@ func (q *sqlQuerier) EnqueueNotificationMessage(ctx context.Context, arg Enqueue
 	err := row.Scan(
 		&i.ID,
 		&i.NotificationTemplateID,
+		&i.UserID,
 		&i.Receiver,
 		&i.Status,
 		&i.StatusReason,

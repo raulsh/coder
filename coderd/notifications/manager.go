@@ -3,9 +3,11 @@ package notifications
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"sync"
 	"time"
 
+	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/google/uuid"
 	"golang.org/x/sync/errgroup"
@@ -42,9 +44,11 @@ const (
 // forever, such as if we split notifiers out into separate targets for greater processing throughput; in this case we
 // will need an alternative mechanism for handling backpressure.
 type Manager struct {
-	cfg   codersdk.NotificationsConfig
-	store Store
-	log   slog.Logger
+	cfg codersdk.NotificationsConfig
+
+	pubsub pubsub.Pubsub
+	store  Store
+	log    slog.Logger
 
 	notifiers  []*notifier
 	notifierMu sync.Mutex
@@ -57,14 +61,14 @@ type Manager struct {
 	done   chan any
 }
 
-func NewManager(cfg codersdk.NotificationsConfig, store Store, log slog.Logger, rp *ProviderRegistry[Renderer], dp *ProviderRegistry[Dispatcher]) *Manager {
+func NewManager(cfg codersdk.NotificationsConfig, ps pubsub.Pubsub, store Store, log slog.Logger, rp *ProviderRegistry[Renderer], dp *ProviderRegistry[Dispatcher]) *Manager {
 	if rp == nil {
 		rp = DefaultRenderers(cfg, log)
 	}
 	if dp == nil {
 		dp = DefaultDispatchers(cfg, log)
 	}
-	return &Manager{cfg: cfg, store: store, stop: make(chan any), done: make(chan any), log: log, rendererProvider: rp, dispatchersProvider: dp}
+	return &Manager{cfg: cfg, pubsub: ps, store: store, stop: make(chan any), done: make(chan any), log: log, rendererProvider: rp, dispatchersProvider: dp}
 }
 
 // DefaultRenderers builds a set of known renderers and panics if any error occurs.
@@ -116,6 +120,14 @@ func (m *Manager) loop(ctx context.Context, nc int) error {
 		return xerrors.Errorf("notifications: %w", ctx.Err())
 	default:
 	}
+
+	// Subscribe to enqueue events.
+	cancelEnqueueSubscribe, err := m.pubsub.Subscribe(EnqueueChannel(), m.enqueueNotification)
+	if err != nil {
+		m.log.Error(ctx, "cannot subscribe to notification", slog.Error(err))
+		return err
+	}
+	defer cancelEnqueueSubscribe()
 
 	var eg errgroup.Group
 
@@ -172,14 +184,25 @@ func (m *Manager) loop(ctx context.Context, nc int) error {
 		}
 	})
 
-	err := eg.Wait()
+	err = eg.Wait()
 	if err != nil {
 		m.log.Error(ctx, "manager loop exited with error", slog.Error(err))
 	}
 	return err
 }
 
-func (m *Manager) Enqueue(ctx context.Context, templateId uuid.UUID, r database.NotificationReceiver, labels types.Labels, createdBy string, targets ...uuid.UUID) (uuid.UUID, error) {
+func (m *Manager) enqueueNotification(ctx context.Context, message []byte) {
+	// TODO: plumbing to determine which receiver(s), if any, should be used for this notification template
+	var req EnqueueNotifyMessage
+	if err := json.Unmarshal(message, &req); err != nil {
+		m.log.Warn(ctx, "could not unmarshal notification message request", slog.Error(err), slog.F("msg", message))
+		return
+	}
+
+	_, _ = m.Enqueue(ctx, req.UserID, req.Template, database.NotificationReceiverSmtp, req.Input, req.CreatedBy, req.TargetIDs...)
+}
+
+func (m *Manager) Enqueue(ctx context.Context, userID, templateID uuid.UUID, r database.NotificationReceiver, labels types.Labels, createdBy string, targets ...uuid.UUID) (uuid.UUID, error) {
 	input, err := json.Marshal(labels)
 	if err != nil {
 		return uuid.UUID{}, xerrors.Errorf("failed encoding input labels: %w", err)
@@ -187,7 +210,8 @@ func (m *Manager) Enqueue(ctx context.Context, templateId uuid.UUID, r database.
 
 	msg, err := m.store.EnqueueNotificationMessage(ctx, database.EnqueueNotificationMessageParams{
 		ID:                     uuid.New(),
-		NotificationTemplateID: templateId,
+		UserID:                 userID,
+		NotificationTemplateID: templateID,
 		Receiver:               r,
 		Input:                  input,
 		Targets:                targets,
@@ -355,4 +379,11 @@ func newFailedDispatch(notifier int, msg uuid.UUID, err error) dispatchResult {
 		ts:       time.Now(),
 		err:      err,
 	}
+}
+
+// EnqueueChannel is a PostgreSQL NOTIFY channel to listen for notification enqueues on.
+// This channel is used to centralize notification enqueueing instead of having each part of the system be responsible
+// for knowing how to enqueue messages.
+func EnqueueChannel() string {
+	return fmt.Sprintf("notifications.enqueue")
 }

@@ -94,6 +94,9 @@ func (n *notifier) process(ctx context.Context, success chan<- dispatchResult, f
 	}
 
 	n.log.Debug(ctx, "dequeued messages", slog.F("count", len(msgs)))
+	if len(msgs) == 0 {
+		return nil
+	}
 
 	var eg errgroup.Group
 	for _, msg := range msgs {
@@ -160,6 +163,11 @@ func (n *notifier) prepare(ctx context.Context, msg database.AcquireNotification
 	input.Set("notifier_id", fmt.Sprintf("%d", n.id))
 	input.SetValue("msg_id", msg.ID)
 
+	// Additional information.
+	input.SetValue("user_id", msg.UserID)
+	input.Set("user_email", msg.UserEmail)
+	input.Set("user_name", msg.UserName)
+
 	var err error
 	switch msg.Receiver {
 	case database.NotificationReceiverSmtp:
@@ -172,9 +180,11 @@ func (n *notifier) prepare(ctx context.Context, msg database.AcquireNotification
 			return nil, xerrors.Errorf("SMTP render body: %w", err)
 		}
 
+		// Set required labels.
 		input.Merge(types.Labels{
 			"subject": subject,
 			"body":    body,
+			"to":      msg.UserEmail,
 		})
 	default:
 		err = xerrors.Errorf("unrecognized receiver: %s", msg.Receiver)

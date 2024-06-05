@@ -2011,6 +2011,7 @@ type License struct {
 type NotificationMessage struct {
 	ID                     uuid.UUID                 `db:"id" json:"id"`
 	NotificationTemplateID uuid.UUID                 `db:"notification_template_id" json:"notification_template_id"`
+	UserID                 uuid.UUID                 `db:"user_id" json:"user_id"`
 	Receiver               NotificationReceiver      `db:"receiver" json:"receiver"`
 	Status                 NotificationMessageStatus `db:"status" json:"status"`
 	StatusReason           sql.NullString            `db:"status_reason" json:"status_reason"`

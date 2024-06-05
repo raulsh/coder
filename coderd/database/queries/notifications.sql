@@ -9,9 +9,10 @@ VALUES ($1,
 RETURNING *;
 
 -- name: EnqueueNotificationMessage :one
-INSERT INTO notification_messages (id, notification_template_id, receiver, input, targets, created_by)
+INSERT INTO notification_messages (id, notification_template_id, user_id, receiver, input, targets, created_by)
 VALUES (@id,
         @notification_template_id,
+        @user_id,
         @receiver::notification_receiver,
         @input::jsonb,
         @targets,
@@ -73,10 +74,24 @@ WITH acquired AS (
                                  SKIP LOCKED
                          LIMIT sqlc.arg('count'))
             RETURNING id)
-SELECT nm.id, nm.input, nm.targets, nm.receiver, nt.name AS template_name, nt.title_template, nt.body_template
+SELECT
+    -- message
+    nm.id,
+    nm.input,
+    nm.targets,
+    nm.receiver,
+    -- template
+    nt.name                                                    AS template_name,
+    nt.title_template,
+    nt.body_template,
+    -- user
+    nm.user_id,
+    COALESCE(NULLIF(u.name, ''), NULLIF(u.username, ''))::text AS user_name,
+    u.email                                                    AS user_email
 FROM acquired
          JOIN notification_messages nm ON acquired.id = nm.id
-         JOIN notification_templates nt ON nm.notification_template_id = nt.id;
+         JOIN notification_templates nt ON nm.notification_template_id = nt.id
+         JOIN users u ON nm.user_id = u.id;
 
 -- name: BulkMarkNotificationMessagesFailed :execrows
 WITH new_values AS (SELECT UNNEST(@ids::uuid[])                             AS id,
@@ -89,6 +104,7 @@ SET updated_at       = NOW(),
     status           = subquery.status,
     status_reason    = subquery.status_reason,
     failed_at        = subquery.failed_at,
+    leased_until     = NULL,
     next_retry_after = NOW() + INTERVAL '10m' -- TODO: configurable? This will also be irrelevant for messages which have exceeded their attempts
 FROM (SELECT id, status, status_reason, failed_at
       FROM new_values) AS subquery
@@ -109,6 +125,7 @@ WITH new_values AS (SELECT UNNEST(@ids::uuid[])             AS id,
                            UNNEST(@sent_ats::timestamptz[]) AS sent_at)
 UPDATE notification_messages
 SET updated_at       = NOW(),
+    attempt_count    = attempt_count + 1,
     status           = 'sent'::notification_message_status,
     sent_at          = subquery.sent_at,
     leased_until     = NULL,
