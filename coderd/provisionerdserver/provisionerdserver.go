@@ -1524,24 +1524,11 @@ func (s *server) notifyWorkspaceDeleted(ctx context.Context, workspace database.
 		}
 	}
 
-	data, err := json.Marshal(notifications.EnqueueNotifyMessage{
-		UserID:   workspace.OwnerID,
-		Template: notifications.TemplateWorkspaceDeleted,
-		Input: map[string]string{
+	_, _ = notifications.Enqueue(ctx, workspace.OwnerID, notifications.TemplateWorkspaceDeleted, database.NotificationMethodSmtp,
+		map[string]string{
 			"name":   workspace.Name,
 			"reason": reason,
-		},
-		CreatedBy: "provisionerdserver",
-		TargetIDs: []uuid.UUID{workspace.ID, workspace.OwnerID, workspace.TemplateID, workspace.OrganizationID},
-	})
-	if err != nil {
-		s.Logger.Warn(ctx, "marshal notification message", slog.Error(err))
-		return
-	}
-	if err = s.Pubsub.Publish(notifications.EnqueueChannel(), data); err != nil {
-		s.Logger.Warn(ctx, "failed to enqueue notification message", slog.Error(err))
-		return
-	}
+		}, "provisionerdserver", workspace.ID, workspace.OwnerID, workspace.TemplateID, workspace.OrganizationID)
 }
 
 func (s *server) startTrace(ctx context.Context, name string, opts ...trace.SpanStartOption) (context.Context, trace.Span) {

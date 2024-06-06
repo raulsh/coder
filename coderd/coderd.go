@@ -36,8 +36,6 @@ import (
 	"tailscale.com/types/key"
 	"tailscale.com/util/singleflight"
 
-	"github.com/coder/coder/v2/coderd/notifications"
-
 	"cdr.dev/slog"
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/buildinfo"
@@ -209,7 +207,6 @@ type Options struct {
 	DatabaseRolluper *dbrollup.Rolluper
 	// WorkspaceUsageTracker tracks workspace usage by the CLI.
 	WorkspaceUsageTracker *workspaceusage.Tracker
-	NotificationsManager  *notifications.Manager
 }
 
 // @title Coder API

@@ -988,7 +988,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			notificationsManager := notifications.NewManager(cfg, options.Pubsub, options.Database,
 				logger.Named("notifications-manager"), nil, nil)
 			notificationsManager.StartNotifiers(ctx, 3) // TODO: configurable
-			options.NotificationsManager = notificationsManager
+			notifications.Register(notificationsManager)
 
 			// Wrap the server in middleware that redirects to the access URL if
 			// the request is not to a local IP.

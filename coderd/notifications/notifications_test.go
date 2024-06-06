@@ -49,27 +49,29 @@ func TestBasicNotificationRoundtrip(t *testing.T) {
 	require.NoError(t, err)
 
 	cfg := codersdk.NotificationsConfig{}
-	manager := notifications.NewManager(cfg, ps, db, logger, nil, fakeDispatchers)
+	manager := notifications.NewManager(cfg, db, logger, nil, fakeDispatchers)
 	t.Cleanup(func() {
 		require.NoError(t, manager.Stop(ctx))
 	})
+	notifications.Register(manager)
 
 	client := coderdtest.New(t, &coderdtest.Options{Database: db, Pubsub: ps})
 	user := coderdtest.CreateFirstUser(t, client)
 
 	// when
-	sid, err := manager.Enqueue(ctx, user.UserID, notifications.TemplateWorkspaceDeleted, database.NotificationMethodSmtp, types.Labels{"type": "success"}, "test")
+	sid, err := notifications.Enqueue(ctx, user.UserID, notifications.TemplateWorkspaceDeleted, database.NotificationMethodSmtp, types.Labels{"type": "success"}, "test")
 	require.NoError(t, err)
-	fid, err := manager.Enqueue(ctx, user.UserID, notifications.TemplateWorkspaceDeleted, database.NotificationMethodSmtp, types.Labels{"type": "failure"}, "test")
+	fid, err := notifications.Enqueue(ctx, user.UserID, notifications.TemplateWorkspaceDeleted, database.NotificationMethodSmtp, types.Labels{"type": "failure"}, "test")
 	require.NoError(t, err)
-	_, err = manager.Enqueue(ctx, user.UserID, notifications.TemplateWorkspaceDeleted, database.NotificationMethodSmtp, types.Labels{}, "test") // no "type" field
-	require.NoError(t, err)                                                                                                                     // validation error is not returned immediately, only on dispatch
+	_, err = notifications.Enqueue(ctx, user.UserID, notifications.TemplateWorkspaceDeleted, database.NotificationMethodSmtp, types.Labels{}, "test") // no "type" field
+	require.NoError(t, err)                                                                                                                           // validation error is not returned immediately, only on dispatch
 
+	// TODO: can be reordered once tick interval is configurable so we don't have to wait long if no messages are enqueued yet.
 	manager.StartNotifiers(ctx, 1)
 
 	// then
-	require.Eventually(t, func() bool { return dispatcher.succeeded == sid }, testutil.WaitLong, testutil.IntervalMedium)
-	require.Eventually(t, func() bool { return dispatcher.failed == fid }, testutil.WaitLong, testutil.IntervalMedium)
+	require.Eventually(t, func() bool { return dispatcher.succeeded == sid.String() }, testutil.WaitLong, testutil.IntervalMedium)
+	require.Eventually(t, func() bool { return dispatcher.failed == fid.String() }, testutil.WaitLong, testutil.IntervalMedium)
 }
 
 func TestSMTPDispatch(t *testing.T) {
@@ -102,10 +104,11 @@ func TestSMTPDispatch(t *testing.T) {
 	fakeDispatchers, err := notifications.NewProviderRegistry[notifications.Dispatcher](dispatcher)
 	require.NoError(t, err)
 
-	manager := notifications.NewManager(cfg, ps, db, logger, nil, fakeDispatchers)
+	manager := notifications.NewManager(cfg, db, logger, nil, fakeDispatchers)
 	t.Cleanup(func() {
 		require.NoError(t, manager.Stop(ctx))
 	})
+	notifications.Register(manager)
 
 	client := coderdtest.New(t, &coderdtest.Options{Database: db, Pubsub: ps})
 	first := coderdtest.CreateFirstUser(t, client)
@@ -115,7 +118,7 @@ func TestSMTPDispatch(t *testing.T) {
 	})
 
 	// when
-	msgID, err := manager.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted, database.NotificationMethodSmtp, types.Labels{}, "test")
+	msgID, err := notifications.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted, database.NotificationMethodSmtp, types.Labels{}, "test")
 	require.NoError(t, err)
 
 	manager.StartNotifiers(ctx, 1)
@@ -142,7 +145,7 @@ func TestWebhookDispatch(t *testing.T) {
 	ctx, logger, db, ps := setup(t)
 
 	var (
-		msgID uuid.UUID
+		msgID *uuid.UUID
 		input types.Labels
 	)
 
@@ -155,7 +158,7 @@ func TestWebhookDispatch(t *testing.T) {
 
 		require.Equal(t, "application/json", r.Header.Get("Content-Type"))
 		require.EqualValues(t, 1, payload.Version)
-		require.Equal(t, msgID, payload.MsgID)
+		require.Equal(t, *msgID, payload.MsgID)
 		require.Equal(t, input.Get("a"), "b")
 		require.Equal(t, input.Get("c"), "d")
 		require.Equal(t, payload.NotificationType, "Workspace Deleted")
@@ -176,10 +179,11 @@ func TestWebhookDispatch(t *testing.T) {
 			Endpoint: *serpent.URLOf(endpoint),
 		},
 	}
-	manager := notifications.NewManager(cfg, ps, db, logger, nil, nil)
+	manager := notifications.NewManager(cfg, db, logger, nil, nil)
 	t.Cleanup(func() {
 		require.NoError(t, manager.Stop(ctx))
 	})
+	notifications.Register(manager)
 
 	client := coderdtest.New(t, &coderdtest.Options{Database: db, Pubsub: ps})
 	first := coderdtest.CreateFirstUser(t, client)
@@ -193,7 +197,7 @@ func TestWebhookDispatch(t *testing.T) {
 		"a": "b",
 		"c": "d",
 	}
-	msgID, err = manager.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted, database.NotificationMethodWebhook, input, "test")
+	msgID, err = notifications.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted, database.NotificationMethodWebhook, input, "test")
 	require.NoError(t, err)
 
 	manager.StartNotifiers(ctx, 1)
@@ -230,8 +234,8 @@ func setup(t *testing.T) (context.Context, slog.Logger, database.Store, *pubsub.
 }
 
 type fakeDispatcher struct {
-	succeeded uuid.UUID
-	failed    uuid.UUID
+	succeeded string
+	failed    string
 }
 
 func (f *fakeDispatcher) Name() string {
@@ -245,9 +249,9 @@ func (f *fakeDispatcher) Validate(input types.Labels) (bool, []string) {
 
 func (f *fakeDispatcher) Send(ctx context.Context, msgID uuid.UUID, input types.Labels) (bool, error) {
 	if input.Get("type") == "success" {
-		f.succeeded = msgID
+		f.succeeded = msgID.String()
 	} else {
-		f.failed = msgID
+		f.failed = msgID.String()
 	}
 	return false, nil
 }
