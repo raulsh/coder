@@ -14,7 +14,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/google/uuid"
 	"github.com/lib/pq"
 	"golang.org/x/exp/constraints"
@@ -907,6 +906,8 @@ func (*FakeQuerier) AcquireLock(_ context.Context, _ int64) error {
 	return xerrors.New("AcquireLock must only be called within a transaction")
 }
 
+// AcquireNotificationMessages implements the *basic* business logic, but is *not* exhaustive or meant to be 1:1 with
+// the real AcquireNotificationMessages query.
 func (q *FakeQuerier) AcquireNotificationMessages(ctx context.Context, arg database.AcquireNotificationMessagesParams) ([]database.AcquireNotificationMessagesRow, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
@@ -922,11 +923,16 @@ func (q *FakeQuerier) AcquireNotificationMessages(ctx context.Context, arg datab
 			break
 		}
 
+		acquirableStatuses := []database.NotificationMessageStatus{database.NotificationMessageStatusPending, database.NotificationMessageStatusFailed}
+		if !slices.Contains(acquirableStatuses, nm.Status) {
+			continue
+		}
+
 		// Mimic mutation in database query.
 		nm.UpdatedAt = sql.NullTime{Time: time.Now(), Valid: true}
 		nm.Status = database.NotificationMessageStatusEnqueued
 		nm.StatusReason = sql.NullString{String: fmt.Sprintf("Enqueued by notifier %d", arg.NotifierID), Valid: true}
-		nm.LeasedUntil = sql.NullTime{Time: time.Now().Add(notifications.NotifierLeasePeriod), Valid: true}
+		nm.LeasedUntil = sql.NullTime{Time: time.Now().Add(time.Second * time.Duration(arg.LeaseSeconds)), Valid: true}
 
 		out = append(out, database.AcquireNotificationMessagesRow{
 			ID:            nm.ID,
@@ -1807,6 +1813,8 @@ func (q *FakeQuerier) EnqueueNotificationMessage(ctx context.Context, arg databa
 		CreatedAt: time.Now(),
 		Status:    database.NotificationMessageStatusPending,
 	}
+
+	q.notificationMessages = append(q.notificationMessages, nm)
 
 	return nm, err
 }

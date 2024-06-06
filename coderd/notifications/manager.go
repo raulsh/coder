@@ -25,16 +25,21 @@ const (
 	RetryInterval        = time.Minute * 5
 	BulkUpdateBufferSize = 50
 	BulkUpdateInterval   = time.Second
+	DeletionPeriod       = time.Hour * 24 * 7
 )
 
 var (
-	// Singleton instance which will be set from a call to Register().
-	// We use a Singleton to centralize the logic around enqueueing notifications, instead of requiring that an instance
-	// of the Manager be passed around the codebase.
-	instance *Manager
+	singleton *Manager
 
 	SingletonNotRegisteredErr = xerrors.New("singleton not registered")
 )
+
+// RegisterInstance receives a Manager reference to act as a Singleton.
+// We use a Singleton to centralize the logic around enqueueing notifications, instead of requiring that an instance
+// of the Manager be passed around the codebase.
+func RegisterInstance(m *Manager) {
+	singleton = m
+}
 
 // Manager manages all notifications being enqueued and dispatched.
 //
@@ -77,10 +82,6 @@ func NewManager(cfg codersdk.NotificationsConfig, store Store, log slog.Logger, 
 		dp = DefaultDispatchers(cfg, log)
 	}
 	return &Manager{cfg: cfg, store: store, stop: make(chan any), done: make(chan any), log: log, rendererProvider: rp, dispatchersProvider: dp}
-}
-
-func Register(m *Manager) {
-	instance = m
 }
 
 // DefaultRenderers builds a set of known renderers and panics if any error occurs.
@@ -206,8 +207,9 @@ func (m *Manager) loop(ctx context.Context, notifiers int) error {
 
 // Enqueue queues a notification message for later delivery.
 // Messages will be dequeued by a notifier later and dispatched.
+// TODO: don't accept method here; determine which method to use from notification_preferences.
 func Enqueue(ctx context.Context, userID, templateID uuid.UUID, method database.NotificationMethod, labels types.Labels, createdBy string, targets ...uuid.UUID) (*uuid.UUID, error) {
-	if instance == nil {
+	if singleton == nil {
 		return nil, SingletonNotRegisteredErr
 	}
 
@@ -217,7 +219,7 @@ func Enqueue(ctx context.Context, userID, templateID uuid.UUID, method database.
 	}
 
 	id := uuid.New()
-	msg, err := instance.store.EnqueueNotificationMessage(ctx, database.EnqueueNotificationMessageParams{
+	msg, err := singleton.store.EnqueueNotificationMessage(ctx, database.EnqueueNotificationMessageParams{
 		ID:                     id,
 		UserID:                 userID,
 		NotificationTemplateID: templateID,
@@ -230,7 +232,7 @@ func Enqueue(ctx context.Context, userID, templateID uuid.UUID, method database.
 		return nil, xerrors.Errorf("failed to enqueue notification: %w", err)
 	}
 
-	instance.log.Debug(ctx, "enqueued notification", slog.F("msg_id", msg.ID))
+	singleton.log.Debug(ctx, "enqueued notification", slog.F("msg_id", msg.ID))
 	return &id, nil
 }
 

@@ -985,10 +985,10 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 
 			// Manage notifications
 			cfg := options.DeploymentValues.Notifications
-			notificationsManager := notifications.NewManager(cfg, options.Pubsub, options.Database,
+			notificationsManager := notifications.NewManager(cfg, options.Database,
 				logger.Named("notifications-manager"), nil, nil)
 			notificationsManager.StartNotifiers(ctx, 3) // TODO: configurable
-			notifications.Register(notificationsManager)
+			notifications.RegisterInstance(notificationsManager)
 
 			// Wrap the server in middleware that redirects to the access URL if
 			// the request is not to a local IP.

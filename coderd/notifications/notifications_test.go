@@ -50,10 +50,10 @@ func TestBasicNotificationRoundtrip(t *testing.T) {
 
 	cfg := codersdk.NotificationsConfig{}
 	manager := notifications.NewManager(cfg, db, logger, nil, fakeDispatchers)
+	notifications.RegisterInstance(manager)
 	t.Cleanup(func() {
 		require.NoError(t, manager.Stop(ctx))
 	})
-	notifications.Register(manager)
 
 	client := coderdtest.New(t, &coderdtest.Options{Database: db, Pubsub: ps})
 	user := coderdtest.CreateFirstUser(t, client)
@@ -105,10 +105,10 @@ func TestSMTPDispatch(t *testing.T) {
 	require.NoError(t, err)
 
 	manager := notifications.NewManager(cfg, db, logger, nil, fakeDispatchers)
+	notifications.RegisterInstance(manager)
 	t.Cleanup(func() {
 		require.NoError(t, manager.Stop(ctx))
 	})
-	notifications.Register(manager)
 
 	client := coderdtest.New(t, &coderdtest.Options{Database: db, Pubsub: ps})
 	first := coderdtest.CreateFirstUser(t, client)
@@ -180,10 +180,10 @@ func TestWebhookDispatch(t *testing.T) {
 		},
 	}
 	manager := notifications.NewManager(cfg, db, logger, nil, nil)
+	notifications.RegisterInstance(manager)
 	t.Cleanup(func() {
 		require.NoError(t, manager.Stop(ctx))
 	})
-	notifications.Register(manager)
 
 	client := coderdtest.New(t, &coderdtest.Options{Database: db, Pubsub: ps})
 	first := coderdtest.CreateFirstUser(t, client)

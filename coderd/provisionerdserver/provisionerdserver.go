@@ -14,7 +14,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/coder/coder/v2/coderd/notifications"
+	"github.com/coder/coder/v2/coderd/notifications/system"
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	semconv "go.opentelemetry.io/otel/semconv/v1.14.0"
@@ -1524,11 +1524,8 @@ func (s *server) notifyWorkspaceDeleted(ctx context.Context, workspace database.
 		}
 	}
 
-	_, _ = notifications.Enqueue(ctx, workspace.OwnerID, notifications.TemplateWorkspaceDeleted, database.NotificationMethodSmtp,
-		map[string]string{
-			"name":   workspace.Name,
-			"reason": reason,
-		}, "provisionerdserver", workspace.ID, workspace.OwnerID, workspace.TemplateID, workspace.OrganizationID)
+	system.EnqueueWorkspaceDeleted(ctx, workspace.OwnerID, workspace.Name, reason, "provisionerdserver",
+		workspace.ID, workspace.OwnerID, workspace.TemplateID, workspace.OrganizationID)
 }
 
 func (s *server) startTrace(ctx context.Context, name string, opts ...trace.SpanStartOption) (context.Context, trace.Span) {

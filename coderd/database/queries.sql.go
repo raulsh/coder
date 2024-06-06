@@ -3199,7 +3199,7 @@ WITH acquired AS (
             SET updated_at = NOW(),
                 status = 'enqueued'::notification_message_status,
                 status_reason = 'Enqueued by notifier ' || $1::int,
-                leased_until = $2::timestamptz
+                leased_until = NOW() + CONCAT($2::int, ' seconds')::interval
             WHERE id IN (SELECT nm.id
                          FROM notification_messages AS nm
                                   LEFT JOIN notification_templates AS nt ON (nm.notification_template_id = nt.id)
