@@ -930,7 +930,7 @@ func (q *FakeQuerier) AcquireNotificationMessages(ctx context.Context, arg datab
 
 		// Mimic mutation in database query.
 		nm.UpdatedAt = sql.NullTime{Time: time.Now(), Valid: true}
-		nm.Status = database.NotificationMessageStatusEnqueued
+		nm.Status = database.NotificationMessageStatusLeased
 		nm.StatusReason = sql.NullString{String: fmt.Sprintf("Enqueued by notifier %d", arg.NotifierID), Valid: true}
 		nm.LeasedUntil = sql.NullTime{Time: time.Now().Add(time.Second * time.Duration(arg.LeaseSeconds)), Valid: true}
 

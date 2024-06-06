@@ -229,6 +229,7 @@ func Enqueue(ctx context.Context, userID, templateID uuid.UUID, method database.
 		CreatedBy:              createdBy,
 	})
 	if err != nil {
+		singleton.log.Warn(ctx, "enqueue notification", slog.F("template", templateID), slog.F("input", input), slog.Error(err))
 		return nil, xerrors.Errorf("failed to enqueue notification: %w", err)
 	}
 

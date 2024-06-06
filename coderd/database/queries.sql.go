@@ -3197,8 +3197,8 @@ WITH acquired AS (
     UPDATE
         notification_messages
             SET updated_at = NOW(),
-                status = 'enqueued'::notification_message_status,
-                status_reason = 'Enqueued by notifier ' || $1::int,
+                status = 'leased'::notification_message_status,
+                status_reason = 'Leased by notifier ' || $1::int,
                 leased_until = NOW() + CONCAT($2::int, ' seconds')::interval
             WHERE id IN (SELECT nm.id
                          FROM notification_messages AS nm
@@ -3212,9 +3212,9 @@ WITH acquired AS (
                                                'failed'::notification_message_status
                                      )
                                  )
-                                 -- or somehow the message was left in enqueued for longer than its lease period
+                                 -- or somehow the message was left in leased for longer than its lease period
                                  OR (
-                                 nm.status = 'enqueued'::notification_message_status
+                                 nm.status = 'leased'::notification_message_status
                                      AND nm.leased_until < NOW()
                                  )
                              )
@@ -3227,7 +3227,7 @@ WITH acquired AS (
                                  ELSE true
                                  END
                              )
-                           -- only enqueue if user/org has not disabled this template
+                           -- only lease if user/org has not disabled this template
                            -- TODO: validate this
                            AND (
                              CASE
@@ -3237,6 +3237,7 @@ WITH acquired AS (
                                  END
                              )
                          ORDER BY nm.created_at ASC
+                         -- Ensure that multiple concurrent readers cannot retrieve the same rows
                              FOR UPDATE OF nm
                                  SKIP LOCKED
                          LIMIT $6)
@@ -3263,7 +3264,7 @@ FROM acquired
 
 type AcquireNotificationMessagesParams struct {
 	NotifierID      int32     `db:"notifier_id" json:"notifier_id"`
-	LeasedUntil     time.Time `db:"leased_until" json:"leased_until"`
+	LeaseSeconds    int32     `db:"lease_seconds" json:"lease_seconds"`
 	MaxAttemptCount int32     `db:"max_attempt_count" json:"max_attempt_count"`
 	UserID          uuid.UUID `db:"user_id" json:"user_id"`
 	OrgID           uuid.UUID `db:"org_id" json:"org_id"`
@@ -3283,8 +3284,9 @@ type AcquireNotificationMessagesRow struct {
 	UserEmail     string             `db:"user_email" json:"user_email"`
 }
 
-// Acquires the lease for a given count of notification messages that aren't already locked, or ones which are leased
-// but have exceeded their lease period.
+// Acquires the lease for a given count of notification messages, to enable concurrent dequeuing and subsequent sending.
+// Only rows that aren't already leased (or ones which are leased but have exceeded their lease period) are returned.
+// "Lease" here refers to marking the row as 'leased'.
 //
 // SKIP LOCKED is used to jump over locked rows. This prevents
 // multiple notifiers from acquiring the same messages. See:
@@ -3292,7 +3294,7 @@ type AcquireNotificationMessagesRow struct {
 func (q *sqlQuerier) AcquireNotificationMessages(ctx context.Context, arg AcquireNotificationMessagesParams) ([]AcquireNotificationMessagesRow, error) {
 	rows, err := q.db.QueryContext(ctx, acquireNotificationMessages,
 		arg.NotifierID,
-		arg.LeasedUntil,
+		arg.LeaseSeconds,
 		arg.MaxAttemptCount,
 		arg.UserID,
 		arg.OrgID,
@@ -3336,11 +3338,10 @@ WITH new_values AS (SELECT UNNEST($3::uuid[])                             AS id,
                            UNNEST($5::notification_message_status[]) AS status,
                            UNNEST($6::text[])                  AS status_reason)
 UPDATE notification_messages
-SET updated_at       = NOW(),
+SET updated_at       = subquery.failed_at,
     attempt_count    = attempt_count + 1,
     status           = subquery.status,
     status_reason    = subquery.status_reason,
-    failed_at        = subquery.failed_at,
     leased_until     = NULL,
     next_retry_after = CASE
                            WHEN (attempt_count + 1 < $1::int)
@@ -3379,8 +3380,6 @@ UPDATE notification_messages
 SET updated_at       = NOW(),
     status           = 'inhibited'::notification_message_status,
     status_reason    = $1,
-    sent_at          = NULL,
-    failed_at        = NULL,
     next_retry_after = NULL
 WHERE notification_messages.id IN (UNNEST($2::uuid[]))
 `
@@ -3402,10 +3401,10 @@ const bulkMarkNotificationMessagesSent = `-- name: BulkMarkNotificationMessagesS
 WITH new_values AS (SELECT UNNEST($1::uuid[])             AS id,
                            UNNEST($2::timestamptz[]) AS sent_at)
 UPDATE notification_messages
-SET updated_at       = NOW(),
+SET updated_at       = subquery.sent_at,
     attempt_count    = attempt_count + 1,
     status           = 'sent'::notification_message_status,
-    sent_at          = subquery.sent_at,
+    status_reason    = NULL,
     leased_until     = NULL,
     next_retry_after = NULL
 FROM (SELECT id, sent_at
@@ -3452,7 +3451,7 @@ VALUES ($1,
         $5::jsonb,
         $6,
         $7)
-RETURNING id, notification_template_id, user_id, method, status, status_reason, created_by, input, attempt_count, targets, created_at, updated_at, leased_until, next_retry_after, sent_at, failed_at, dedupe_hash
+RETURNING id, notification_template_id, user_id, method, status, status_reason, created_by, input, attempt_count, targets, created_at, updated_at, leased_until, next_retry_after
 `
 
 type EnqueueNotificationMessageParams struct {
@@ -3491,9 +3490,6 @@ func (q *sqlQuerier) EnqueueNotificationMessage(ctx context.Context, arg Enqueue
 		&i.UpdatedAt,
 		&i.LeasedUntil,
 		&i.NextRetryAfter,
-		&i.SentAt,
-		&i.FailedAt,
-		&i.DedupeHash,
 	)
 	return i, err
 }

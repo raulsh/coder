@@ -19,8 +19,9 @@ VALUES (@id,
         @created_by)
 RETURNING *;
 
--- Acquires the lease for a given count of notification messages that aren't already locked, or ones which are leased
--- but have exceeded their lease period.
+-- Acquires the lease for a given count of notification messages, to enable concurrent dequeuing and subsequent sending.
+-- Only rows that aren't already leased (or ones which are leased but have exceeded their lease period) are returned.
+-- "Lease" here refers to marking the row as 'leased'.
 --
 -- SKIP LOCKED is used to jump over locked rows. This prevents
 -- multiple notifiers from acquiring the same messages. See:
@@ -30,9 +31,9 @@ WITH acquired AS (
     UPDATE
         notification_messages
             SET updated_at = NOW(),
-                status = 'enqueued'::notification_message_status,
-                status_reason = 'Enqueued by notifier ' || sqlc.arg('notifier_id')::int,
-                leased_until = sqlc.arg('leased_until')::timestamptz
+                status = 'leased'::notification_message_status,
+                status_reason = 'Leased by notifier ' || sqlc.arg('notifier_id')::int,
+                leased_until = NOW() + CONCAT(sqlc.arg('lease_seconds')::int, ' seconds')::interval
             WHERE id IN (SELECT nm.id
                          FROM notification_messages AS nm
                                   LEFT JOIN notification_templates AS nt ON (nm.notification_template_id = nt.id)
@@ -45,9 +46,9 @@ WITH acquired AS (
                                                'failed'::notification_message_status
                                      )
                                  )
-                                 -- or somehow the message was left in enqueued for longer than its lease period
+                                 -- or somehow the message was left in leased for longer than its lease period
                                  OR (
-                                 nm.status = 'enqueued'::notification_message_status
+                                 nm.status = 'leased'::notification_message_status
                                      AND nm.leased_until < NOW()
                                  )
                              )
@@ -60,7 +61,7 @@ WITH acquired AS (
                                  ELSE true
                                  END
                              )
-                           -- only enqueue if user/org has not disabled this template
+                           -- only lease if user/org has not disabled this template
                            -- TODO: validate this
                            AND (
                              CASE
@@ -70,6 +71,7 @@ WITH acquired AS (
                                  END
                              )
                          ORDER BY nm.created_at ASC
+                         -- Ensure that multiple concurrent readers cannot retrieve the same rows
                              FOR UPDATE OF nm
                                  SKIP LOCKED
                          LIMIT sqlc.arg('count'))
@@ -99,11 +101,10 @@ WITH new_values AS (SELECT UNNEST(@ids::uuid[])                             AS i
                            UNNEST(@statuses::notification_message_status[]) AS status,
                            UNNEST(@status_reasons::text[])                  AS status_reason)
 UPDATE notification_messages
-SET updated_at       = NOW(),
+SET updated_at       = subquery.failed_at,
     attempt_count    = attempt_count + 1,
     status           = subquery.status,
     status_reason    = subquery.status_reason,
-    failed_at        = subquery.failed_at,
     leased_until     = NULL,
     next_retry_after = CASE
                            WHEN (attempt_count + 1 < @max_attempts::int)
@@ -117,8 +118,6 @@ UPDATE notification_messages
 SET updated_at       = NOW(),
     status           = 'inhibited'::notification_message_status,
     status_reason    = sqlc.narg('reason'),
-    sent_at          = NULL,
-    failed_at        = NULL,
     next_retry_after = NULL
 WHERE notification_messages.id IN (UNNEST(@ids::uuid[]));
 
@@ -126,10 +125,10 @@ WHERE notification_messages.id IN (UNNEST(@ids::uuid[]));
 WITH new_values AS (SELECT UNNEST(@ids::uuid[])             AS id,
                            UNNEST(@sent_ats::timestamptz[]) AS sent_at)
 UPDATE notification_messages
-SET updated_at       = NOW(),
+SET updated_at       = subquery.sent_at,
     attempt_count    = attempt_count + 1,
     status           = 'sent'::notification_message_status,
-    sent_at          = subquery.sent_at,
+    status_reason    = NULL,
     leased_until     = NULL,
     next_retry_after = NULL
 FROM (SELECT id, sent_at

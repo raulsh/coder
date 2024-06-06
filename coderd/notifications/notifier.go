@@ -128,15 +128,11 @@ func (n *notifier) process(ctx context.Context, success chan<- dispatchResult, f
 // fetch retrieves messages from the queue by "acquiring a lease" whereby this notifier is the exclusive handler of these
 // messages until they are dispatched - or until the lease expires (in exceptional cases).
 func (n *notifier) fetch(ctx context.Context) ([]database.AcquireNotificationMessagesRow, error) {
-	ctx, cancel := context.WithTimeout(ctx, NotifierLeasePeriod)
-	deadline, _ := ctx.Deadline()
-	defer cancel()
-
 	msgs, err := n.store.AcquireNotificationMessages(ctx, database.AcquireNotificationMessagesParams{
 		Count:           NotifierQueueSize,
 		MaxAttemptCount: MaxAttempts,
 		NotifierID:      int32(n.id),
-		LeasedUntil:     deadline,
+		LeaseSeconds:    int32(NotifierLeasePeriod.Seconds()),
 		UserID:          uuid.New(), // TODO: use real user ID
 		OrgID:           uuid.New(), // TODO: use real org ID
 	})

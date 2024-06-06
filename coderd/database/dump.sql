@@ -75,7 +75,7 @@ COMMENT ON TYPE login_type IS 'Specifies the method of authentication. "none" is
 
 CREATE TYPE notification_message_status AS ENUM (
     'pending',
-    'enqueued',
+    'leased',
     'sent',
     'canceled',
     'failed',
@@ -209,24 +209,6 @@ CREATE TYPE workspace_transition AS ENUM (
     'stop',
     'delete'
 );
-
-CREATE FUNCTION compute_notification_message_dedupe_hash() RETURNS trigger
-    LANGUAGE plpgsql
-    AS $$
-BEGIN
-    NEW.dedupe_hash := CONCAT_WS(':',
-                                 NEW.notification_template_id,
-                                 NEW.user_id,
-                                 NEW.method,
-                                 NEW.input::text,
-                                 ARRAY_TO_STRING(NEW.targets, ','),
-                                 DATE_TRUNC('hour', NEW.created_at AT TIME ZONE 'UTC')::text
-                       );
-    RETURN NEW;
-END;
-$$;
-
-COMMENT ON FUNCTION compute_notification_message_dedupe_hash() IS 'Computes a unique hash which will be used to prevent duplicate messages from being sent within the last hour';
 
 CREATE FUNCTION delete_deleted_oauth2_provider_app_token_api_key() RETURNS trigger
     LANGUAGE plpgsql
@@ -571,13 +553,8 @@ CREATE TABLE notification_messages (
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at timestamp with time zone,
     leased_until timestamp with time zone,
-    next_retry_after timestamp with time zone,
-    sent_at timestamp with time zone,
-    failed_at timestamp with time zone,
-    dedupe_hash text NOT NULL
+    next_retry_after timestamp with time zone
 );
-
-COMMENT ON COLUMN notification_messages.dedupe_hash IS 'Auto-generated at insertion time';
 
 CREATE TABLE notification_preferences (
     id uuid NOT NULL,
@@ -1536,9 +1513,6 @@ ALTER TABLE ONLY licenses
     ADD CONSTRAINT licenses_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY notification_messages
-    ADD CONSTRAINT notification_messages_dedupe_hash_key UNIQUE (dedupe_hash);
-
-ALTER TABLE ONLY notification_messages
     ADD CONSTRAINT notification_messages_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY notification_preferences
@@ -1798,8 +1772,6 @@ CREATE UNIQUE INDEX workspace_proxies_lower_name_idx ON workspace_proxies USING 
 CREATE INDEX workspace_resources_job_id_idx ON workspace_resources USING btree (job_id);
 
 CREATE UNIQUE INDEX workspaces_owner_id_lower_idx ON workspaces USING btree (owner_id, lower((name)::text)) WHERE (deleted = false);
-
-CREATE TRIGGER set_dedupe_hash BEFORE INSERT OR UPDATE ON notification_messages FOR EACH ROW EXECUTE FUNCTION compute_notification_message_dedupe_hash();
 
 CREATE TRIGGER tailnet_notify_agent_change AFTER INSERT OR DELETE OR UPDATE ON tailnet_agents FOR EACH ROW EXECUTE FUNCTION tailnet_notify_agent_change();
 

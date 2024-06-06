@@ -664,7 +664,7 @@ type NotificationMessageStatus string
 
 const (
 	NotificationMessageStatusPending   NotificationMessageStatus = "pending"
-	NotificationMessageStatusEnqueued  NotificationMessageStatus = "enqueued"
+	NotificationMessageStatusLeased    NotificationMessageStatus = "leased"
 	NotificationMessageStatusSent      NotificationMessageStatus = "sent"
 	NotificationMessageStatusCanceled  NotificationMessageStatus = "canceled"
 	NotificationMessageStatusFailed    NotificationMessageStatus = "failed"
@@ -710,7 +710,7 @@ func (ns NullNotificationMessageStatus) Value() (driver.Value, error) {
 func (e NotificationMessageStatus) Valid() bool {
 	switch e {
 	case NotificationMessageStatusPending,
-		NotificationMessageStatusEnqueued,
+		NotificationMessageStatusLeased,
 		NotificationMessageStatusSent,
 		NotificationMessageStatusCanceled,
 		NotificationMessageStatusFailed,
@@ -724,7 +724,7 @@ func (e NotificationMessageStatus) Valid() bool {
 func AllNotificationMessageStatusValues() []NotificationMessageStatus {
 	return []NotificationMessageStatus{
 		NotificationMessageStatusPending,
-		NotificationMessageStatusEnqueued,
+		NotificationMessageStatusLeased,
 		NotificationMessageStatusSent,
 		NotificationMessageStatusCanceled,
 		NotificationMessageStatusFailed,
@@ -2023,10 +2023,6 @@ type NotificationMessage struct {
 	UpdatedAt              sql.NullTime              `db:"updated_at" json:"updated_at"`
 	LeasedUntil            sql.NullTime              `db:"leased_until" json:"leased_until"`
 	NextRetryAfter         sql.NullTime              `db:"next_retry_after" json:"next_retry_after"`
-	SentAt                 sql.NullTime              `db:"sent_at" json:"sent_at"`
-	FailedAt               sql.NullTime              `db:"failed_at" json:"failed_at"`
-	// Auto-generated at insertion time
-	DedupeHash string `db:"dedupe_hash" json:"dedupe_hash"`
 }
 
 type NotificationPreference struct {

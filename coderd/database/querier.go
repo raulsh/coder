@@ -17,8 +17,9 @@ type sqlcQuerier interface {
 	// This must be called from within a transaction. The lock will be automatically
 	// released when the transaction ends.
 	AcquireLock(ctx context.Context, pgAdvisoryXactLock int64) error
-	// Acquires the lease for a given count of notification messages that aren't already locked, or ones which are leased
-	// but have exceeded their lease period.
+	// Acquires the lease for a given count of notification messages, to enable concurrent dequeuing and subsequent sending.
+	// Only rows that aren't already leased (or ones which are leased but have exceeded their lease period) are returned.
+	// "Lease" here refers to marking the row as 'leased'.
 	//
 	// SKIP LOCKED is used to jump over locked rows. This prevents
 	// multiple notifiers from acquiring the same messages. See:
