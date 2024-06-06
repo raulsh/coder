@@ -291,9 +291,9 @@ func (m metricsStore) DeleteOAuth2ProviderAppTokensByAppAndUserID(ctx context.Co
 	return r0
 }
 
-func (m metricsStore) DeleteOldNotificationMessages(ctx context.Context, maxAttemptCount int32) error {
+func (m metricsStore) DeleteOldNotificationMessages(ctx context.Context) error {
 	start := time.Now()
-	r0 := m.s.DeleteOldNotificationMessages(ctx, maxAttemptCount)
+	r0 := m.s.DeleteOldNotificationMessages(ctx)
 	m.queryLatencies.WithLabelValues("DeleteOldNotificationMessages").Observe(time.Since(start).Seconds())
 	return r0
 }

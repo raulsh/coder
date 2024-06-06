@@ -1567,7 +1567,7 @@ func (q *FakeQuerier) DeleteOAuth2ProviderAppTokensByAppAndUserID(_ context.Cont
 	return nil
 }
 
-func (q *FakeQuerier) DeleteOldNotificationMessages(ctx context.Context, maxAttemptCount int32) error {
+func (q *FakeQuerier) DeleteOldNotificationMessages(ctx context.Context) error {
 	panic("not implemented")
 }
 

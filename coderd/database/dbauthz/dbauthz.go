@@ -998,9 +998,9 @@ func (q *querier) DeleteOAuth2ProviderAppTokensByAppAndUserID(ctx context.Contex
 	return q.db.DeleteOAuth2ProviderAppTokensByAppAndUserID(ctx, arg)
 }
 
-func (q *querier) DeleteOldNotificationMessages(ctx context.Context, maxAttemptCount int32) error {
+func (q *querier) DeleteOldNotificationMessages(ctx context.Context) error {
 	// TODO: auth?
-	return q.db.DeleteOldNotificationMessages(ctx, maxAttemptCount)
+	return q.db.DeleteOldNotificationMessages(ctx)
 }
 
 func (q *querier) DeleteOldProvisionerDaemons(ctx context.Context) error {

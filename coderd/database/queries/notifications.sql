@@ -137,28 +137,13 @@ FROM (SELECT id, sent_at
 WHERE notification_messages.id = subquery.id;
 
 -- Delete all notification messages which have not been updated for over a week.
--- Delete all sent or inhibited messages which are over a day old.
 -- name: DeleteOldNotificationMessages :exec
 DELETE
 FROM notification_messages
 WHERE id =
       (SELECT id
        FROM notification_messages AS nested
-       -- delete ALL week-old messages
        WHERE nested.updated_at < NOW() - INTERVAL '7 days'
-          OR (
-           -- delete sent messages after 1 day
-           nested.status = 'sent'::notification_message_status AND nested.sent_at < (NOW() - INTERVAL '1 days')
-           )
-          OR (
-           -- delete messages which have exceeded their attempt count after 1 day
-           nested.attempt_count >= sqlc.arg('max_attempt_count')::int AND nested.sent_at < (NOW() - INTERVAL '1 days')
-           )
-          OR (
-           -- delete inhibited messages after 1 day
-           nested.status = 'inhibited'::notification_message_status AND
-           nested.updated_at < (NOW() - INTERVAL '1 days')
-           )
           -- ensure we don't clash with the notifier
            FOR UPDATE SKIP LOCKED);
 

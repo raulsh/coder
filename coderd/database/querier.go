@@ -76,8 +76,7 @@ type sqlcQuerier interface {
 	DeleteOAuth2ProviderAppSecretByID(ctx context.Context, id uuid.UUID) error
 	DeleteOAuth2ProviderAppTokensByAppAndUserID(ctx context.Context, arg DeleteOAuth2ProviderAppTokensByAppAndUserIDParams) error
 	// Delete all notification messages which have not been updated for over a week.
-	// Delete all sent or inhibited messages which are over a day old.
-	DeleteOldNotificationMessages(ctx context.Context, maxAttemptCount int32) error
+	DeleteOldNotificationMessages(ctx context.Context) error
 	// Delete provisioner daemons that have been created at least a week ago
 	// and have not connected to coderd since a week.
 	// A provisioner daemon with "zeroed" last_seen_at column indicates possible
