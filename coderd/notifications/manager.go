@@ -206,20 +206,26 @@ func (m *Manager) loop(ctx context.Context, notifiers int) error {
 }
 
 // Enqueue queues a notification message for later delivery.
-// Messages will be dequeued by a notifier later and dispatched.
-// TODO: don't accept method here; determine which method to use from notification_preferences.
+// This is a delegator for the underlying notifications singleton.
 func Enqueue(ctx context.Context, userID, templateID uuid.UUID, method database.NotificationMethod, labels types.Labels, createdBy string, targets ...uuid.UUID) (*uuid.UUID, error) {
 	if singleton == nil {
 		return nil, SingletonNotRegisteredErr
 	}
 
+	return singleton.Enqueue(ctx, userID, templateID, method, labels, createdBy, targets...)
+}
+
+// Enqueue queues a notification message for later delivery.
+// Messages will be dequeued by a notifier later and dispatched.
+// TODO: don't accept method here; determine which method to use from notification_preferences.
+func (m *Manager) Enqueue(ctx context.Context, userID, templateID uuid.UUID, method database.NotificationMethod, labels types.Labels, createdBy string, targets ...uuid.UUID) (*uuid.UUID, error) {
 	input, err := json.Marshal(labels)
 	if err != nil {
 		return nil, xerrors.Errorf("failed encoding input labels: %w", err)
 	}
 
 	id := uuid.New()
-	msg, err := singleton.store.EnqueueNotificationMessage(ctx, database.EnqueueNotificationMessageParams{
+	msg, err := m.store.EnqueueNotificationMessage(ctx, database.EnqueueNotificationMessageParams{
 		ID:                     id,
 		UserID:                 userID,
 		NotificationTemplateID: templateID,
@@ -229,11 +235,11 @@ func Enqueue(ctx context.Context, userID, templateID uuid.UUID, method database.
 		CreatedBy:              createdBy,
 	})
 	if err != nil {
-		singleton.log.Warn(ctx, "enqueue notification", slog.F("template", templateID), slog.F("input", input), slog.Error(err))
+		m.log.Warn(ctx, "enqueue notification", slog.F("template", templateID), slog.F("input", input), slog.Error(err))
 		return nil, xerrors.Errorf("failed to enqueue notification: %w", err)
 	}
 
-	singleton.log.Debug(ctx, "enqueued notification", slog.F("msg_id", msg.ID))
+	m.log.Debug(ctx, "enqueued notification", slog.F("msg_id", msg.ID))
 	return &id, nil
 }
 
