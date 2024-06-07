@@ -3416,7 +3416,7 @@ func (q *sqlQuerier) BulkMarkNotificationMessagesSent(ctx context.Context, arg B
 const deleteOldNotificationMessages = `-- name: DeleteOldNotificationMessages :exec
 DELETE
 FROM notification_messages
-WHERE id =
+WHERE id IN
       (SELECT id
        FROM notification_messages AS nested
        WHERE nested.updated_at < NOW() - INTERVAL '7 days'
