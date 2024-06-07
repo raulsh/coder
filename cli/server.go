@@ -170,6 +170,7 @@ func createOIDCConfig(ctx context.Context, vals *codersdk.DeploymentValues) (*co
 		EmailDomain:         vals.OIDC.EmailDomain,
 		AllowSignups:        vals.OIDC.AllowSignups.Value(),
 		UsernameField:       vals.OIDC.UsernameField.String(),
+		NameField:           vals.OIDC.NameField.String(),
 		EmailField:          vals.OIDC.EmailField.String(),
 		AuthURLParams:       vals.OIDC.AuthURLParams.Value,
 		IgnoreUserInfo:      vals.OIDC.IgnoreUserInfo.Value(),
@@ -799,7 +800,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			if vals.Telemetry.Enable {
 				gitAuth := make([]telemetry.GitAuth, 0)
 				// TODO:
-				var gitAuthConfigs []codersdk.ExternalAuthConfig
+				gitAuthConfigs := make([]codersdk.ExternalAuthConfig, 0)
 				for _, cfg := range gitAuthConfigs {
 					gitAuth = append(gitAuth, telemetry.GitAuth{
 						Type: cfg.Type,

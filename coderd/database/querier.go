@@ -113,6 +113,7 @@ type sqlcQuerier interface {
 	GetAllTailnetCoordinators(ctx context.Context) ([]TailnetCoordinator, error)
 	GetAllTailnetPeers(ctx context.Context) ([]TailnetPeer, error)
 	GetAllTailnetTunnels(ctx context.Context) ([]TailnetTunnel, error)
+	GetAnnouncementBanners(ctx context.Context) (string, error)
 	GetAppSecurityKey(ctx context.Context) (string, error)
 	GetApplicationName(ctx context.Context) (string, error)
 	// GetAuditLogsBefore retrieves `row_limit` number of audit logs before the provided
@@ -153,7 +154,6 @@ type sqlcQuerier interface {
 	GetLicenseByID(ctx context.Context, id int32) (License, error)
 	GetLicenses(ctx context.Context) ([]License, error)
 	GetLogoURL(ctx context.Context) (string, error)
-	GetNotificationBanners(ctx context.Context) (string, error)
 	GetNotificationMessagesCountByStatus(ctx context.Context) ([]GetNotificationMessagesCountByStatusRow, error)
 	GetNotificationsMessagesCountByTemplate(ctx context.Context) ([]GetNotificationsMessagesCountByTemplateRow, error)
 	GetOAuth2ProviderAppByID(ctx context.Context, id uuid.UUID) (OAuth2ProviderApp, error)
@@ -435,6 +435,7 @@ type sqlcQuerier interface {
 	UpdateWorkspaceProxyDeleted(ctx context.Context, arg UpdateWorkspaceProxyDeletedParams) error
 	UpdateWorkspaceTTL(ctx context.Context, arg UpdateWorkspaceTTLParams) error
 	UpdateWorkspacesDormantDeletingAtByTemplateID(ctx context.Context, arg UpdateWorkspacesDormantDeletingAtByTemplateIDParams) error
+	UpsertAnnouncementBanners(ctx context.Context, value string) error
 	UpsertAppSecurityKey(ctx context.Context, value string) error
 	UpsertApplicationName(ctx context.Context, value string) error
 	UpsertCustomRole(ctx context.Context, arg UpsertCustomRoleParams) (CustomRole, error)
@@ -446,7 +447,6 @@ type sqlcQuerier interface {
 	UpsertJFrogXrayScanByWorkspaceAndAgentID(ctx context.Context, arg UpsertJFrogXrayScanByWorkspaceAndAgentIDParams) error
 	UpsertLastUpdateCheck(ctx context.Context, value string) error
 	UpsertLogoURL(ctx context.Context, value string) error
-	UpsertNotificationBanners(ctx context.Context, value string) error
 	UpsertOAuthSigningKey(ctx context.Context, value string) error
 	UpsertProvisionerDaemon(ctx context.Context, arg UpsertProvisionerDaemonParams) (ProvisionerDaemon, error)
 	UpsertTailnetAgent(ctx context.Context, arg UpsertTailnetAgentParams) (TailnetAgent, error)
