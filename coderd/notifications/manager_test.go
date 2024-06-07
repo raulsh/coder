@@ -11,6 +11,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/notifications"
+	"github.com/coder/coder/v2/coderd/notifications/dispatch"
 	"github.com/coder/coder/v2/coderd/notifications/types"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -21,10 +22,12 @@ import (
 
 // TestSingletonRegistration tests that a Manager which has been instantiated but not registered will error.
 func TestSingletonRegistration(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true, IgnoredErrorIs: []error{}}).Leveled(slog.LevelDebug)
 
-	mgr := notifications.NewManager(codersdk.NotificationsConfig{}, dbmem.New(), logger, nil, nil)
+	mgr := notifications.NewManager(codersdk.NotificationsConfig{}, dbmem.New(), logger, nil)
 	t.Cleanup(func() {
 		require.NoError(t, mgr.Stop(ctx))
 	})
@@ -40,6 +43,8 @@ func TestSingletonRegistration(t *testing.T) {
 }
 
 func TestBufferedUpdates(t *testing.T) {
+	t.Parallel()
+
 	// setup
 	ctx := context.Background()
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true, IgnoredErrorIs: []error{}}).Leveled(slog.LevelDebug)
@@ -48,19 +53,18 @@ func TestBufferedUpdates(t *testing.T) {
 	interceptor := &bulkUpdateInterceptor{Store: db}
 
 	santa := &santaDispatcher{}
-	dispatchers, err := notifications.NewProviderRegistry[notifications.Dispatcher](santa)
+	dispatchers, err := notifications.NewHandlerRegistry(santa)
 	require.NoError(t, err)
-	mgr := notifications.NewManager(codersdk.NotificationsConfig{}, interceptor, logger.Named("notifications"), nil, dispatchers)
-	notifications.RegisterInstance(mgr)
+	mgr := notifications.NewManager(codersdk.NotificationsConfig{}, interceptor, logger.Named("notifications"), dispatchers)
 
 	client := coderdtest.New(t, &coderdtest.Options{Database: db, Pubsub: pubsub.NewInMemory()})
 	user := coderdtest.CreateFirstUser(t, client)
 
 	// given
-	if _, err := notifications.Enqueue(ctx, user.UserID, notifications.TemplateWorkspaceDeleted, database.NotificationMethodSmtp, types.Labels{"nice": "true"}, ""); true {
+	if _, err := mgr.Enqueue(ctx, user.UserID, notifications.TemplateWorkspaceDeleted, database.NotificationMethodSmtp, types.Labels{"nice": "true"}, ""); true {
 		require.NoError(t, err)
 	}
-	if _, err := notifications.Enqueue(ctx, user.UserID, notifications.TemplateWorkspaceDeleted, database.NotificationMethodSmtp, types.Labels{"nice": "false"}, ""); true {
+	if _, err := mgr.Enqueue(ctx, user.UserID, notifications.TemplateWorkspaceDeleted, database.NotificationMethodSmtp, types.Labels{"nice": "false"}, ""); true {
 		require.NoError(t, err)
 	}
 
@@ -102,21 +106,18 @@ type santaDispatcher struct {
 	nice    []uuid.UUID
 }
 
-func (s *santaDispatcher) Name() string {
-	return string(database.NotificationMethodSmtp)
+func (s *santaDispatcher) NotificationMethod() database.NotificationMethod {
+	return database.NotificationMethodSmtp
 }
 
-func (s *santaDispatcher) Validate(input types.Labels) (bool, []string) {
-	missing := input.Missing("nice")
-	return len(missing) == 0, missing
-}
+func (s *santaDispatcher) Dispatcher(payload types.MessagePayload, _, _ string) (dispatch.DeliveryFunc, error) {
+	return func(ctx context.Context, msgID uuid.UUID) (retryable bool, err error) {
+		if payload.Labels.Get("nice") != "true" {
+			s.naughty = append(s.naughty, msgID)
+			return false, xerrors.New("be nice")
+		}
 
-func (s *santaDispatcher) Send(ctx context.Context, msgID uuid.UUID, input types.Labels) (bool, error) {
-	if input.Get("nice") != "true" {
-		s.naughty = append(s.naughty, msgID)
-		return false, xerrors.New("be nice")
-	}
-
-	s.nice = append(s.nice, msgID)
-	return false, nil
+		s.nice = append(s.nice, msgID)
+		return false, nil
+	}, nil
 }

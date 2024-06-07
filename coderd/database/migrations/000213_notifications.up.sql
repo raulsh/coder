@@ -68,6 +68,6 @@ CREATE TABLE notification_preferences
 
 -- TODO: autogenerate constants which reference the UUIDs
 INSERT INTO notification_templates (id, name, enabled, title_template, body_template, "group")
-VALUES ('f517da0b-cdc9-410f-ab89-a86107c420ed', 'Workspace Deleted', true, 'Workspace "{{.name}}" deleted',
-        'Hi {{.user_name}}<br>Your workspace <strong>{{.name}}</strong> was deleted.<br>The specified reason was <strong>{{.reason}}</strong>.',
+VALUES ('f517da0b-cdc9-410f-ab89-a86107c420ed', 'Workspace Deleted', true, E'Workspace "{{.Labels.name}}" deleted',
+        E'Hi {{.UserName}}\n\nYour workspace **{{.Labels.name}}** was deleted.\nThe specified reason was "**{{.Labels.reason}}**".',
         'Workspace Events');

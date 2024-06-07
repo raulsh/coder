@@ -4,8 +4,8 @@ import (
 	"context"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/notifications/dispatch"
 	"github.com/coder/coder/v2/coderd/notifications/types"
-	"github.com/google/uuid"
 )
 
 // Store defines the API between the notifications system and the storage.
@@ -20,23 +20,10 @@ type Store interface {
 	FetchNewMessageMetadata(ctx context.Context, arg database.FetchNewMessageMetadataParams) (database.FetchNewMessageMetadataRow, error)
 }
 
-// Renderer is responsible for substituting any variable content in a given template with Labels.
-type Renderer interface {
-	Provider
+// Handler is responsible for preparing and delivering a notification by a given method.
+type Handler interface {
+	NotificationMethod() database.NotificationMethod
 
-	Render(template string, input types.Labels) (string, error)
-}
-
-// Dispatcher is responsible for delivering a notification by a given method.
-type Dispatcher interface {
-	Provider
-
-	// Validate returns a bool indicating whether the required labels for the Send operation are present, as well as
-	// a slice of missing labels.
-	Validate(input types.Labels) (bool, []string)
-	// Send delivers the notification.
-	// The first return param indicates whether a retry can be attempted (i.e. a temporary error), and the second returns
-	// any error that may have arisen.
-	// If (false, nil) is returned, that is considered a successful dispatch.
-	Send(ctx context.Context, msgID uuid.UUID, input types.Labels) (bool, error)
+	// Dispatcher delivers the notification by a given method.
+	Dispatcher(payload types.MessagePayload, title, body string) (dispatch.DeliveryFunc, error)
 }

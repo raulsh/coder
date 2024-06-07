@@ -16,6 +16,7 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/notifications/render"
 	"github.com/coder/coder/v2/coderd/notifications/types"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/google/uuid"
@@ -30,11 +31,6 @@ var (
 )
 
 const (
-	labelFrom    = "from"
-	labelTo      = "to"
-	labelSubject = "subject"
-	labelBody    = "body"
-
 	// TODO: configurable
 	smtpTimeout = time.Second * 30
 )
@@ -48,178 +44,209 @@ func NewSMTPDispatcher(cfg codersdk.NotificationsEmailConfig, log slog.Logger) *
 	return &SMTPDispatcher{cfg: cfg, log: log}
 }
 
-func (s *SMTPDispatcher) Name() string {
-	// TODO: don't use database types
-	return string(database.NotificationMethodSmtp)
+func (s *SMTPDispatcher) NotificationMethod() database.NotificationMethod {
+	return database.NotificationMethodSmtp
 }
 
-func (s *SMTPDispatcher) Validate(input types.Labels) (bool, []string) {
-	missing := input.Missing("to", "subject", "body")
-	return len(missing) == 0, missing
+func (s *SMTPDispatcher) Dispatcher(payload types.MessagePayload, titleTmpl, bodyTmpl string) (DeliveryFunc, error) {
+	subject, err := render.Plaintext(titleTmpl)
+	if err != nil {
+		return nil, xerrors.Errorf("render subject: %w", err)
+	}
+
+	htmlBody, err := render.HTML(bodyTmpl)
+	if err != nil {
+		return nil, xerrors.Errorf("render HTML body: %w", err)
+	}
+
+	plainBody, err := render.Plaintext(bodyTmpl)
+	if err != nil {
+		return nil, xerrors.Errorf("render plaintext body: %w", err)
+	}
+
+	return s.dispatch(subject, htmlBody, plainBody, payload.UserEmail), nil
 }
 
-// Send delivers a notification via SMTP.
-// The following global configuration values can be overridden via labels:
-//   - "from" overrides notifications.email.from / CODER_NOTIFICATIONS_EMAIL_FROM
+// dispatch returns a DeliveryFunc capable of delivering a notification via SMTP.
 //
 // NOTE: this is heavily inspired by Alertmanager's email notifier:
-//
-//	https://github.com/prometheus/alertmanager/blob/342f6a599ce16c138663f18ed0b880e777c3017d/notify/email/email.go
-func (s *SMTPDispatcher) Send(ctx context.Context, msgID uuid.UUID, input types.Labels) (bool, error) {
-	select {
-	case <-ctx.Done():
-		return false, ctx.Err()
-	default:
-	}
-
-	var (
-		c    *smtp.Client
-		conn net.Conn
-		err  error
-	)
-
-	s.log.Debug(ctx, "dispatching via SMTP", slog.F("msgID", msgID))
-
-	// Dial the smarthost to establish a connection.
-	smarthost, smarthostPort, err := s.smarthost()
-	if err != nil {
-		return false, xerrors.Errorf("'smarthost' validation: %w", err)
-	}
-	if smarthostPort == "465" {
-		// TODO: implement TLS
-		return false, xerrors.New("TLS is not currently supported")
-	}
-
-	var d net.Dialer
-	dialCtx, cancel := context.WithTimeout(ctx, smtpTimeout)
-	defer cancel()
-	conn, err = d.DialContext(dialCtx, "tcp", fmt.Sprintf("%s:%s", smarthost, smarthostPort))
-	if err != nil {
-		return true, xerrors.Errorf("establish connection to server: %w", err)
-	}
-
-	// Create an SMTP client.
-	c, err = smtp.NewClient(conn, smarthost)
-	if err != nil {
-		if cerr := conn.Close(); cerr != nil {
-			s.log.Warn(ctx, "failed to close connection", slog.Error(cerr))
+// https://github.com/prometheus/alertmanager/blob/342f6a599ce16c138663f18ed0b880e777c3017d/notify/email/email.go
+func (s *SMTPDispatcher) dispatch(subject, htmlBody, plainBody, to string) DeliveryFunc {
+	return func(ctx context.Context, msgID uuid.UUID) (bool, error) {
+		select {
+		case <-ctx.Done():
+			return false, ctx.Err()
+		default:
 		}
-		return true, xerrors.Errorf("create client: %w", err)
-	}
 
-	// Cleanup.
-	defer func() {
-		if err := c.Quit(); err != nil {
-			s.log.Warn(ctx, "failed to close SMTP connection", slog.Error(err))
-		}
-	}()
+		var (
+			c    *smtp.Client
+			conn net.Conn
+			err  error
+		)
 
-	// Server handshake.
-	hello, err := s.hello()
-	if err != nil {
-		return false, xerrors.Errorf("'hello' validation: %w", err)
-	}
-	err = c.Hello(hello)
-	if err != nil {
-		return false, xerrors.Errorf("server handshake: %w", err)
-	}
+		s.log.Debug(ctx, "dispatching via SMTP", slog.F("msgID", msgID))
 
-	// Check for authentication capabilities.
-	// TODO: implement authentication
-	//if ok, mech := c.Extension("AUTH"); ok {
-	//	auth, err := s.auth(mech)
-	//	if err != nil {
-	//		return true, xerrors.Errorf("find auth mechanism: %w", err)
-	//	}
-	//	if auth != nil {
-	//		if err := c.Auth(auth); err != nil {
-	//			return true, xerrors.Errorf("%T auth: %w", auth, err)
-	//		}
-	//	}
-	//}
-
-	// Sender identification.
-	from, err := s.fromAddr(input)
-	if err != nil {
-		return false, xerrors.Errorf("'from' validation: %w", err)
-	}
-	err = c.Mail(from)
-	if err != nil {
-		// This is retryable because the server may be temporarily down.
-		return true, xerrors.Errorf("sender identification: %w", err)
-	}
-
-	// Recipient designation.
-	to, err := s.toAddrs(input)
-	if err != nil {
-		return false, xerrors.Errorf("'to' validation: %w", err)
-	}
-	for _, addr := range to {
-		err = c.Rcpt(addr)
+		// Dial the smarthost to establish a connection.
+		smarthost, smarthostPort, err := s.smarthost()
 		if err != nil {
-			// This is a retryable case because the server may be temporarily down.
-			// The addresses are already validated, although it is possible that the server might disagree - in which case
-			// this will lead to some spurious retries, but that's not a big deal.
-			return true, xerrors.Errorf("recipient designation: %w", err)
+			return false, xerrors.Errorf("'smarthost' validation: %w", err)
 		}
-	}
+		if smarthostPort == "465" {
+			// TODO: implement TLS
+			return false, xerrors.New("TLS is not currently supported")
+		}
 
-	// Start message transmission.
-	message, err := c.Data()
-	if err != nil {
-		return true, fmt.Errorf("message transmission: %w", err)
-	}
-	defer message.Close()
+		var d net.Dialer
+		dialCtx, cancel := context.WithTimeout(ctx, smtpTimeout)
+		defer cancel()
+		conn, err = d.DialContext(dialCtx, "tcp", fmt.Sprintf("%s:%s", smarthost, smarthostPort))
+		if err != nil {
+			return true, xerrors.Errorf("establish connection to server: %w", err)
+		}
 
-	// Transmit message headers.
-	msg := &bytes.Buffer{}
-	multipartBuffer := &bytes.Buffer{}
-	multipartWriter := multipart.NewWriter(multipartBuffer)
-	fmt.Fprintf(msg, "From: %s\r\n", from)
-	fmt.Fprintf(msg, "To: %s\r\n", strings.Join(to, ", "))
-	fmt.Fprintf(msg, "Subject: %s\r\n", s.subject(input))
-	fmt.Fprintf(msg, "Message-Id: %s@%s\r\n", msgID, s.hostname())
-	fmt.Fprintf(msg, "Date: %s\r\n", time.Now().Format(time.RFC1123Z))
-	fmt.Fprintf(msg, "Content-Type: multipart/alternative;  boundary=%s\r\n", multipartWriter.Boundary())
-	fmt.Fprintf(msg, "MIME-Version: 1.0\r\n\r\n")
-	_, err = message.Write(msg.Bytes())
-	if err != nil {
-		return false, fmt.Errorf("write headers: %w", err)
-	}
+		// Create an SMTP client.
+		c, err = smtp.NewClient(conn, smarthost)
+		if err != nil {
+			if cerr := conn.Close(); cerr != nil {
+				s.log.Warn(ctx, "failed to close connection", slog.Error(cerr))
+			}
+			return true, xerrors.Errorf("create client: %w", err)
+		}
 
-	// Transmit message body.
-	// TODO: implement text-only body?
-	//		 If implemented, keep HTML message last since preferred alternative is placed last per section 5.1.4 of RFC 2046
-	// 		 https://www.ietf.org/rfc/rfc2046.txt
-	w, err := multipartWriter.CreatePart(textproto.MIMEHeader{
-		"Content-Transfer-Encoding": {"quoted-printable"},
-		"Content-Type":              {"text/html; charset=UTF-8"},
-	})
-	if err != nil {
-		return false, fmt.Errorf("create part for HTML body: %w", err)
-	}
-	qw := quotedprintable.NewWriter(w)
-	_, err = qw.Write([]byte(s.body(input)))
-	if err != nil {
-		return true, fmt.Errorf("write HTML part: %w", err)
-	}
-	err = qw.Close()
-	if err != nil {
-		return true, fmt.Errorf("close HTML part: %w", err)
-	}
+		// Cleanup.
+		defer func() {
+			if err := c.Quit(); err != nil {
+				s.log.Warn(ctx, "failed to close SMTP connection", slog.Error(err))
+			}
+		}()
 
-	err = multipartWriter.Close()
-	if err != nil {
-		return false, fmt.Errorf("close multipartWriter: %w", err)
-	}
+		// Server handshake.
+		hello, err := s.hello()
+		if err != nil {
+			return false, xerrors.Errorf("'hello' validation: %w", err)
+		}
+		err = c.Hello(hello)
+		if err != nil {
+			return false, xerrors.Errorf("server handshake: %w", err)
+		}
 
-	_, err = message.Write(multipartBuffer.Bytes())
-	if err != nil {
-		return false, fmt.Errorf("write body buffer: %w", err)
-	}
+		// Check for authentication capabilities.
+		// TODO: implement authentication
+		//if ok, mech := c.Extension("AUTH"); ok {
+		//	auth, err := s.auth(mech)
+		//	if err != nil {
+		//		return true, xerrors.Errorf("find auth mechanism: %w", err)
+		//	}
+		//	if auth != nil {
+		//		if err := c.Auth(auth); err != nil {
+		//			return true, xerrors.Errorf("%T auth: %w", auth, err)
+		//		}
+		//	}
+		//}
 
-	// Returning false, nil indicates successful send (i.e. non-retryable non-error)
-	return false, nil
+		// Sender identification.
+		from, err := s.validateFromAddr(s.cfg.From.String())
+		if err != nil {
+			return false, xerrors.Errorf("'from' validation: %w", err)
+		}
+		err = c.Mail(from)
+		if err != nil {
+			// This is retryable because the server may be temporarily down.
+			return true, xerrors.Errorf("sender identification: %w", err)
+		}
+
+		// Recipient designation.
+		to, err := s.validateToAddrs(to)
+		if err != nil {
+			return false, xerrors.Errorf("'to' validation: %w", err)
+		}
+		for _, addr := range to {
+			err = c.Rcpt(addr)
+			if err != nil {
+				// This is a retryable case because the server may be temporarily down.
+				// The addresses are already validated, although it is possible that the server might disagree - in which case
+				// this will lead to some spurious retries, but that's not a big deal.
+				return true, xerrors.Errorf("recipient designation: %w", err)
+			}
+		}
+
+		// Start message transmission.
+		message, err := c.Data()
+		if err != nil {
+			return true, fmt.Errorf("message transmission: %w", err)
+		}
+		defer message.Close()
+
+		// Transmit message headers.
+		msg := &bytes.Buffer{}
+		multipartBuffer := &bytes.Buffer{}
+		multipartWriter := multipart.NewWriter(multipartBuffer)
+		_, _ = fmt.Fprintf(msg, "From: %s\r\n", from)
+		_, _ = fmt.Fprintf(msg, "To: %s\r\n", strings.Join(to, ", "))
+		_, _ = fmt.Fprintf(msg, "Subject: %s\r\n", subject)
+		_, _ = fmt.Fprintf(msg, "Message-Id: %s@%s\r\n", msgID, s.hostname())
+		_, _ = fmt.Fprintf(msg, "Date: %s\r\n", time.Now().Format(time.RFC1123Z))
+		_, _ = fmt.Fprintf(msg, "Content-Type: multipart/alternative;  boundary=%s\r\n", multipartWriter.Boundary())
+		_, _ = fmt.Fprintf(msg, "MIME-Version: 1.0\r\n\r\n")
+		_, err = message.Write(msg.Bytes())
+		if err != nil {
+			return false, fmt.Errorf("write headers: %w", err)
+		}
+
+		// Transmit message body.
+
+		// Text body
+		w, err := multipartWriter.CreatePart(textproto.MIMEHeader{
+			"Content-Transfer-Encoding": {"quoted-printable"},
+			"Content-Type":              {"text/plain; charset=UTF-8"},
+		})
+		if err != nil {
+			return false, fmt.Errorf("create part for text body: %w", err)
+		}
+		qw := quotedprintable.NewWriter(w)
+		_, err = qw.Write([]byte(plainBody))
+		if err != nil {
+			return true, fmt.Errorf("write text part: %w", err)
+		}
+		err = qw.Close()
+		if err != nil {
+			return true, fmt.Errorf("close text part: %w", err)
+		}
+
+		// HTML body
+		// Preferred body placed last per section 5.1.4 of RFC 2046
+		// https://www.ietf.org/rfc/rfc2046.txt
+		w, err = multipartWriter.CreatePart(textproto.MIMEHeader{
+			"Content-Transfer-Encoding": {"quoted-printable"},
+			"Content-Type":              {"text/html; charset=UTF-8"},
+		})
+		if err != nil {
+			return false, fmt.Errorf("create part for HTML body: %w", err)
+		}
+		qw = quotedprintable.NewWriter(w)
+		_, err = qw.Write([]byte(htmlBody))
+		if err != nil {
+			return true, fmt.Errorf("write HTML part: %w", err)
+		}
+		err = qw.Close()
+		if err != nil {
+			return true, fmt.Errorf("close HTML part: %w", err)
+		}
+
+		err = multipartWriter.Close()
+		if err != nil {
+			return false, fmt.Errorf("close multipartWriter: %w", err)
+		}
+
+		_, err = message.Write(multipartBuffer.Bytes())
+		if err != nil {
+			return false, fmt.Errorf("write body buffer: %w", err)
+		}
+
+		// Returning false, nil indicates successful send (i.e. non-retryable non-error)
+		return false, nil
+	}
 }
 
 // auth returns a value which implements the smtp.Auth based on the available auth mechanism.
@@ -228,14 +255,7 @@ func (s *SMTPDispatcher) auth(mechs string) (smtp.Auth, error) {
 	return nil, nil
 }
 
-// fromAddr retrieves the "From" address and validates it.
-// Allows overriding via the "from" label.
-func (s *SMTPDispatcher) fromAddr(input types.Labels) (string, error) {
-	from := s.cfg.From.String()
-	// Handle overrides.
-	if val, ok := input.GetStrict(labelFrom); ok {
-		from = val
-	}
+func (s *SMTPDispatcher) validateFromAddr(from string) (string, error) {
 	addrs, err := mail.ParseAddressList(from)
 	if err != nil {
 		return "", xerrors.Errorf("parse 'from' address: %w", err)
@@ -246,13 +266,7 @@ func (s *SMTPDispatcher) fromAddr(input types.Labels) (string, error) {
 	return from, nil
 }
 
-// toAddrs retrieves the "To" address(es) and validates them.
-func (s *SMTPDispatcher) toAddrs(input types.Labels) ([]string, error) {
-	to, ok := input.GetStrict(labelTo)
-	if !ok {
-		// This should never happen because Validate should catch this.
-		return nil, xerrors.New("no 'to' address(es) found")
-	}
+func (s *SMTPDispatcher) validateToAddrs(to string) ([]string, error) {
 	addrs, err := mail.ParseAddressList(to)
 	if err != nil {
 		return nil, xerrors.Errorf("parse 'to' addresses: %w", err)
@@ -295,16 +309,6 @@ func (s *SMTPDispatcher) hello() (string, error) {
 		return "", ValidationNoHelloErr
 	}
 	return val, nil
-}
-
-// subject returns the value of the "subject" label.
-func (s *SMTPDispatcher) subject(input types.Labels) string {
-	return input.Get(labelSubject)
-}
-
-// body returns the value of the "body" label.
-func (s *SMTPDispatcher) body(input types.Labels) string {
-	return input.Get(labelBody)
 }
 
 func (s *SMTPDispatcher) hostname() string {

@@ -5,16 +5,16 @@ import (
 	"encoding/json"
 	"strings"
 	"sync"
+	"text/template"
 	"time"
 
+	"github.com/coder/coder/v2/coderd/notifications/dispatch"
+	"github.com/coder/coder/v2/coderd/notifications/types"
 	"github.com/google/uuid"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/v2/coderd/notifications/render"
-	"github.com/coder/coder/v2/coderd/notifications/types"
-
 	"github.com/coder/coder/v2/coderd/database"
 )
 
@@ -27,32 +27,30 @@ const (
 )
 
 // notifier is a consumer of the notifications_messages queue. It dequeues messages from that table and processes them
-// through a pipeline of fetch -> render -> dispatch.
+// through a pipeline of fetch -> prepare -> render -> acquire handler -> deliver.
 type notifier struct {
 	id    int
 	ctx   context.Context
 	log   slog.Logger
 	store Store
 
-	tick        *time.Ticker
-	stopOnce    sync.Once
-	quit        chan any
-	done        chan any
-	renderers   *ProviderRegistry[Renderer]
-	dispatchers *ProviderRegistry[Dispatcher]
+	tick     *time.Ticker
+	stopOnce sync.Once
+	quit     chan any
+	done     chan any
+	handlers *HandlerRegistry
 }
 
-func newNotifier(ctx context.Context, id int, log slog.Logger, db Store, rp *ProviderRegistry[Renderer], dp *ProviderRegistry[Dispatcher]) *notifier {
+func newNotifier(ctx context.Context, id int, log slog.Logger, db Store, hr *HandlerRegistry) *notifier {
 	return &notifier{
-		id:          id,
-		ctx:         ctx,
-		log:         log.Named("notifier").With(slog.F("id", id)),
-		quit:        make(chan any),
-		done:        make(chan any),
-		tick:        time.NewTicker(NotifierFetchInterval),
-		store:       db,
-		renderers:   rp,
-		dispatchers: dp,
+		id:       id,
+		ctx:      ctx,
+		log:      log.Named("notifier").With(slog.F("id", id)),
+		quit:     make(chan any),
+		done:     make(chan any),
+		tick:     time.NewTicker(NotifierFetchInterval),
+		store:    db,
+		handlers: hr,
 	}
 }
 
@@ -101,9 +99,9 @@ func (n *notifier) process(ctx context.Context, success chan<- dispatchResult, f
 	var eg errgroup.Group
 	for _, msg := range msgs {
 		// A message failing to be prepared correctly should not affect other messages.
-		input, err := n.prepare(ctx, msg)
+		deliverFn, err := n.prepare(ctx, msg)
 		if err != nil {
-			n.log.Warn(ctx, "message preparation failed", slog.F("msg_id", msg.ID), slog.Error(err))
+			n.log.Warn(ctx, "dispatcher construction failed", slog.F("msg_id", msg.ID), slog.Error(err))
 			failure <- newFailedDispatch(n.id, msg.ID, err)
 			continue
 		}
@@ -112,7 +110,7 @@ func (n *notifier) process(ctx context.Context, success chan<- dispatchResult, f
 			// Dispatch must only return an error for exceptional cases, NOT for failed messages.
 			// The first message to return an error cancels the errgroup's context, and all in-flight dispatches will be canceled.
 			// TODO: validate this
-			return n.dispatch(ctx, msg.ID, string(msg.Method), input, success, failure)
+			return n.deliver(ctx, msg, deliverFn, success, failure)
 		})
 	}
 
@@ -143,8 +141,10 @@ func (n *notifier) fetch(ctx context.Context) ([]database.AcquireNotificationMes
 	return msgs, nil
 }
 
-// prepare renders the given message's templates and modifies the input for dispatcher-specific implementations.
-func (n *notifier) prepare(ctx context.Context, msg database.AcquireNotificationMessagesRow) (types.Labels, error) {
+// prepare has two roles:
+// 1. render the title & body templates
+// 2. build a dispatcher from the given message, payload, and these templates - to be used for delivering the notification
+func (n *notifier) prepare(ctx context.Context, msg database.AcquireNotificationMessagesRow) (dispatch.DeliveryFunc, error) {
 	select {
 	case <-ctx.Done():
 		return nil, ctx.Err()
@@ -153,60 +153,50 @@ func (n *notifier) prepare(ctx context.Context, msg database.AcquireNotification
 
 	// NOTE: when we change the format of the MessagePayload, we have to bump its version and handle unmarshalling
 	// differently here based on that version.
-	var payload MessagePayload
+	var payload types.MessagePayload
 	err := json.Unmarshal(msg.Payload, &payload)
 	if err != nil {
 		return nil, xerrors.Errorf("unmarshal payload: %w", err)
 	}
 
-	input, err := payload.ToLabels()
+	handler, err := n.handlers.Resolve(msg.Method)
 	if err != nil {
-		return nil, xerrors.Errorf("unmarshal payload: %w", err)
+		return nil, xerrors.Errorf("resolve handler: %w", err)
 	}
 
-	switch msg.Method {
-	case database.NotificationMethodSmtp:
-		var subject, body string
-
-		if subject, err = n.render(ctx, render.Text, msg.TitleTemplate, input); err != nil {
-			return nil, xerrors.Errorf("SMTP render subject: %w", err)
-		}
-		if body, err = n.render(ctx, render.HTML, msg.BodyTemplate, input); err != nil {
-			return nil, xerrors.Errorf("SMTP render body: %w", err)
-		}
-
-		// Set required labels.
-		input.Merge(types.Labels{
-			"subject": subject,
-			"body":    body,
-			"to":      payload.UserEmail,
-		})
-	case database.NotificationMethodWebhook:
-		var title, body string
-
-		if title, err = n.render(ctx, render.Text, msg.TitleTemplate, input); err != nil {
-			return nil, xerrors.Errorf("webhook render title: %w", err)
-		}
-		if body, err = n.render(ctx, render.HTML, msg.BodyTemplate, input); err != nil {
-			return nil, xerrors.Errorf("webhook render body: %w", err)
-		}
-
-		// Set required labels.
-		input.Merge(types.Labels{
-			"title": title,
-			"body":  body,
-		})
-	default:
-		err = xerrors.Errorf("unrecognized method: %s", msg.Method)
+	var (
+		title, body string
+	)
+	if title, err = n.render(msg.TitleTemplate, payload); err != nil {
+		return nil, xerrors.Errorf("render title: %w", err)
+	}
+	if body, err = n.render(msg.BodyTemplate, payload); err != nil {
+		return nil, xerrors.Errorf("render body: %w", err)
 	}
 
-	return input, err
+	return handler.Dispatcher(payload, title, body)
 }
 
-// dispatch sends a given notification message to its defined method.
+// render attempts to substitute the given payload into the given template using Go's templating syntax.
+// TODO: memoize templates for memory efficiency?
+func (n *notifier) render(in string, payload types.MessagePayload) (string, error) {
+	tmpl, err := template.New("text").Parse(in)
+	if err != nil {
+		return "", xerrors.Errorf("template parse: %w", err)
+	}
+
+	var out strings.Builder
+	if err = tmpl.Execute(&out, payload); err != nil {
+		return "", xerrors.Errorf("template execute: %w", err)
+	}
+
+	return out.String(), nil
+}
+
+// deliver sends a given notification message via its defined method.
 // This method *only* returns an error when a context error occurs; any other error is interpreted as a failure to
 // deliver the notification and as such the message will be marked as failed (to later be optionally retried).
-func (n *notifier) dispatch(ctx context.Context, msgID uuid.UUID, provider string, input types.Labels, success, failure chan<- dispatchResult) error {
+func (n *notifier) deliver(ctx context.Context, msg database.AcquireNotificationMessagesRow, deliver dispatch.DeliveryFunc, success, failure chan<- dispatchResult) error {
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
@@ -215,21 +205,11 @@ func (n *notifier) dispatch(ctx context.Context, msgID uuid.UUID, provider strin
 
 	ctx, cancel := context.WithTimeout(ctx, NotifierDispatchTimeout)
 	defer cancel()
+	logger := n.log.With(slog.F("msg_id", msg.ID), slog.F("method", msg.Method))
 
-	d, err := n.dispatchers.Resolve(provider)
+	retryable, err := deliver(ctx, msg.ID)
+	_ = retryable // TODO: implement non-retryable failures
 	if err != nil {
-		return xerrors.Errorf("resolve dispatch provider: %w", err)
-	}
-
-	logger := n.log.With(slog.F("msg_id", msgID), slog.F("method", provider))
-
-	if ok, missing := d.Validate(input); !ok {
-		logger.Warn(ctx, "message failed dispatcher validation", slog.F("missing_labels", strings.Join(missing, ", ")))
-		failure <- newFailedDispatch(n.id, msgID, xerrors.Errorf("failed validation, missing %v labels", missing))
-		return nil
-	}
-
-	if _, err = d.Send(ctx, msgID, input); err != nil {
 		// Don't try to accumulate message responses if the context has been canceled.
 		// This message's lease will expire in the store and will be requeued.
 		// It's possible this will lead to a message being delivered more than once, and that is why Stop() is preferable
@@ -239,31 +219,13 @@ func (n *notifier) dispatch(ctx context.Context, msgID uuid.UUID, provider strin
 		}
 
 		logger.Warn(ctx, "message dispatch failed", slog.Error(err))
-		failure <- newFailedDispatch(n.id, msgID, err)
+		failure <- newFailedDispatch(n.id, msg.ID, err)
 	} else {
 		logger.Debug(ctx, "message dispatch succeeded")
-		success <- newSuccessfulDispatch(n.id, msgID)
+		success <- newSuccessfulDispatch(n.id, msg.ID)
 	}
 
 	return nil
-}
-
-// render renders a given template using the given Renderer using the given input labels, and returns the resulting
-// rendered string or an error.
-func (n *notifier) render(ctx context.Context, provider string, template string, input types.Labels) (string, error) {
-	select {
-	case <-ctx.Done():
-		return "", ctx.Err()
-	default:
-	}
-
-	r, err := n.renderers.Resolve(provider)
-	if err != nil {
-		return "", xerrors.Errorf("resolve render provider: %w", err)
-	}
-
-	// TODO: pass context down
-	return r.Render(template, input)
 }
 
 // stop stops the notifier from processing any new notifications.

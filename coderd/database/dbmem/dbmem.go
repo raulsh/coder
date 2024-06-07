@@ -14,7 +14,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/coder/coder/v2/coderd/notifications"
+	"github.com/coder/coder/v2/coderd/notifications/types"
 	"github.com/google/uuid"
 	"github.com/lib/pq"
 	"golang.org/x/exp/constraints"
@@ -940,8 +940,8 @@ func (q *FakeQuerier) AcquireNotificationMessages(ctx context.Context, arg datab
 			Payload:       nm.Payload,
 			Method:        nm.Method,
 			CreatedBy:     nm.CreatedBy,
-			TitleTemplate: "This is a title with {{.variable}}",
-			BodyTemplate:  "This is a body with {{.variable}}",
+			TitleTemplate: "This is a title with {{.Labels.variable}}",
+			BodyTemplate:  "This is a body with {{.Labels.variable}}",
 		})
 	}
 
@@ -1795,7 +1795,7 @@ func (q *FakeQuerier) EnqueueNotificationMessage(ctx context.Context, arg databa
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
-	var payload notifications.MessagePayload
+	var payload types.MessagePayload
 	err = json.Unmarshal(arg.Payload, &payload)
 	if err != nil {
 		return database.NotificationMessage{}, err

@@ -37,6 +37,8 @@ func TestMain(m *testing.M) {
 // TODO: split this test up into table tests or separate tests.
 // TODO: implement retries, validate final statuses
 func TestBasicNotificationRoundtrip(t *testing.T) {
+	t.Parallel()
+
 	// setup
 	if !dbtestutil.WillUsePostgres() {
 		t.Skip("This test requires postgres")
@@ -45,11 +47,11 @@ func TestBasicNotificationRoundtrip(t *testing.T) {
 
 	// given
 	dispatcher := &fakeDispatcher{}
-	fakeDispatchers, err := notifications.NewProviderRegistry[notifications.Dispatcher](dispatcher)
+	fakeDispatchers, err := notifications.NewHandlerRegistry(dispatcher)
 	require.NoError(t, err)
 
 	cfg := codersdk.NotificationsConfig{}
-	manager := notifications.NewManager(cfg, db, logger, nil, fakeDispatchers)
+	manager := notifications.NewManager(cfg, db, logger, fakeDispatchers)
 	notifications.RegisterInstance(manager)
 	t.Cleanup(func() {
 		require.NoError(t, manager.Stop(ctx))
@@ -59,12 +61,10 @@ func TestBasicNotificationRoundtrip(t *testing.T) {
 	user := coderdtest.CreateFirstUser(t, client)
 
 	// when
-	sid, err := notifications.Enqueue(ctx, user.UserID, notifications.TemplateWorkspaceDeleted, database.NotificationMethodSmtp, types.Labels{"type": "success"}, "test")
+	sid, err := manager.Enqueue(ctx, user.UserID, notifications.TemplateWorkspaceDeleted, database.NotificationMethodSmtp, types.Labels{"type": "success"}, "test")
 	require.NoError(t, err)
-	fid, err := notifications.Enqueue(ctx, user.UserID, notifications.TemplateWorkspaceDeleted, database.NotificationMethodSmtp, types.Labels{"type": "failure"}, "test")
+	fid, err := manager.Enqueue(ctx, user.UserID, notifications.TemplateWorkspaceDeleted, database.NotificationMethodSmtp, types.Labels{"type": "failure"}, "test")
 	require.NoError(t, err)
-	_, err = notifications.Enqueue(ctx, user.UserID, notifications.TemplateWorkspaceDeleted, database.NotificationMethodSmtp, types.Labels{}, "test") // no "type" field
-	require.NoError(t, err)                                                                                                                           // validation error is not returned immediately, only on dispatch
 
 	// TODO: can be reordered once tick interval is configurable so we don't have to wait long if no messages are enqueued yet.
 	manager.StartNotifiers(ctx, 1)
@@ -75,6 +75,8 @@ func TestBasicNotificationRoundtrip(t *testing.T) {
 }
 
 func TestSMTPDispatch(t *testing.T) {
+	t.Parallel()
+
 	// setup
 	if !dbtestutil.WillUsePostgres() {
 		t.Skip("This test requires postgres")
@@ -101,10 +103,10 @@ func TestSMTPDispatch(t *testing.T) {
 		},
 	}
 	dispatcher := &interceptingSMTPDispatcher{SMTPDispatcher: dispatch.NewSMTPDispatcher(cfg.SMTP, logger)}
-	fakeDispatchers, err := notifications.NewProviderRegistry[notifications.Dispatcher](dispatcher)
+	fakeDispatchers, err := notifications.NewHandlerRegistry(dispatcher)
 	require.NoError(t, err)
 
-	manager := notifications.NewManager(cfg, db, logger, nil, fakeDispatchers)
+	manager := notifications.NewManager(cfg, db, logger, fakeDispatchers)
 	notifications.RegisterInstance(manager)
 	t.Cleanup(func() {
 		require.NoError(t, manager.Stop(ctx))
@@ -118,7 +120,7 @@ func TestSMTPDispatch(t *testing.T) {
 	})
 
 	// when
-	msgID, err := notifications.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted, database.NotificationMethodSmtp, types.Labels{}, "test")
+	msgID, err := manager.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted, database.NotificationMethodSmtp, types.Labels{}, "test")
 	require.NoError(t, err)
 
 	manager.StartNotifiers(ctx, 1)
@@ -138,6 +140,8 @@ func TestSMTPDispatch(t *testing.T) {
 }
 
 func TestWebhookDispatch(t *testing.T) {
+	t.Parallel()
+
 	// setup
 	if !dbtestutil.WillUsePostgres() {
 		t.Skip("This test requires postgres")
@@ -159,9 +163,10 @@ func TestWebhookDispatch(t *testing.T) {
 		require.Equal(t, "application/json", r.Header.Get("Content-Type"))
 		require.EqualValues(t, 1, payload.Version)
 		require.Equal(t, *msgID, payload.MsgID)
-		require.Equal(t, input.Get("a"), "b")
-		require.Equal(t, input.Get("c"), "d")
-		require.Equal(t, payload.NotificationType, "Workspace Deleted")
+		require.Equal(t, payload.Payload.Labels, input)
+		require.Equal(t, payload.Payload.UserEmail, "bob@coder.com")
+		require.Equal(t, payload.Payload.UserName, "bob")
+		require.Equal(t, payload.Payload.NotificationName, "Workspace Deleted")
 
 		w.WriteHeader(http.StatusOK)
 		_, err = w.Write([]byte("noted."))
@@ -179,7 +184,7 @@ func TestWebhookDispatch(t *testing.T) {
 			Endpoint: *serpent.URLOf(endpoint),
 		},
 	}
-	manager := notifications.NewManager(cfg, db, logger, nil, nil)
+	manager := notifications.NewManager(cfg, db, logger, nil)
 	notifications.RegisterInstance(manager)
 	t.Cleanup(func() {
 		require.NoError(t, manager.Stop(ctx))
@@ -197,7 +202,7 @@ func TestWebhookDispatch(t *testing.T) {
 		"a": "b",
 		"c": "d",
 	}
-	msgID, err = notifications.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted, database.NotificationMethodWebhook, input, "test")
+	msgID, err = manager.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted, database.NotificationMethodWebhook, input, "test")
 	require.NoError(t, err)
 
 	manager.StartNotifiers(ctx, 1)
@@ -238,22 +243,19 @@ type fakeDispatcher struct {
 	failed    string
 }
 
-func (f *fakeDispatcher) Name() string {
-	return string(database.NotificationMethodSmtp)
+func (f *fakeDispatcher) NotificationMethod() database.NotificationMethod {
+	return database.NotificationMethodSmtp
 }
 
-func (f *fakeDispatcher) Validate(input types.Labels) (bool, []string) {
-	missing := input.Missing("type")
-	return len(missing) == 0, missing
-}
-
-func (f *fakeDispatcher) Send(ctx context.Context, msgID uuid.UUID, input types.Labels) (bool, error) {
-	if input.Get("type") == "success" {
-		f.succeeded = msgID.String()
-	} else {
-		f.failed = msgID.String()
-	}
-	return false, nil
+func (f *fakeDispatcher) Dispatcher(payload types.MessagePayload, _, _ string) (dispatch.DeliveryFunc, error) {
+	return func(ctx context.Context, msgID uuid.UUID) (retryable bool, err error) {
+		if payload.Labels.Get("type") == "success" {
+			f.succeeded = msgID.String()
+		} else {
+			f.failed = msgID.String()
+		}
+		return false, nil
+	}, nil
 }
 
 type interceptingSMTPDispatcher struct {
@@ -264,8 +266,15 @@ type interceptingSMTPDispatcher struct {
 	err       error
 }
 
-func (i *interceptingSMTPDispatcher) Send(ctx context.Context, msgID uuid.UUID, input types.Labels) (bool, error) {
-	i.retryable, i.err = i.SMTPDispatcher.Send(ctx, msgID, input)
-	i.sent = true
-	return i.retryable, i.err
+func (i *interceptingSMTPDispatcher) Dispatcher(payload types.MessagePayload, title, body string) (dispatch.DeliveryFunc, error) {
+	return func(ctx context.Context, msgID uuid.UUID) (retryable bool, err error) {
+		deliveryFn, err := i.SMTPDispatcher.Dispatcher(payload, title, body)
+		if err != nil {
+			return false, err
+		}
+
+		i.retryable, i.err = deliveryFn(ctx, msgID)
+		i.sent = true
+		return i.retryable, i.err
+	}, nil
 }

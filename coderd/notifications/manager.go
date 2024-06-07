@@ -14,7 +14,6 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/notifications/dispatch"
-	"github.com/coder/coder/v2/coderd/notifications/render"
 	"github.com/coder/coder/v2/coderd/notifications/types"
 
 	"cdr.dev/slog"
@@ -71,38 +70,23 @@ type Manager struct {
 	notifiers  []*notifier
 	notifierMu sync.Mutex
 
-	rendererProvider    *ProviderRegistry[Renderer]
-	dispatchersProvider *ProviderRegistry[Dispatcher]
+	handlers *HandlerRegistry
 
 	stopOnce sync.Once
 	stop     chan any
 	done     chan any
 }
 
-func NewManager(cfg codersdk.NotificationsConfig, store Store, log slog.Logger, rp *ProviderRegistry[Renderer], dp *ProviderRegistry[Dispatcher]) *Manager {
-	if rp == nil {
-		rp = DefaultRenderers(cfg, log)
+func NewManager(cfg codersdk.NotificationsConfig, store Store, log slog.Logger, handlers *HandlerRegistry) *Manager {
+	if handlers == nil {
+		handlers = DefaultHandlers(cfg, log)
 	}
-	if dp == nil {
-		dp = DefaultDispatchers(cfg, log)
-	}
-	return &Manager{cfg: cfg, store: store, stop: make(chan any), done: make(chan any), log: log, rendererProvider: rp, dispatchersProvider: dp}
+	return &Manager{cfg: cfg, store: store, stop: make(chan any), done: make(chan any), log: log, handlers: handlers}
 }
 
-// DefaultRenderers builds a set of known renderers and panics if any error occurs.
-func DefaultRenderers(cfg codersdk.NotificationsConfig, log slog.Logger) *ProviderRegistry[Renderer] {
-	reg, err := NewProviderRegistry[Renderer](
-		&render.TextRenderer{},
-		&render.HTMLRenderer{})
-	if err != nil {
-		panic(err)
-	}
-	return reg
-}
-
-// DefaultDispatchers builds a set of known dispatchers and panics if any error occurs.
-func DefaultDispatchers(cfg codersdk.NotificationsConfig, log slog.Logger) *ProviderRegistry[Dispatcher] {
-	reg, err := NewProviderRegistry[Dispatcher](
+// DefaultHandlers builds a set of known handlers; panics if any error occurs as these handlers should be valid at compile time.
+func DefaultHandlers(cfg codersdk.NotificationsConfig, log slog.Logger) *HandlerRegistry {
+	reg, err := NewHandlerRegistry(
 		dispatch.NewSMTPDispatcher(cfg.SMTP, log.Named("dispatcher.smtp")),
 		dispatch.NewWebhookDispatcher(cfg.Webhook, log.Named("dispatcher.webhook")),
 	)
@@ -158,7 +142,7 @@ func (m *Manager) loop(ctx context.Context, notifiers int) error {
 	for i := 0; i < notifiers; i++ {
 		eg.Go(func() error {
 			m.notifierMu.Lock()
-			n := newNotifier(ctx, i+1, m.log, m.store, m.rendererProvider, m.dispatchersProvider)
+			n := newNotifier(ctx, i+1, m.log, m.store, m.handlers)
 			m.notifiers = append(m.notifiers, n)
 			m.notifierMu.Unlock()
 			return n.run(ctx, success, failure)
@@ -255,7 +239,7 @@ func (m *Manager) Enqueue(ctx context.Context, userID, templateID uuid.UUID, met
 	return &id, nil
 }
 
-func (m *Manager) buildPayload(ctx context.Context, userID uuid.UUID, templateID uuid.UUID, labels types.Labels) (*MessagePayload, error) {
+func (m *Manager) buildPayload(ctx context.Context, userID uuid.UUID, templateID uuid.UUID, labels types.Labels) (*types.MessagePayload, error) {
 	metadata, err := m.store.FetchNewMessageMetadata(ctx, database.FetchNewMessageMetadataParams{
 		UserID:                 userID,
 		NotificationTemplateID: templateID,
@@ -264,7 +248,7 @@ func (m *Manager) buildPayload(ctx context.Context, userID uuid.UUID, templateID
 		return nil, err
 	}
 
-	return &MessagePayload{
+	return &types.MessagePayload{
 		Version: PayloadVersion.String(),
 
 		NotificationName: metadata.NotificationName,
