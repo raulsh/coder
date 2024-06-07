@@ -2,7 +2,7 @@ package notifications
 
 import (
 	"context"
-	"fmt"
+	"encoding/json"
 	"strings"
 	"sync"
 	"time"
@@ -151,21 +151,19 @@ func (n *notifier) prepare(ctx context.Context, msg database.AcquireNotification
 	default:
 	}
 
-	input := types.Labels(msg.Input)
-	if input == nil {
-		input = types.Labels{}
+	// NOTE: when we change the format of the MessagePayload, we have to bump its version and handle unmarshalling
+	// differently here based on that version.
+	var payload MessagePayload
+	err := json.Unmarshal(msg.Payload, &payload)
+	if err != nil {
+		return nil, xerrors.Errorf("unmarshal payload: %w", err)
 	}
-	// Debug information.
-	input.Set("notifier_id", fmt.Sprintf("%d", n.id))
-	input.Set("notification_type", msg.TemplateName)
-	input.SetValue("msg_id", msg.ID)
 
-	// Additional information.
-	input.SetValue("user_id", msg.UserID)
-	input.Set("user_email", msg.UserEmail)
-	input.Set("user_name", msg.UserName)
+	input, err := payload.ToLabels()
+	if err != nil {
+		return nil, xerrors.Errorf("unmarshal payload: %w", err)
+	}
 
-	var err error
 	switch msg.Method {
 	case database.NotificationMethodSmtp:
 		var subject, body string
@@ -181,7 +179,7 @@ func (n *notifier) prepare(ctx context.Context, msg database.AcquireNotification
 		input.Merge(types.Labels{
 			"subject": subject,
 			"body":    body,
-			"to":      msg.UserEmail,
+			"to":      payload.UserEmail,
 		})
 	case database.NotificationMethodWebhook:
 		var title, body string

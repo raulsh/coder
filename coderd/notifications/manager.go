@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/coder/coder/v2/apiversion"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/google/uuid"
 	"golang.org/x/sync/errgroup"
@@ -26,6 +27,10 @@ const (
 	BulkUpdateBufferSize = 50
 	BulkUpdateInterval   = time.Second
 	DeletionPeriod       = time.Hour * 24 * 7
+)
+
+var (
+	PayloadVersion = apiversion.New(1, 0)
 )
 
 var (
@@ -219,7 +224,14 @@ func Enqueue(ctx context.Context, userID, templateID uuid.UUID, method database.
 // Messages will be dequeued by a notifier later and dispatched.
 // TODO: don't accept method here; determine which method to use from notification_preferences.
 func (m *Manager) Enqueue(ctx context.Context, userID, templateID uuid.UUID, method database.NotificationMethod, labels types.Labels, createdBy string, targets ...uuid.UUID) (*uuid.UUID, error) {
-	input, err := json.Marshal(labels)
+	// Build payload.
+	payload, err := m.buildPayload(ctx, userID, templateID, labels)
+	if err != nil {
+		m.log.Warn(ctx, "failed to build payload", slog.F("template", templateID), slog.F("user", userID), slog.Error(err))
+		return nil, xerrors.Errorf("enqueue notification (payload build): %w", err)
+	}
+
+	input, err := json.Marshal(payload)
 	if err != nil {
 		return nil, xerrors.Errorf("failed encoding input labels: %w", err)
 	}
@@ -230,17 +242,39 @@ func (m *Manager) Enqueue(ctx context.Context, userID, templateID uuid.UUID, met
 		UserID:                 userID,
 		NotificationTemplateID: templateID,
 		Method:                 method,
-		Input:                  input,
+		Payload:                input,
 		Targets:                targets,
 		CreatedBy:              createdBy,
 	})
 	if err != nil {
-		m.log.Warn(ctx, "enqueue notification", slog.F("template", templateID), slog.F("input", input), slog.Error(err))
-		return nil, xerrors.Errorf("failed to enqueue notification: %w", err)
+		m.log.Warn(ctx, "failed to enqueue notification", slog.F("template", templateID), slog.F("input", input), slog.Error(err))
+		return nil, xerrors.Errorf("enqueue notification: %w", err)
 	}
 
 	m.log.Debug(ctx, "enqueued notification", slog.F("msg_id", msg.ID))
 	return &id, nil
+}
+
+func (m *Manager) buildPayload(ctx context.Context, userID uuid.UUID, templateID uuid.UUID, labels types.Labels) (*MessagePayload, error) {
+	metadata, err := m.store.FetchNewMessageMetadata(ctx, database.FetchNewMessageMetadataParams{
+		UserID:                 userID,
+		NotificationTemplateID: templateID,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return &MessagePayload{
+		Version: PayloadVersion.String(),
+
+		NotificationName: metadata.NotificationName,
+
+		UserID:    metadata.UserID.String(),
+		UserEmail: metadata.UserEmail,
+		UserName:  metadata.UserName,
+
+		Labels: labels,
+	}, nil
 }
 
 // bulkUpdate updates messages in the store based on the given successful and failed message dispatch results.

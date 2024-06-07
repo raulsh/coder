@@ -8,13 +8,24 @@ VALUES ($1,
         $6)
 RETURNING *;
 
+-- name: FetchNewMessageMetadata :one
+-- This is used to build up the notification_message's JSON payload.
+SELECT nt.name                                                    AS notification_name,
+       u.id                                                       AS user_id,
+       u.email                                                    AS user_email,
+       COALESCE(NULLIF(u.name, ''), NULLIF(u.username, ''))::text AS user_name
+FROM notification_templates nt,
+     users u
+WHERE nt.id = @notification_template_id
+  AND u.id = @user_id;
+
 -- name: EnqueueNotificationMessage :one
-INSERT INTO notification_messages (id, notification_template_id, user_id, method, input, targets, created_by)
+INSERT INTO notification_messages (id, notification_template_id, user_id, method, payload, targets, created_by)
 VALUES (@id,
         @notification_template_id,
         @user_id,
         @method::notification_method,
-        @input::jsonb,
+        @payload::jsonb,
         @targets,
         @created_by)
 RETURNING *;
@@ -71,7 +82,7 @@ WITH acquired AS (
                                  END
                              )
                          ORDER BY nm.created_at ASC
-                         -- Ensure that multiple concurrent readers cannot retrieve the same rows
+                                  -- Ensure that multiple concurrent readers cannot retrieve the same rows
                              FOR UPDATE OF nm
                                  SKIP LOCKED
                          LIMIT sqlc.arg('count'))
@@ -79,21 +90,15 @@ WITH acquired AS (
 SELECT
     -- message
     nm.id,
-    nm.input,
-    nm.targets,
+    nm.payload,
     nm.method,
+    nm.created_by,
     -- template
-    nt.name                                                    AS template_name,
     nt.title_template,
-    nt.body_template,
-    -- user
-    nm.user_id,
-    COALESCE(NULLIF(u.name, ''), NULLIF(u.username, ''))::text AS user_name,
-    u.email                                                    AS user_email
+    nt.body_template
 FROM acquired
          JOIN notification_messages nm ON acquired.id = nm.id
-         JOIN notification_templates nt ON nm.notification_template_id = nt.id
-         JOIN users u ON nm.user_id = u.id;
+         JOIN notification_templates nt ON nm.notification_template_id = nt.id;
 
 -- name: BulkMarkNotificationMessagesFailed :execrows
 WITH new_values AS (SELECT UNNEST(@ids::uuid[])                             AS id,
@@ -143,7 +148,7 @@ WHERE id =
       (SELECT id
        FROM notification_messages AS nested
        WHERE nested.updated_at < NOW() - INTERVAL '7 days'
-          -- ensure we don't clash with the notifier
+             -- ensure we don't clash with the notifier
            FOR UPDATE SKIP LOCKED);
 
 -- name: GetNotificationMessagesCountByStatus :many

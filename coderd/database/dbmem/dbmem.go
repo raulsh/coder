@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/google/uuid"
 	"github.com/lib/pq"
 	"golang.org/x/exp/constraints"
@@ -936,10 +937,9 @@ func (q *FakeQuerier) AcquireNotificationMessages(ctx context.Context, arg datab
 
 		out = append(out, database.AcquireNotificationMessagesRow{
 			ID:            nm.ID,
-			Input:         nm.Input,
-			Targets:       nm.Targets,
+			Payload:       nm.Payload,
 			Method:        nm.Method,
-			TemplateName:  "test template",
+			CreatedBy:     nm.CreatedBy,
 			TitleTemplate: "This is a title with {{.variable}}",
 			BodyTemplate:  "This is a body with {{.variable}}",
 		})
@@ -1795,8 +1795,8 @@ func (q *FakeQuerier) EnqueueNotificationMessage(ctx context.Context, arg databa
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
-	var input database.StringMap
-	err = json.Unmarshal(arg.Input, &input)
+	var payload notifications.MessagePayload
+	err = json.Unmarshal(arg.Payload, &payload)
 	if err != nil {
 		return database.NotificationMessage{}, err
 	}
@@ -1805,7 +1805,7 @@ func (q *FakeQuerier) EnqueueNotificationMessage(ctx context.Context, arg databa
 		ID:                     arg.ID,
 		UserID:                 arg.UserID,
 		Method:                 arg.Method,
-		Input:                  input,
+		Payload:                arg.Payload,
 		NotificationTemplateID: arg.NotificationTemplateID,
 		Targets:                arg.Targets,
 		CreatedBy:              arg.CreatedBy,
@@ -1836,6 +1836,20 @@ func (q *FakeQuerier) FavoriteWorkspace(_ context.Context, arg uuid.UUID) error 
 		return nil
 	}
 	return nil
+}
+
+func (q *FakeQuerier) FetchNewMessageMetadata(ctx context.Context, arg database.FetchNewMessageMetadataParams) (database.FetchNewMessageMetadataRow, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.FetchNewMessageMetadataRow{}, err
+	}
+
+	return database.FetchNewMessageMetadataRow{
+		UserEmail:        "test@test.com",
+		UserName:         "Testy McTester",
+		NotificationName: "Some notification",
+		UserID:           arg.UserID,
+	}, nil
 }
 
 func (q *FakeQuerier) GetAPIKeyByID(_ context.Context, id string) (database.APIKey, error) {

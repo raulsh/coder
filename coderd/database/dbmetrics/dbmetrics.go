@@ -396,6 +396,13 @@ func (m metricsStore) FavoriteWorkspace(ctx context.Context, arg uuid.UUID) erro
 	return r0
 }
 
+func (m metricsStore) FetchNewMessageMetadata(ctx context.Context, arg database.FetchNewMessageMetadataParams) (database.FetchNewMessageMetadataRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.FetchNewMessageMetadata(ctx, arg)
+	m.queryLatencies.WithLabelValues("FetchNewMessageMetadata").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) GetAPIKeyByID(ctx context.Context, id string) (database.APIKey, error) {
 	start := time.Now()
 	apiKey, err := m.s.GetAPIKeyByID(ctx, id)

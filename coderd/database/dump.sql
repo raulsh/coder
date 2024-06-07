@@ -547,7 +547,7 @@ CREATE TABLE notification_messages (
     status notification_message_status DEFAULT 'pending'::notification_message_status NOT NULL,
     status_reason text,
     created_by text NOT NULL,
-    input jsonb NOT NULL,
+    payload jsonb NOT NULL,
     attempt_count integer DEFAULT 0,
     targets uuid[],
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,

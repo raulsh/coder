@@ -3237,7 +3237,7 @@ WITH acquired AS (
                                  END
                              )
                          ORDER BY nm.created_at ASC
-                         -- Ensure that multiple concurrent readers cannot retrieve the same rows
+                                  -- Ensure that multiple concurrent readers cannot retrieve the same rows
                              FOR UPDATE OF nm
                                  SKIP LOCKED
                          LIMIT $6)
@@ -3245,21 +3245,15 @@ WITH acquired AS (
 SELECT
     -- message
     nm.id,
-    nm.input,
-    nm.targets,
+    nm.payload,
     nm.method,
+    nm.created_by,
     -- template
-    nt.name                                                    AS template_name,
     nt.title_template,
-    nt.body_template,
-    -- user
-    nm.user_id,
-    COALESCE(NULLIF(u.name, ''), NULLIF(u.username, ''))::text AS user_name,
-    u.email                                                    AS user_email
+    nt.body_template
 FROM acquired
          JOIN notification_messages nm ON acquired.id = nm.id
          JOIN notification_templates nt ON nm.notification_template_id = nt.id
-         JOIN users u ON nm.user_id = u.id
 `
 
 type AcquireNotificationMessagesParams struct {
@@ -3273,15 +3267,11 @@ type AcquireNotificationMessagesParams struct {
 
 type AcquireNotificationMessagesRow struct {
 	ID            uuid.UUID          `db:"id" json:"id"`
-	Input         StringMap          `db:"input" json:"input"`
-	Targets       []uuid.UUID        `db:"targets" json:"targets"`
+	Payload       []byte             `db:"payload" json:"payload"`
 	Method        NotificationMethod `db:"method" json:"method"`
-	TemplateName  string             `db:"template_name" json:"template_name"`
+	CreatedBy     string             `db:"created_by" json:"created_by"`
 	TitleTemplate string             `db:"title_template" json:"title_template"`
 	BodyTemplate  string             `db:"body_template" json:"body_template"`
-	UserID        uuid.UUID          `db:"user_id" json:"user_id"`
-	UserName      string             `db:"user_name" json:"user_name"`
-	UserEmail     string             `db:"user_email" json:"user_email"`
 }
 
 // Acquires the lease for a given count of notification messages, to enable concurrent dequeuing and subsequent sending.
@@ -3309,15 +3299,11 @@ func (q *sqlQuerier) AcquireNotificationMessages(ctx context.Context, arg Acquir
 		var i AcquireNotificationMessagesRow
 		if err := rows.Scan(
 			&i.ID,
-			&i.Input,
-			pq.Array(&i.Targets),
+			&i.Payload,
 			&i.Method,
-			&i.TemplateName,
+			&i.CreatedBy,
 			&i.TitleTemplate,
 			&i.BodyTemplate,
-			&i.UserID,
-			&i.UserName,
-			&i.UserEmail,
 		); err != nil {
 			return nil, err
 		}
@@ -3432,7 +3418,7 @@ WHERE id =
       (SELECT id
        FROM notification_messages AS nested
        WHERE nested.updated_at < NOW() - INTERVAL '7 days'
-          -- ensure we don't clash with the notifier
+             -- ensure we don't clash with the notifier
            FOR UPDATE SKIP LOCKED)
 `
 
@@ -3443,7 +3429,7 @@ func (q *sqlQuerier) DeleteOldNotificationMessages(ctx context.Context) error {
 }
 
 const enqueueNotificationMessage = `-- name: EnqueueNotificationMessage :one
-INSERT INTO notification_messages (id, notification_template_id, user_id, method, input, targets, created_by)
+INSERT INTO notification_messages (id, notification_template_id, user_id, method, payload, targets, created_by)
 VALUES ($1,
         $2,
         $3,
@@ -3451,7 +3437,7 @@ VALUES ($1,
         $5::jsonb,
         $6,
         $7)
-RETURNING id, notification_template_id, user_id, method, status, status_reason, created_by, input, attempt_count, targets, created_at, updated_at, leased_until, next_retry_after
+RETURNING id, notification_template_id, user_id, method, status, status_reason, created_by, payload, attempt_count, targets, created_at, updated_at, leased_until, next_retry_after
 `
 
 type EnqueueNotificationMessageParams struct {
@@ -3459,7 +3445,7 @@ type EnqueueNotificationMessageParams struct {
 	NotificationTemplateID uuid.UUID          `db:"notification_template_id" json:"notification_template_id"`
 	UserID                 uuid.UUID          `db:"user_id" json:"user_id"`
 	Method                 NotificationMethod `db:"method" json:"method"`
-	Input                  json.RawMessage    `db:"input" json:"input"`
+	Payload                json.RawMessage    `db:"payload" json:"payload"`
 	Targets                []uuid.UUID        `db:"targets" json:"targets"`
 	CreatedBy              string             `db:"created_by" json:"created_by"`
 }
@@ -3470,7 +3456,7 @@ func (q *sqlQuerier) EnqueueNotificationMessage(ctx context.Context, arg Enqueue
 		arg.NotificationTemplateID,
 		arg.UserID,
 		arg.Method,
-		arg.Input,
+		arg.Payload,
 		pq.Array(arg.Targets),
 		arg.CreatedBy,
 	)
@@ -3483,13 +3469,49 @@ func (q *sqlQuerier) EnqueueNotificationMessage(ctx context.Context, arg Enqueue
 		&i.Status,
 		&i.StatusReason,
 		&i.CreatedBy,
-		&i.Input,
+		&i.Payload,
 		&i.AttemptCount,
 		pq.Array(&i.Targets),
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.LeasedUntil,
 		&i.NextRetryAfter,
+	)
+	return i, err
+}
+
+const fetchNewMessageMetadata = `-- name: FetchNewMessageMetadata :one
+SELECT nt.name                                                    AS notification_name,
+       u.id                                                       AS user_id,
+       u.email                                                    AS user_email,
+       COALESCE(NULLIF(u.name, ''), NULLIF(u.username, ''))::text AS user_name
+FROM notification_templates nt,
+     users u
+WHERE nt.id = $1
+  AND u.id = $2
+`
+
+type FetchNewMessageMetadataParams struct {
+	NotificationTemplateID uuid.UUID `db:"notification_template_id" json:"notification_template_id"`
+	UserID                 uuid.UUID `db:"user_id" json:"user_id"`
+}
+
+type FetchNewMessageMetadataRow struct {
+	NotificationName string    `db:"notification_name" json:"notification_name"`
+	UserID           uuid.UUID `db:"user_id" json:"user_id"`
+	UserEmail        string    `db:"user_email" json:"user_email"`
+	UserName         string    `db:"user_name" json:"user_name"`
+}
+
+// This is used to build up the notification_message's JSON payload.
+func (q *sqlQuerier) FetchNewMessageMetadata(ctx context.Context, arg FetchNewMessageMetadataParams) (FetchNewMessageMetadataRow, error) {
+	row := q.db.QueryRowContext(ctx, fetchNewMessageMetadata, arg.NotificationTemplateID, arg.UserID)
+	var i FetchNewMessageMetadataRow
+	err := row.Scan(
+		&i.NotificationName,
+		&i.UserID,
+		&i.UserEmail,
+		&i.UserName,
 	)
 	return i, err
 }
