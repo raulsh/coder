@@ -30,11 +30,6 @@ var (
 	ValidationNoHelloErr         = xerrors.New("'hello' not defined")
 )
 
-const (
-	// TODO: configurable
-	smtpTimeout = time.Second * 30
-)
-
 type SMTPDispatcher struct {
 	cfg codersdk.NotificationsEmailConfig
 	log slog.Logger
@@ -98,9 +93,8 @@ func (s *SMTPDispatcher) dispatch(subject, htmlBody, plainBody, to string) Deliv
 		}
 
 		var d net.Dialer
-		dialCtx, cancel := context.WithTimeout(ctx, smtpTimeout)
-		defer cancel()
-		conn, err = d.DialContext(dialCtx, "tcp", fmt.Sprintf("%s:%s", smarthost, smarthostPort))
+		// Outer context has a deadline (see CODER_NOTIFICATIONS_DISPATCH_TIMEOUT).
+		conn, err = d.DialContext(ctx, "tcp", fmt.Sprintf("%s:%s", smarthost, smarthostPort))
 		if err != nil {
 			return true, xerrors.Errorf("establish connection to server: %w", err)
 		}

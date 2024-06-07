@@ -456,8 +456,23 @@ type HealthcheckConfig struct {
 }
 
 type NotificationsConfig struct {
-	SMTP    NotificationsEmailConfig   `json:"email" typescript:",notnull"`
-	Webhook NotificationsWebhookConfig `json:"webhook" typescript:",notnull"`
+	// Retries.
+	MaxSendAttempts serpent.Int64    `json:"max_send_attempts" typescript:",notnull"`
+	RetryInterval   serpent.Duration `json:"retry_interval" typescript:",notnull"`
+
+	// Store updates.
+	StoreSyncInterval   serpent.Duration `json:"sync_interval" typescript:",notnull"`
+	StoreSyncBufferSize serpent.Int64    `json:"sync_buffer_size" typescript:",notnull"`
+
+	// Queue.
+	LeasePeriod   serpent.Duration `json:"lease_period"`
+	LeaseCount    serpent.Int64    `json:"lease_count"`
+	FetchInterval serpent.Duration `json:"fetch_interval"`
+
+	// Dispatch.
+	DispatchTimeout serpent.Duration           `json:"dispatch_timeout"`
+	SMTP            NotificationsEmailConfig   `json:"email" typescript:",notnull"`
+	Webhook         NotificationsWebhookConfig `json:"webhook" typescript:",notnull"`
 }
 
 type NotificationsEmailConfig struct {
@@ -2057,6 +2072,96 @@ Write out the current server config as YAML to stdout.`,
 			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
 		},
 		// Notifications Options
+		{
+			Name:        "Notifications: Max Send Attempts",
+			Description: "The upper limit of attempts to send a notification.",
+			Flag:        "notifications-max-send-attempts",
+			Env:         "CODER_NOTIFICATIONS_MAX_SEND_ATTEMPTS",
+			Value:       &c.Notifications.MaxSendAttempts,
+			Default:     "5",
+			Group:       &deploymentGroupNotifications,
+			YAML:        "max-send-attempts",
+		},
+		{
+			Name:        "Notifications: Retry Interval",
+			Description: "The minimum time between retries.",
+			Flag:        "notifications-retry-interval",
+			Env:         "CODER_NOTIFICATIONS_RETRY_INTERVAL",
+			Value:       &c.Notifications.RetryInterval,
+			Default:     (time.Minute * 5).String(),
+			Group:       &deploymentGroupNotifications,
+			YAML:        "retry-interval",
+		},
+		{
+			Name: "Notifications: Store Sync Interval",
+			Description: "The notifications system buffers message updates in memory to ease pressure on the database. " +
+				"This option controls how often it synchronizes its state with the database. The shorter this value the " +
+				"lower the change of state inconsistency in a non-graceful shutdown - but it also increases load on the " +
+				"database. It is recommended to keep this option at its default value.",
+			Flag:    "notifications-store-sync-interval",
+			Env:     "CODER_NOTIFICATIONS_STORE_SYNC_INTERVAL",
+			Value:   &c.Notifications.StoreSyncInterval,
+			Default: (time.Second * 2).String(),
+			Group:   &deploymentGroupNotifications,
+			YAML:    "store-sync-interval",
+		},
+		{
+			Name: "Notifications: Store Sync Buffer Size",
+			Description: "The notifications system buffers message updates in memory to ease pressure on the database. " +
+				"This option controls how many updates are kept in memory. The lower this value the " +
+				"lower the change of state inconsistency in a non-graceful shutdown - but it also increases load on the " +
+				"database. It is recommended to keep this option at its default value.",
+			Flag:    "notifications-store-sync-buffer-size",
+			Env:     "CODER_NOTIFICATIONS_STORE_SYNC_BUFFER_SIZE",
+			Value:   &c.Notifications.StoreSyncBufferSize,
+			Default: "50",
+			Group:   &deploymentGroupNotifications,
+			YAML:    "store-sync-buffer-size",
+		},
+		{
+			Name: "Notifications: Lease Period",
+			Description: "How long a notifier should lease a message. This is effectively how long a notification is owned " +
+				"by a notifier, and once this period expires it will be available for lease by another notifier. Leasing " +
+				"is important in order for multiple running notifiers to not pick the same messages to deliver concurrently. " +
+				"This lease period will only expire if a notifier shuts down ungracefully; a dispatch of the notification " +
+				"releases the lease.",
+			Flag:    "notifications-lease-period",
+			Env:     "CODER_NOTIFICATIONS_LEASE_PERIOD",
+			Value:   &c.Notifications.LeasePeriod,
+			Default: (time.Minute * 2).String(),
+			Group:   &deploymentGroupNotifications,
+			YAML:    "lease-period",
+		},
+		{
+			Name:        "Notifications: Lease Count",
+			Description: "How many notifications a notifier should lease per fetch interval.",
+			Flag:        "notifications-lease-count",
+			Env:         "CODER_NOTIFICATIONS_LEASE_COUNT",
+			Value:       &c.Notifications.LeaseCount,
+			Default:     "10",
+			Group:       &deploymentGroupNotifications,
+			YAML:        "lease-count",
+		},
+		{
+			Name:        "Notifications: Fetch Interval",
+			Description: "How often to query the database for queued notifications.",
+			Flag:        "notifications-fetch-interval",
+			Env:         "CODER_NOTIFICATIONS_FETCH_INTERVAL",
+			Value:       &c.Notifications.FetchInterval,
+			Default:     (time.Second * 15).String(),
+			Group:       &deploymentGroupNotifications,
+			YAML:        "fetch-interval",
+		},
+		{
+			Name:        "Notifications: Dispatch Timeout",
+			Description: "How long to wait while a notification is being sent before giving up.",
+			Flag:        "notifications-dispatch-timeout",
+			Env:         "CODER_NOTIFICATIONS_DISPATCH_TIMEOUT",
+			Value:       &c.Notifications.DispatchTimeout,
+			Default:     time.Minute.String(),
+			Group:       &deploymentGroupNotifications,
+			YAML:        "dispatch-timeout",
+		},
 		{
 			Name:        "Notifications: Email: From Address",
 			Description: "The sender's address to use.",

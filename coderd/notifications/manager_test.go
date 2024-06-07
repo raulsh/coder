@@ -13,7 +13,6 @@ import (
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/dispatch"
 	"github.com/coder/coder/v2/coderd/notifications/types"
-	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -27,7 +26,7 @@ func TestSingletonRegistration(t *testing.T) {
 	ctx := context.Background()
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true, IgnoredErrorIs: []error{}}).Leveled(slog.LevelDebug)
 
-	mgr := notifications.NewManager(codersdk.NotificationsConfig{}, dbmem.New(), logger, nil)
+	mgr := notifications.NewManager(defaultNotificationsConfig(), dbmem.New(), logger, nil)
 	t.Cleanup(func() {
 		require.NoError(t, mgr.Stop(ctx))
 	})
@@ -55,7 +54,7 @@ func TestBufferedUpdates(t *testing.T) {
 	santa := &santaDispatcher{}
 	dispatchers, err := notifications.NewHandlerRegistry(santa)
 	require.NoError(t, err)
-	mgr := notifications.NewManager(codersdk.NotificationsConfig{}, interceptor, logger.Named("notifications"), dispatchers)
+	mgr := notifications.NewManager(defaultNotificationsConfig(), interceptor, logger.Named("notifications"), dispatchers)
 
 	client := coderdtest.New(t, &coderdtest.Options{Database: db, Pubsub: pubsub.NewInMemory()})
 	user := coderdtest.CreateFirstUser(t, client)

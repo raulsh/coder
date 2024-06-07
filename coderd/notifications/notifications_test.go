@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"testing"
+	"time"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
@@ -50,7 +51,7 @@ func TestBasicNotificationRoundtrip(t *testing.T) {
 	fakeDispatchers, err := notifications.NewHandlerRegistry(dispatcher)
 	require.NoError(t, err)
 
-	cfg := codersdk.NotificationsConfig{}
+	cfg := defaultNotificationsConfig()
 	manager := notifications.NewManager(cfg, db, logger, fakeDispatchers)
 	notifications.RegisterInstance(manager)
 	t.Cleanup(func() {
@@ -95,12 +96,11 @@ func TestSMTPDispatch(t *testing.T) {
 
 	// given
 	const from = "danny@coder.com"
-	cfg := codersdk.NotificationsConfig{
-		SMTP: codersdk.NotificationsEmailConfig{
-			From:      from,
-			Smarthost: serpent.HostPort{Host: "localhost", Port: fmt.Sprintf("%d", mockSMTPSrv.PortNumber())},
-			Hello:     "localhost",
-		},
+	cfg := defaultNotificationsConfig()
+	cfg.SMTP = codersdk.NotificationsEmailConfig{
+		From:      from,
+		Smarthost: serpent.HostPort{Host: "localhost", Port: fmt.Sprintf("%d", mockSMTPSrv.PortNumber())},
+		Hello:     "localhost",
 	}
 	dispatcher := &interceptingSMTPDispatcher{SMTPDispatcher: dispatch.NewSMTPDispatcher(cfg.SMTP, logger)}
 	fakeDispatchers, err := notifications.NewHandlerRegistry(dispatcher)
@@ -161,7 +161,7 @@ func TestWebhookDispatch(t *testing.T) {
 		require.NoError(t, err)
 
 		require.Equal(t, "application/json", r.Header.Get("Content-Type"))
-		require.EqualValues(t, 1, payload.Version)
+		require.EqualValues(t, "1.0", payload.Version)
 		require.Equal(t, *msgID, payload.MsgID)
 		require.Equal(t, payload.Payload.Labels, input)
 		require.Equal(t, payload.Payload.UserEmail, "bob@coder.com")
@@ -179,10 +179,9 @@ func TestWebhookDispatch(t *testing.T) {
 	require.NoError(t, err)
 
 	// given
-	cfg := codersdk.NotificationsConfig{
-		Webhook: codersdk.NotificationsWebhookConfig{
-			Endpoint: *serpent.URLOf(endpoint),
-		},
+	cfg := defaultNotificationsConfig()
+	cfg.Webhook = codersdk.NotificationsWebhookConfig{
+		Endpoint: *serpent.URLOf(endpoint),
 	}
 	manager := notifications.NewManager(cfg, db, logger, nil)
 	notifications.RegisterInstance(manager)
@@ -277,4 +276,19 @@ func (i *interceptingSMTPDispatcher) Dispatcher(payload types.MessagePayload, ti
 		i.sent = true
 		return i.retryable, i.err
 	}, nil
+}
+
+func defaultNotificationsConfig() codersdk.NotificationsConfig {
+	return codersdk.NotificationsConfig{
+		MaxSendAttempts:     5,
+		RetryInterval:       serpent.Duration(time.Minute * 5),
+		StoreSyncInterval:   serpent.Duration(time.Second * 2),
+		StoreSyncBufferSize: 50,
+		LeasePeriod:         serpent.Duration(time.Minute * 2),
+		LeaseCount:          10,
+		FetchInterval:       serpent.Duration(time.Second * 10),
+		DispatchTimeout:     serpent.Duration(time.Minute),
+		SMTP:                codersdk.NotificationsEmailConfig{},
+		Webhook:             codersdk.NotificationsWebhookConfig{},
+	}
 }

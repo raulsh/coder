@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
-	"time"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/apiversion"
@@ -33,17 +32,12 @@ type WebhookPayload struct {
 	Body    string               `json:"body"`
 }
 
-const (
-	// TODO: configurable
-	webhookTimeout = time.Second * 30
-)
-
 var (
 	PayloadVersion = apiversion.New(1, 0)
 )
 
 func NewWebhookDispatcher(cfg codersdk.NotificationsWebhookConfig, log slog.Logger) *WebhookDispatcher {
-	return &WebhookDispatcher{cfg: cfg, log: log, cl: &http.Client{Timeout: webhookTimeout}}
+	return &WebhookDispatcher{cfg: cfg, log: log, cl: &http.Client{}}
 }
 
 func (w *WebhookDispatcher) NotificationMethod() database.NotificationMethod {
@@ -80,6 +74,7 @@ func (w *WebhookDispatcher) dispatch(msgPayload types.MessagePayload, title, bod
 		}
 
 		// Prepare request.
+		// Outer context has a deadline (see CODER_NOTIFICATIONS_DISPATCH_TIMEOUT).
 		req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewBuffer(m))
 		if err != nil {
 			return false, xerrors.Errorf("create HTTP request: %v", err)

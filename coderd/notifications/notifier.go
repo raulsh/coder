@@ -10,6 +10,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/notifications/dispatch"
 	"github.com/coder/coder/v2/coderd/notifications/types"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/google/uuid"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
@@ -18,18 +19,11 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 )
 
-const (
-	// TODO: configurable?
-	NotifierQueueSize       = 10
-	NotifierLeasePeriod     = time.Minute * 10
-	NotifierFetchInterval   = time.Second * 15
-	NotifierDispatchTimeout = time.Second * 30
-)
-
 // notifier is a consumer of the notifications_messages queue. It dequeues messages from that table and processes them
 // through a pipeline of fetch -> prepare -> render -> acquire handler -> deliver.
 type notifier struct {
 	id    int
+	cfg   codersdk.NotificationsConfig
 	ctx   context.Context
 	log   slog.Logger
 	store Store
@@ -38,17 +32,19 @@ type notifier struct {
 	stopOnce sync.Once
 	quit     chan any
 	done     chan any
+
 	handlers *HandlerRegistry
 }
 
-func newNotifier(ctx context.Context, id int, log slog.Logger, db Store, hr *HandlerRegistry) *notifier {
+func newNotifier(ctx context.Context, cfg codersdk.NotificationsConfig, id int, log slog.Logger, db Store, hr *HandlerRegistry) *notifier {
 	return &notifier{
 		id:       id,
 		ctx:      ctx,
+		cfg:      cfg,
 		log:      log.Named("notifier").With(slog.F("id", id)),
 		quit:     make(chan any),
 		done:     make(chan any),
-		tick:     time.NewTicker(NotifierFetchInterval),
+		tick:     time.NewTicker(cfg.FetchInterval.Value()),
 		store:    db,
 		handlers: hr,
 	}
@@ -127,10 +123,10 @@ func (n *notifier) process(ctx context.Context, success chan<- dispatchResult, f
 // messages until they are dispatched - or until the lease expires (in exceptional cases).
 func (n *notifier) fetch(ctx context.Context) ([]database.AcquireNotificationMessagesRow, error) {
 	msgs, err := n.store.AcquireNotificationMessages(ctx, database.AcquireNotificationMessagesParams{
-		Count:           NotifierQueueSize,
-		MaxAttemptCount: MaxAttempts,
+		Count:           int32(n.cfg.LeaseCount),
+		MaxAttemptCount: int32(n.cfg.MaxSendAttempts),
 		NotifierID:      int32(n.id),
-		LeaseSeconds:    int32(NotifierLeasePeriod.Seconds()),
+		LeaseSeconds:    int32(n.cfg.LeasePeriod.Value().Seconds()),
 		UserID:          uuid.New(), // TODO: use real user ID
 		OrgID:           uuid.New(), // TODO: use real org ID
 	})
@@ -203,7 +199,7 @@ func (n *notifier) deliver(ctx context.Context, msg database.AcquireNotification
 	default:
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, NotifierDispatchTimeout)
+	ctx, cancel := context.WithTimeout(ctx, n.cfg.DispatchTimeout.Value())
 	defer cancel()
 	logger := n.log.With(slog.F("msg_id", msg.ID), slog.F("method", msg.Method))
 

@@ -19,15 +19,6 @@ import (
 	"cdr.dev/slog"
 )
 
-const (
-	// TODO: configurable
-	MaxAttempts          = 5
-	RetryInterval        = time.Minute * 5
-	BulkUpdateBufferSize = 50
-	BulkUpdateInterval   = time.Second
-	DeletionPeriod       = time.Hour * 24 * 7
-)
-
 var (
 	PayloadVersion = apiversion.New(1, 0)
 )
@@ -133,8 +124,8 @@ func (m *Manager) loop(ctx context.Context, notifiers int) error {
 		// see BulkMarkNotificationMessagesSent/BulkMarkNotificationMessagesFailed. If we had the ability to batch updates,
 		// like is offered in https://docs.sqlc.dev/en/stable/reference/query-annotations.html#batchmany, we'd have a cleaner
 		// approach to this - but for now this will work fine.
-		success = make(chan dispatchResult, BulkUpdateBufferSize)
-		failure = make(chan dispatchResult, BulkUpdateBufferSize)
+		success = make(chan dispatchResult, m.cfg.StoreSyncBufferSize/2)
+		failure = make(chan dispatchResult, m.cfg.StoreSyncBufferSize/2)
 	)
 
 	// Create a specific number of notifiers to run concurrently.
@@ -142,7 +133,7 @@ func (m *Manager) loop(ctx context.Context, notifiers int) error {
 	for i := 0; i < notifiers; i++ {
 		eg.Go(func() error {
 			m.notifierMu.Lock()
-			n := newNotifier(ctx, i+1, m.log, m.store, m.handlers)
+			n := newNotifier(ctx, m.cfg, i+1, m.log, m.store, m.handlers)
 			m.notifiers = append(m.notifiers, n)
 			m.notifierMu.Unlock()
 			return n.run(ctx, success, failure)
@@ -151,7 +142,7 @@ func (m *Manager) loop(ctx context.Context, notifiers int) error {
 
 	eg.Go(func() error {
 		// Every interval, collect the messages in the channels and bulk update them in the database.
-		tick := time.NewTicker(BulkUpdateInterval)
+		tick := time.NewTicker(m.cfg.StoreSyncInterval.Value())
 		defer tick.Stop()
 		for {
 			select {
@@ -331,8 +322,8 @@ func (m *Manager) bulkUpdate(ctx context.Context, success, failure <-chan dispat
 		defer wg.Done()
 		logger := m.log.With(slog.F("type", "update_failed"))
 
-		failureParams.MaxAttempts = MaxAttempts
-		failureParams.RetryInterval = int32(RetryInterval.Seconds())
+		failureParams.MaxAttempts = int32(m.cfg.MaxSendAttempts)
+		failureParams.RetryInterval = int32(m.cfg.RetryInterval.Value().Seconds())
 		n, err := m.store.BulkMarkNotificationMessagesFailed(ctx, failureParams)
 		if err != nil {
 			logger.Error(ctx, "bulk update failed", slog.Error(err))
