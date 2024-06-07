@@ -2,8 +2,8 @@ CREATE TYPE notification_message_status AS ENUM (
     'pending',
     'leased',
     'sent',
-    'canceled',
-    'failed',
+    'permanent_failure',
+    'temporary_failure',
     'inhibited',
     'unknown'
     );

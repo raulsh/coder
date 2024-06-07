@@ -276,7 +276,7 @@ func (m *Manager) bulkUpdate(ctx context.Context, success, failure <-chan dispat
 	// Read all the existing messages due for update from the channel, but don't range over the channels because they
 	// block until they are closed.
 	//
-	// This is vulnerable to TOCTOU.
+	// This is vulnerable to TOCTOU, but it's fine.
 	// If more items are added to the success or failure channels between measuring their lengths and now, those items
 	// will be processed on the next bulk update.
 
@@ -287,9 +287,15 @@ func (m *Manager) bulkUpdate(ctx context.Context, success, failure <-chan dispat
 	}
 	for i := 0; i < nFailure; i++ {
 		res := <-failure
+
+		status := database.NotificationMessageStatusPermanentFailure
+		if res.retryable {
+			status = database.NotificationMessageStatusTemporaryFailure
+		}
+
 		failureParams.IDs = append(failureParams.IDs, res.msg)
 		failureParams.FailedAts = append(failureParams.FailedAts, res.ts)
-		failureParams.Statuses = append(failureParams.Statuses, database.NotificationMessageStatusFailed)
+		failureParams.Statuses = append(failureParams.Statuses, status)
 		var reason string
 		if res.err != nil {
 			reason = res.err.Error()
@@ -393,10 +399,11 @@ func (m *Manager) Stop(ctx context.Context) error {
 }
 
 type dispatchResult struct {
-	notifier int
-	msg      uuid.UUID
-	ts       time.Time
-	err      error
+	notifier  int
+	msg       uuid.UUID
+	ts        time.Time
+	err       error
+	retryable bool
 }
 
 func newSuccessfulDispatch(notifier int, msg uuid.UUID) dispatchResult {
@@ -407,11 +414,12 @@ func newSuccessfulDispatch(notifier int, msg uuid.UUID) dispatchResult {
 	}
 }
 
-func newFailedDispatch(notifier int, msg uuid.UUID, err error) dispatchResult {
+func newFailedDispatch(notifier int, msg uuid.UUID, err error, retryable bool) dispatchResult {
 	return dispatchResult{
-		notifier: notifier,
-		msg:      msg,
-		ts:       time.Now(),
-		err:      err,
+		notifier:  notifier,
+		msg:       msg,
+		ts:        time.Now(),
+		err:       err,
+		retryable: retryable,
 	}
 }

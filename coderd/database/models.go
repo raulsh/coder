@@ -663,13 +663,13 @@ func AllLoginTypeValues() []LoginType {
 type NotificationMessageStatus string
 
 const (
-	NotificationMessageStatusPending   NotificationMessageStatus = "pending"
-	NotificationMessageStatusLeased    NotificationMessageStatus = "leased"
-	NotificationMessageStatusSent      NotificationMessageStatus = "sent"
-	NotificationMessageStatusCanceled  NotificationMessageStatus = "canceled"
-	NotificationMessageStatusFailed    NotificationMessageStatus = "failed"
-	NotificationMessageStatusInhibited NotificationMessageStatus = "inhibited"
-	NotificationMessageStatusUnknown   NotificationMessageStatus = "unknown"
+	NotificationMessageStatusPending          NotificationMessageStatus = "pending"
+	NotificationMessageStatusLeased           NotificationMessageStatus = "leased"
+	NotificationMessageStatusSent             NotificationMessageStatus = "sent"
+	NotificationMessageStatusPermanentFailure NotificationMessageStatus = "permanent_failure"
+	NotificationMessageStatusTemporaryFailure NotificationMessageStatus = "temporary_failure"
+	NotificationMessageStatusInhibited        NotificationMessageStatus = "inhibited"
+	NotificationMessageStatusUnknown          NotificationMessageStatus = "unknown"
 )
 
 func (e *NotificationMessageStatus) Scan(src interface{}) error {
@@ -712,8 +712,8 @@ func (e NotificationMessageStatus) Valid() bool {
 	case NotificationMessageStatusPending,
 		NotificationMessageStatusLeased,
 		NotificationMessageStatusSent,
-		NotificationMessageStatusCanceled,
-		NotificationMessageStatusFailed,
+		NotificationMessageStatusPermanentFailure,
+		NotificationMessageStatusTemporaryFailure,
 		NotificationMessageStatusInhibited,
 		NotificationMessageStatusUnknown:
 		return true
@@ -726,8 +726,8 @@ func AllNotificationMessageStatusValues() []NotificationMessageStatus {
 		NotificationMessageStatusPending,
 		NotificationMessageStatusLeased,
 		NotificationMessageStatusSent,
-		NotificationMessageStatusCanceled,
-		NotificationMessageStatusFailed,
+		NotificationMessageStatusPermanentFailure,
+		NotificationMessageStatusTemporaryFailure,
 		NotificationMessageStatusInhibited,
 		NotificationMessageStatusUnknown,
 	}

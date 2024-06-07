@@ -924,7 +924,7 @@ func (q *FakeQuerier) AcquireNotificationMessages(ctx context.Context, arg datab
 			break
 		}
 
-		acquirableStatuses := []database.NotificationMessageStatus{database.NotificationMessageStatusPending, database.NotificationMessageStatusFailed}
+		acquirableStatuses := []database.NotificationMessageStatus{database.NotificationMessageStatusPending, database.NotificationMessageStatusTemporaryFailure}
 		if !slices.Contains(acquirableStatuses, nm.Status) {
 			continue
 		}

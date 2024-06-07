@@ -98,7 +98,7 @@ func (n *notifier) process(ctx context.Context, success chan<- dispatchResult, f
 		deliverFn, err := n.prepare(ctx, msg)
 		if err != nil {
 			n.log.Warn(ctx, "dispatcher construction failed", slog.F("msg_id", msg.ID), slog.Error(err))
-			failure <- newFailedDispatch(n.id, msg.ID, err)
+			failure <- newFailedDispatch(n.id, msg.ID, err, false)
 			continue
 		}
 
@@ -204,7 +204,6 @@ func (n *notifier) deliver(ctx context.Context, msg database.AcquireNotification
 	logger := n.log.With(slog.F("msg_id", msg.ID), slog.F("method", msg.Method))
 
 	retryable, err := deliver(ctx, msg.ID)
-	_ = retryable // TODO: implement non-retryable failures
 	if err != nil {
 		// Don't try to accumulate message responses if the context has been canceled.
 		// This message's lease will expire in the store and will be requeued.
@@ -215,7 +214,7 @@ func (n *notifier) deliver(ctx context.Context, msg database.AcquireNotification
 		}
 
 		logger.Warn(ctx, "message dispatch failed", slog.Error(err))
-		failure <- newFailedDispatch(n.id, msg.ID, err)
+		failure <- newFailedDispatch(n.id, msg.ID, err, retryable)
 	} else {
 		logger.Debug(ctx, "message dispatch succeeded")
 		success <- newSuccessfulDispatch(n.id, msg.ID)

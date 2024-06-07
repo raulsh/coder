@@ -3209,7 +3209,7 @@ WITH acquired AS (
                                  -- message is in acquirable states
                                  nm.status IN (
                                                'pending'::notification_message_status,
-                                               'failed'::notification_message_status
+                                               'temporary_failure'::notification_message_status
                                      )
                                  )
                                  -- or somehow the message was left in leased for longer than its lease period
@@ -3326,7 +3326,9 @@ WITH new_values AS (SELECT UNNEST($3::uuid[])                             AS id,
 UPDATE notification_messages
 SET updated_at       = subquery.failed_at,
     attempt_count    = attempt_count + 1,
-    status           = subquery.status,
+    status           = CASE
+                           WHEN attempt_count + 1 < $1::int THEN subquery.status
+                           ELSE 'permanent_failure'::notification_message_status END,
     status_reason    = subquery.status_reason,
     leased_until     = NULL,
     next_retry_after = CASE
