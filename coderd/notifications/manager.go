@@ -6,12 +6,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/coder/coder/v2/apiversion"
-	"github.com/coder/coder/v2/coderd/notifications/render"
-	"github.com/coder/coder/v2/codersdk"
 	"github.com/google/uuid"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/apiversion"
+	"github.com/coder/coder/v2/coderd/notifications/render"
+	"github.com/coder/coder/v2/codersdk"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/notifications/dispatch"
@@ -204,7 +205,7 @@ func (m *Manager) Enqueue(ctx context.Context, userID, templateID uuid.UUID, lab
 	// Build payload.
 	payload, err := m.buildPayload(ctx, userID, templateID, labels)
 	if err != nil {
-		m.log.Warn(ctx, "failed to build payload", slog.F("template", templateID), slog.F("user", userID), slog.Error(err))
+		m.log.Warn(ctx, "failed to build payload", slog.F("template_id", templateID), slog.F("user_id", userID), slog.Error(err))
 		return nil, xerrors.Errorf("enqueue notification (payload build): %w", err)
 	}
 
@@ -224,7 +225,7 @@ func (m *Manager) Enqueue(ctx context.Context, userID, templateID uuid.UUID, lab
 		CreatedBy:              createdBy,
 	})
 	if err != nil {
-		m.log.Warn(ctx, "failed to enqueue notification", slog.F("template", templateID), slog.F("input", input), slog.Error(err))
+		m.log.Warn(ctx, "failed to enqueue notification", slog.F("template_id", templateID), slog.F("input", input), slog.Error(err))
 		return nil, xerrors.Errorf("enqueue notification: %w", err)
 	}
 

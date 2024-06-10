@@ -15,13 +15,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
+	"golang.org/x/xerrors"
+
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/notifications/render"
 	"github.com/coder/coder/v2/coderd/notifications/types"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/google/uuid"
-	"golang.org/x/xerrors"
 )
 
 var (
@@ -45,7 +46,7 @@ func NewSMTPDispatcher(cfg codersdk.NotificationsEmailConfig, log slog.Logger) *
 	return &SMTPDispatcher{cfg: cfg, log: log}
 }
 
-func (s *SMTPDispatcher) NotificationMethod() database.NotificationMethod {
+func (*SMTPDispatcher) NotificationMethod() database.NotificationMethod {
 	return database.NotificationMethodSmtp
 }
 
@@ -100,7 +101,7 @@ func (s *SMTPDispatcher) dispatch(subject, htmlBody, plainBody, to string) Deliv
 			err  error
 		)
 
-		s.log.Debug(ctx, "dispatching via SMTP", slog.F("msgID", msgID))
+		s.log.Debug(ctx, "dispatching via SMTP", slog.F("msg_id", msgID))
 
 		// Dial the smarthost to establish a connection.
 		smarthost, smarthostPort, err := s.smarthost()
@@ -147,7 +148,7 @@ func (s *SMTPDispatcher) dispatch(subject, htmlBody, plainBody, to string) Deliv
 
 		// Check for authentication capabilities.
 		// TODO: implement authentication
-		//if ok, mech := c.Extension("AUTH"); ok {
+		// if ok, mech := c.Extension("AUTH"); ok {
 		//	auth, err := s.auth(mech)
 		//	if err != nil {
 		//		return true, xerrors.Errorf("find auth mechanism: %w", err)
@@ -188,7 +189,7 @@ func (s *SMTPDispatcher) dispatch(subject, htmlBody, plainBody, to string) Deliv
 		// Start message transmission.
 		message, err := c.Data()
 		if err != nil {
-			return true, fmt.Errorf("message transmission: %w", err)
+			return true, xerrors.Errorf("message transmission: %w", err)
 		}
 		defer message.Close()
 
@@ -205,7 +206,7 @@ func (s *SMTPDispatcher) dispatch(subject, htmlBody, plainBody, to string) Deliv
 		_, _ = fmt.Fprintf(msg, "MIME-Version: 1.0\r\n\r\n")
 		_, err = message.Write(msg.Bytes())
 		if err != nil {
-			return false, fmt.Errorf("write headers: %w", err)
+			return false, xerrors.Errorf("write headers: %w", err)
 		}
 
 		// Transmit message body.
@@ -216,16 +217,16 @@ func (s *SMTPDispatcher) dispatch(subject, htmlBody, plainBody, to string) Deliv
 			"Content-Type":              {"text/plain; charset=UTF-8"},
 		})
 		if err != nil {
-			return false, fmt.Errorf("create part for text body: %w", err)
+			return false, xerrors.Errorf("create part for text body: %w", err)
 		}
 		qw := quotedprintable.NewWriter(w)
 		_, err = qw.Write([]byte(plainBody))
 		if err != nil {
-			return true, fmt.Errorf("write text part: %w", err)
+			return true, xerrors.Errorf("write text part: %w", err)
 		}
 		err = qw.Close()
 		if err != nil {
-			return true, fmt.Errorf("close text part: %w", err)
+			return true, xerrors.Errorf("close text part: %w", err)
 		}
 
 		// HTML body
@@ -236,26 +237,26 @@ func (s *SMTPDispatcher) dispatch(subject, htmlBody, plainBody, to string) Deliv
 			"Content-Type":              {"text/html; charset=UTF-8"},
 		})
 		if err != nil {
-			return false, fmt.Errorf("create part for HTML body: %w", err)
+			return false, xerrors.Errorf("create part for HTML body: %w", err)
 		}
 		qw = quotedprintable.NewWriter(w)
 		_, err = qw.Write([]byte(htmlBody))
 		if err != nil {
-			return true, fmt.Errorf("write HTML part: %w", err)
+			return true, xerrors.Errorf("write HTML part: %w", err)
 		}
 		err = qw.Close()
 		if err != nil {
-			return true, fmt.Errorf("close HTML part: %w", err)
+			return true, xerrors.Errorf("close HTML part: %w", err)
 		}
 
 		err = multipartWriter.Close()
 		if err != nil {
-			return false, fmt.Errorf("close multipartWriter: %w", err)
+			return false, xerrors.Errorf("close multipartWriter: %w", err)
 		}
 
 		_, err = message.Write(multipartBuffer.Bytes())
 		if err != nil {
-			return false, fmt.Errorf("write body buffer: %w", err)
+			return false, xerrors.Errorf("write body buffer: %w", err)
 		}
 
 		// Returning false, nil indicates successful send (i.e. non-retryable non-error)
@@ -264,12 +265,12 @@ func (s *SMTPDispatcher) dispatch(subject, htmlBody, plainBody, to string) Deliv
 }
 
 // auth returns a value which implements the smtp.Auth based on the available auth mechanism.
-func (s *SMTPDispatcher) auth(mechs string) (smtp.Auth, error) {
-	// TODO
-	return nil, nil
-}
+// func (*SMTPDispatcher) auth(_ string) (smtp.Auth, error) {
+//	// TODO
+//	return nil, nil
+//}
 
-func (s *SMTPDispatcher) validateFromAddr(from string) (string, error) {
+func (*SMTPDispatcher) validateFromAddr(from string) (string, error) {
 	addrs, err := mail.ParseAddressList(from)
 	if err != nil {
 		return "", xerrors.Errorf("parse 'from' address: %w", err)
@@ -280,12 +281,12 @@ func (s *SMTPDispatcher) validateFromAddr(from string) (string, error) {
 	return from, nil
 }
 
-func (s *SMTPDispatcher) validateToAddrs(to string) ([]string, error) {
+func (*SMTPDispatcher) validateToAddrs(to string) ([]string, error) {
 	addrs, err := mail.ParseAddressList(to)
 	if err != nil {
 		return nil, xerrors.Errorf("parse 'to' addresses: %w", err)
 	}
-	if len(addrs) <= 0 {
+	if len(addrs) == 0 {
 		// The addresses can be non-zero but invalid.
 		return nil, xerrors.Errorf("no valid 'to' address(es) found, given %+v", to)
 	}
@@ -300,6 +301,7 @@ func (s *SMTPDispatcher) validateToAddrs(to string) ([]string, error) {
 
 // smarthost retrieves the host/port defined and validates them.
 // Does not allow overriding.
+// nolint:revive // documented.
 func (s *SMTPDispatcher) smarthost() (string, string, error) {
 	host := s.cfg.Smarthost.Host
 	port := s.cfg.Smarthost.Port
@@ -325,7 +327,7 @@ func (s *SMTPDispatcher) hello() (string, error) {
 	return val, nil
 }
 
-func (s *SMTPDispatcher) hostname() string {
+func (*SMTPDispatcher) hostname() string {
 	h, err := os.Hostname()
 	// If we can't get the hostname, we'll use localhost
 	if err != nil {

@@ -7,14 +7,15 @@ import (
 	"io"
 	"net/http"
 
+	"github.com/google/uuid"
+	"golang.org/x/xerrors"
+
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/apiversion"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/notifications/render"
 	"github.com/coder/coder/v2/coderd/notifications/types"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/google/uuid"
-	"golang.org/x/xerrors"
 )
 
 type WebhookDispatcher struct {
@@ -40,7 +41,7 @@ func NewWebhookDispatcher(cfg codersdk.NotificationsWebhookConfig, log slog.Logg
 	return &WebhookDispatcher{cfg: cfg, log: log, cl: &http.Client{}}
 }
 
-func (w *WebhookDispatcher) NotificationMethod() database.NotificationMethod {
+func (*WebhookDispatcher) NotificationMethod() database.NotificationMethod {
 	// TODO: don't use database types
 	return database.NotificationMethodWebhook
 }

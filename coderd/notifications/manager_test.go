@@ -5,6 +5,10 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
+
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -16,9 +20,6 @@ import (
 	"github.com/coder/coder/v2/coderd/notifications/dispatch"
 	"github.com/coder/coder/v2/coderd/notifications/types"
 	"github.com/coder/coder/v2/testutil"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/require"
-	"golang.org/x/xerrors"
 )
 
 // TestSingletonRegistration tests that a Manager which has been instantiated but not registered will error.
@@ -48,6 +49,7 @@ func TestBufferedUpdates(t *testing.T) {
 	t.Parallel()
 
 	// setup
+	// nolint:gocritic // unit tests.
 	ctx := dbauthz.AsSystemRestricted(context.Background())
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true, IgnoredErrorIs: []error{}}).Leveled(slog.LevelDebug)
 
@@ -94,12 +96,12 @@ type bulkUpdateInterceptor struct {
 	failed atomic.Int32
 }
 
-func (b *bulkUpdateInterceptor) BulkMarkNotificationMessagesSent(ctx context.Context, arg database.BulkMarkNotificationMessagesSentParams) (int64, error) {
+func (b *bulkUpdateInterceptor) BulkMarkNotificationMessagesSent(context.Context, database.BulkMarkNotificationMessagesSentParams) (int64, error) {
 	b.sent.Add(1)
 	return 1, nil
 }
 
-func (b *bulkUpdateInterceptor) BulkMarkNotificationMessagesFailed(ctx context.Context, arg database.BulkMarkNotificationMessagesFailedParams) (int64, error) {
+func (b *bulkUpdateInterceptor) BulkMarkNotificationMessagesFailed(context.Context, database.BulkMarkNotificationMessagesFailedParams) (int64, error) {
 	b.failed.Add(1)
 	return 1, nil
 }
@@ -110,7 +112,7 @@ type santaDispatcher struct {
 	nice    []uuid.UUID
 }
 
-func (s *santaDispatcher) NotificationMethod() database.NotificationMethod {
+func (*santaDispatcher) NotificationMethod() database.NotificationMethod {
 	return database.NotificationMethodSmtp
 }
 

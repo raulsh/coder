@@ -32,7 +32,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/coreos/go-systemd/daemon"
 	embeddedpostgres "github.com/fergusstrange/embedded-postgres"
@@ -53,6 +52,8 @@ import (
 	"google.golang.org/api/option"
 	"gopkg.in/yaml.v3"
 	"tailscale.com/tailcfg"
+
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
@@ -1003,6 +1004,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 					return xerrors.Errorf("failed to instantiate notification manager: %w", err)
 				}
 
+				// nolint:gocritic // TODO: create own role.
 				notificationsManager.Run(dbauthz.AsSystemRestricted(ctx), int(cfg.WorkerCount.Value()))
 				notifications.RegisterInstance(notificationsManager)
 			} else {

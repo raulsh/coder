@@ -3,9 +3,10 @@ package system
 import (
 	"context"
 
+	"github.com/google/uuid"
+
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/types"
-	"github.com/google/uuid"
 )
 
 // EnqueueWorkspaceDeleted notifies the given user that their workspace was deleted.

@@ -1,10 +1,13 @@
-package render
+package render_test
 
 import (
 	"testing"
 
-	"github.com/coder/coder/v2/coderd/notifications/types"
 	"github.com/stretchr/testify/require"
+
+	"github.com/coder/coder/v2/coderd/notifications/render"
+
+	"github.com/coder/coder/v2/coderd/notifications/types"
 )
 
 func TestGoTemplate(t *testing.T) {
@@ -38,10 +41,12 @@ func TestGoTemplate(t *testing.T) {
 	}
 
 	for _, tc := range tests {
+		tc := tc // unnecessary as of go1.22 but the linter is outdated
+
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			out, err := GoTemplate(tc.in, tc.payload)
+			out, err := render.GoTemplate(tc.in, tc.payload)
 			if tc.expectedErr == nil {
 				require.NoError(t, err)
 			} else {

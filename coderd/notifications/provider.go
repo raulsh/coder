@@ -1,8 +1,9 @@
 package notifications
 
 import (
-	"github.com/coder/coder/v2/coderd/database"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/coderd/database"
 )
 
 type HandlerRegistry struct {

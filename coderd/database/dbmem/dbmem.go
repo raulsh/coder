@@ -14,13 +14,14 @@ import (
 	"sync"
 	"time"
 
-	"github.com/coder/coder/v2/coderd/notifications/types"
 	"github.com/google/uuid"
 	"github.com/lib/pq"
 	"golang.org/x/exp/constraints"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/coderd/notifications/types"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -910,7 +911,7 @@ func (*FakeQuerier) AcquireLock(_ context.Context, _ int64) error {
 
 // AcquireNotificationMessages implements the *basic* business logic, but is *not* exhaustive or meant to be 1:1 with
 // the real AcquireNotificationMessages query.
-func (q *FakeQuerier) AcquireNotificationMessages(ctx context.Context, arg database.AcquireNotificationMessagesParams) ([]database.AcquireNotificationMessagesRow, error) {
+func (q *FakeQuerier) AcquireNotificationMessages(_ context.Context, arg database.AcquireNotificationMessagesParams) ([]database.AcquireNotificationMessagesRow, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
 		return nil, err
@@ -1211,7 +1212,7 @@ func (q *FakeQuerier) BatchUpdateWorkspaceLastUsedAt(_ context.Context, arg data
 	return nil
 }
 
-func (q *FakeQuerier) BulkMarkNotificationMessagesFailed(ctx context.Context, arg database.BulkMarkNotificationMessagesFailedParams) (int64, error) {
+func (*FakeQuerier) BulkMarkNotificationMessagesFailed(_ context.Context, arg database.BulkMarkNotificationMessagesFailedParams) (int64, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
 		return 0, err
@@ -1220,7 +1221,7 @@ func (q *FakeQuerier) BulkMarkNotificationMessagesFailed(ctx context.Context, ar
 	panic("not implemented")
 }
 
-func (q *FakeQuerier) BulkMarkNotificationMessagesSent(ctx context.Context, arg database.BulkMarkNotificationMessagesSentParams) (int64, error) {
+func (*FakeQuerier) BulkMarkNotificationMessagesSent(_ context.Context, arg database.BulkMarkNotificationMessagesSentParams) (int64, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
 		return 0, err
@@ -1564,7 +1565,7 @@ func (q *FakeQuerier) DeleteOAuth2ProviderAppTokensByAppAndUserID(_ context.Cont
 	return nil
 }
 
-func (q *FakeQuerier) DeleteOldNotificationMessages(ctx context.Context) error {
+func (*FakeQuerier) DeleteOldNotificationMessages(context.Context) error {
 	panic("not implemented")
 }
 
@@ -1783,7 +1784,7 @@ func (q *FakeQuerier) DeleteWorkspaceAgentPortSharesByTemplate(_ context.Context
 	return nil
 }
 
-func (q *FakeQuerier) EnqueueNotificationMessage(ctx context.Context, arg database.EnqueueNotificationMessageParams) (database.NotificationMessage, error) {
+func (q *FakeQuerier) EnqueueNotificationMessage(_ context.Context, arg database.EnqueueNotificationMessageParams) (database.NotificationMessage, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
 		return database.NotificationMessage{}, err
@@ -1835,7 +1836,7 @@ func (q *FakeQuerier) FavoriteWorkspace(_ context.Context, arg uuid.UUID) error 
 	return nil
 }
 
-func (q *FakeQuerier) FetchNewMessageMetadata(ctx context.Context, arg database.FetchNewMessageMetadataParams) (database.FetchNewMessageMetadataRow, error) {
+func (*FakeQuerier) FetchNewMessageMetadata(_ context.Context, arg database.FetchNewMessageMetadataParams) (database.FetchNewMessageMetadataRow, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
 		return database.FetchNewMessageMetadataRow{}, err
@@ -6182,7 +6183,7 @@ func (q *FakeQuerier) InsertMissingGroups(_ context.Context, arg database.Insert
 	return newGroups, nil
 }
 
-func (q *FakeQuerier) InsertNotificationTemplate(ctx context.Context, arg database.InsertNotificationTemplateParams) (database.NotificationTemplate, error) {
+func (*FakeQuerier) InsertNotificationTemplate(_ context.Context, arg database.InsertNotificationTemplateParams) (database.NotificationTemplate, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
 		return database.NotificationTemplate{}, err

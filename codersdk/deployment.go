@@ -488,7 +488,7 @@ type NotificationsEmailConfig struct {
 
 	// TODO: Auth and Headers
 	//// Authentication details.
-	//Auth struct {
+	// Auth struct {
 	//	// Username for CRAM-MD5/LOGIN/PLAIN auth; authentication is disabled if this is left blank.
 	//	Username serpent.String `json:"username" typescript:",notnull"`
 	//	// Password to use for LOGIN/PLAIN auth.
@@ -499,9 +499,9 @@ type NotificationsEmailConfig struct {
 	//	Secret serpent.String `json:"secret" typescript:",notnull"`
 	//	// Identity used for PLAIN auth.
 	//	Identity serpent.String `json:"identity" typescript:",notnull"`
-	//} `json:"auth" typescript:",notnull"`
+	// } `json:"auth" typescript:",notnull"`
 	//// Additional headers to use in the SMTP request.
-	//Headers map[string]string `json:"headers" typescript:",notnull"`
+	// Headers map[string]string `json:"headers" typescript:",notnull"`
 	// TODO: TLS
 }
 

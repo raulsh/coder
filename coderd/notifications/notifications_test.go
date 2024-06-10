@@ -12,6 +12,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+	smtpmock "github.com/mocktools/go-smtp-mock/v2"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
+
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -25,10 +31,6 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/serpent"
-	"github.com/google/uuid"
-	smtpmock "github.com/mocktools/go-smtp-mock/v2"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/goleak"
 )
 
 func TestMain(m *testing.M) {
@@ -133,8 +135,8 @@ func TestSMTPDispatch(t *testing.T) {
 
 	// then
 	require.Eventually(t, func() bool {
-		require.Nil(t, dispatcher.lastErr.Load())
-		require.True(t, dispatcher.retryable.Load() == 0)
+		assert.Nil(t, dispatcher.lastErr.Load())
+		assert.True(t, dispatcher.retryable.Load() == 0)
 		return dispatcher.sent.Load() == 1
 	}, testutil.WaitLong, testutil.IntervalMedium)
 
@@ -338,6 +340,7 @@ func setup(t *testing.T) (context.Context, slog.Logger, database.Store, *pubsub.
 		require.NoError(t, ps.Close())
 	})
 
+	// nolint:gocritic // unit tests.
 	return dbauthz.AsSystemRestricted(ctx), logger, db, ps
 }
 
@@ -346,7 +349,7 @@ type fakeDispatcher struct {
 	failed    string
 }
 
-func (f *fakeDispatcher) NotificationMethod() database.NotificationMethod {
+func (*fakeDispatcher) NotificationMethod() database.NotificationMethod {
 	return database.NotificationMethodSmtp
 }
 
@@ -393,7 +396,7 @@ func (i *dispatchInterceptor) Dispatcher(payload types.MessagePayload, title, bo
 			i.lastErr.Store(err)
 		}
 
-		switch true {
+		switch {
 		case !retryable && err == nil:
 			i.sent.Add(1)
 		case retryable:

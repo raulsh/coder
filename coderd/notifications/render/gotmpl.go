@@ -4,8 +4,9 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/coder/coder/v2/coderd/notifications/types"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/coderd/notifications/types"
 )
 
 // GoTemplate attempts to substitute the given payload into the given template using Go's templating syntax.
