@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/coder/coder/v2/apiversion"
+	"github.com/coder/coder/v2/coderd/notifications/render"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/google/uuid"
 	"golang.org/x/sync/errgroup"
@@ -62,21 +63,29 @@ type Manager struct {
 	notifierMu sync.Mutex
 
 	handlers *HandlerRegistry
+	macroMap map[string]func() string
 
 	stopOnce sync.Once
 	stop     chan any
 	done     chan any
 }
 
-func NewManager(cfg codersdk.NotificationsConfig, store Store, log slog.Logger, handlers *HandlerRegistry) *Manager {
-	if handlers == nil {
-		handlers = DefaultHandlers(cfg, log)
+func NewManager(cfg codersdk.NotificationsConfig, store Store, log slog.Logger, macroMap map[string]func() string) *Manager {
+	return &Manager{
+		log:   log,
+		cfg:   cfg,
+		store: store,
+
+		stop: make(chan any),
+		done: make(chan any),
+
+		handlers: defaultHandlers(cfg, log),
+		macroMap: macroMap,
 	}
-	return &Manager{cfg: cfg, store: store, stop: make(chan any), done: make(chan any), log: log, handlers: handlers}
 }
 
-// DefaultHandlers builds a set of known handlers; panics if any error occurs as these handlers should be valid at compile time.
-func DefaultHandlers(cfg codersdk.NotificationsConfig, log slog.Logger) *HandlerRegistry {
+// defaultHandlers builds a set of known handlers; panics if any error occurs as these handlers should be valid at compile time.
+func defaultHandlers(cfg codersdk.NotificationsConfig, log slog.Logger) *HandlerRegistry {
 	reg, err := NewHandlerRegistry(
 		dispatch.NewSMTPDispatcher(cfg.SMTP, log.Named("dispatcher.smtp")),
 		dispatch.NewWebhookDispatcher(cfg.Webhook, log.Named("dispatcher.webhook")),
@@ -85,6 +94,11 @@ func DefaultHandlers(cfg codersdk.NotificationsConfig, log slog.Logger) *Handler
 		panic(err)
 	}
 	return reg
+}
+
+// WithHandlers allows for tests to inject their own handlers to verify functionality.
+func (m *Manager) WithHandlers(reg *HandlerRegistry) {
+	m.handlers = reg
 }
 
 // StartNotifiers initiates the control loop in the background, which spawns a given number of notifier goroutines.
@@ -236,7 +250,19 @@ func (m *Manager) buildPayload(ctx context.Context, userID uuid.UUID, templateID
 		NotificationTemplateID: templateID,
 	})
 	if err != nil {
-		return nil, err
+		return nil, xerrors.Errorf("new message metadata: %w", err)
+	}
+
+	// Replace macros in actions.
+	out, err := render.Macros(m.macroMap, string(metadata.Actions))
+	if err != nil {
+		return nil, xerrors.Errorf("render macros: %w", err)
+	}
+	metadata.Actions = []byte(out)
+
+	var actions []types.TemplateAction
+	if err = json.Unmarshal(metadata.Actions, &actions); err != nil {
+		return nil, xerrors.Errorf("new message metadata: parse template actions: %w", err)
 	}
 
 	return &types.MessagePayload{
@@ -248,7 +274,8 @@ func (m *Manager) buildPayload(ctx context.Context, userID uuid.UUID, templateID
 		UserEmail: metadata.UserEmail,
 		UserName:  metadata.UserName,
 
-		Labels: labels,
+		Actions: actions,
+		Labels:  labels,
 	}, nil
 }
 

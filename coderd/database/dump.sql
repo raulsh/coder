@@ -86,12 +86,12 @@ CREATE TYPE notification_message_status AS ENUM (
     'temporary_failure',
     'inhibited',
     'unknown'
-    );
+);
 
 CREATE TYPE notification_method AS ENUM (
     'smtp',
     'webhook'
-    );
+);
 
 CREATE TYPE parameter_destination_scheme AS ENUM (
     'none',
@@ -575,6 +575,7 @@ CREATE TABLE notification_templates (
     enabled boolean DEFAULT true NOT NULL,
     title_template text NOT NULL,
     body_template text NOT NULL,
+    actions jsonb,
     "group" text
 );
 

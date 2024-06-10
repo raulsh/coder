@@ -2040,6 +2040,7 @@ type NotificationTemplate struct {
 	Enabled       bool           `db:"enabled" json:"enabled"`
 	TitleTemplate string         `db:"title_template" json:"title_template"`
 	BodyTemplate  string         `db:"body_template" json:"body_template"`
+	Actions       []byte         `db:"actions" json:"actions"`
 	Group         sql.NullString `db:"group" json:"group"`
 }
 

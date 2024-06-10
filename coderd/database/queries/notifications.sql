@@ -11,6 +11,7 @@ RETURNING *;
 -- name: FetchNewMessageMetadata :one
 -- This is used to build up the notification_message's JSON payload.
 SELECT nt.name                                                    AS notification_name,
+       nt.actions                                                 AS actions,
        u.id                                                       AS user_id,
        u.email                                                    AS user_email,
        COALESCE(NULLIF(u.name, ''), NULLIF(u.username, ''))::text AS user_name

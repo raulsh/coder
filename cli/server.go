@@ -984,9 +984,14 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			options.WorkspaceUsageTracker = tracker
 			defer tracker.Close()
 
-			// Manage notifications
+			// Manage notifications.
 			cfg := options.DeploymentValues.Notifications
-			notificationsManager := notifications.NewManager(cfg, options.Database, logger.Named("notifications-manager"), nil)
+			notificationsManager := notifications.NewManager(cfg, options.Database, logger.Named("notifications-manager"), map[string]func() string{
+				// Build set of macros which can be replaced in templates.
+				// We build them here to avoid an import cycle by using coderd.Options in notifications.Manager.
+				// TODO: a better approach?
+				"ACCESS_URL": func() string { return options.AccessURL.String() },
+			})
 			notificationsManager.StartNotifiers(ctx, 3) // TODO: configurable
 			notifications.RegisterInstance(notificationsManager)
 

@@ -3484,6 +3484,7 @@ func (q *sqlQuerier) EnqueueNotificationMessage(ctx context.Context, arg Enqueue
 
 const fetchNewMessageMetadata = `-- name: FetchNewMessageMetadata :one
 SELECT nt.name                                                    AS notification_name,
+       nt.actions                                                 AS actions,
        u.id                                                       AS user_id,
        u.email                                                    AS user_email,
        COALESCE(NULLIF(u.name, ''), NULLIF(u.username, ''))::text AS user_name
@@ -3500,6 +3501,7 @@ type FetchNewMessageMetadataParams struct {
 
 type FetchNewMessageMetadataRow struct {
 	NotificationName string    `db:"notification_name" json:"notification_name"`
+	Actions          []byte    `db:"actions" json:"actions"`
 	UserID           uuid.UUID `db:"user_id" json:"user_id"`
 	UserEmail        string    `db:"user_email" json:"user_email"`
 	UserName         string    `db:"user_name" json:"user_name"`
@@ -3511,6 +3513,7 @@ func (q *sqlQuerier) FetchNewMessageMetadata(ctx context.Context, arg FetchNewMe
 	var i FetchNewMessageMetadataRow
 	err := row.Scan(
 		&i.NotificationName,
+		&i.Actions,
 		&i.UserID,
 		&i.UserEmail,
 		&i.UserName,
@@ -3595,7 +3598,7 @@ VALUES ($1,
         $4,
         $5,
         $6)
-RETURNING id, name, enabled, title_template, body_template, "group"
+RETURNING id, name, enabled, title_template, body_template, actions, "group"
 `
 
 type InsertNotificationTemplateParams struct {
@@ -3623,6 +3626,7 @@ func (q *sqlQuerier) InsertNotificationTemplate(ctx context.Context, arg InsertN
 		&i.Enabled,
 		&i.TitleTemplate,
 		&i.BodyTemplate,
+		&i.Actions,
 		&i.Group,
 	)
 	return i, err

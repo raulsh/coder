@@ -3,12 +3,11 @@ package notifications
 import (
 	"context"
 	"encoding/json"
-	"strings"
 	"sync"
-	"text/template"
 	"time"
 
 	"github.com/coder/coder/v2/coderd/notifications/dispatch"
+	"github.com/coder/coder/v2/coderd/notifications/render"
 	"github.com/coder/coder/v2/coderd/notifications/types"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/google/uuid"
@@ -163,30 +162,14 @@ func (n *notifier) prepare(ctx context.Context, msg database.AcquireNotification
 	var (
 		title, body string
 	)
-	if title, err = n.render(msg.TitleTemplate, payload); err != nil {
+	if title, err = render.GoTemplate(msg.TitleTemplate, payload); err != nil {
 		return nil, xerrors.Errorf("render title: %w", err)
 	}
-	if body, err = n.render(msg.BodyTemplate, payload); err != nil {
+	if body, err = render.GoTemplate(msg.BodyTemplate, payload); err != nil {
 		return nil, xerrors.Errorf("render body: %w", err)
 	}
 
 	return handler.Dispatcher(payload, title, body)
-}
-
-// render attempts to substitute the given payload into the given template using Go's templating syntax.
-// TODO: memoize templates for memory efficiency?
-func (n *notifier) render(in string, payload types.MessagePayload) (string, error) {
-	tmpl, err := template.New("text").Parse(in)
-	if err != nil {
-		return "", xerrors.Errorf("template parse: %w", err)
-	}
-
-	var out strings.Builder
-	if err = tmpl.Execute(&out, payload); err != nil {
-		return "", xerrors.Errorf("template execute: %w", err)
-	}
-
-	return out.String(), nil
 }
 
 // deliver sends a given notification message via its defined method.

@@ -3,6 +3,7 @@ package dispatch
 import (
 	"bytes"
 	"context"
+	_ "embed"
 	"fmt"
 	"mime/multipart"
 	"mime/quotedprintable"
@@ -28,6 +29,11 @@ var (
 	ValidationNoSmarthostHostErr = xerrors.New("smarthost 'host' is not defined, or is invalid")
 	ValidationNoSmarthostPortErr = xerrors.New("smarthost 'port' is not defined, or is invalid")
 	ValidationNoHelloErr         = xerrors.New("'hello' not defined")
+
+	//go:embed smtp/html.gotmpl
+	htmlTemplate string
+	//go:embed smtp/plaintext.gotmpl
+	plainTemplate string
 )
 
 type SMTPDispatcher struct {
@@ -44,6 +50,7 @@ func (s *SMTPDispatcher) NotificationMethod() database.NotificationMethod {
 }
 
 func (s *SMTPDispatcher) Dispatcher(payload types.MessagePayload, titleTmpl, bodyTmpl string) (DeliveryFunc, error) {
+	// First render the subject & body into their own discrete strings.
 	subject, err := render.Plaintext(titleTmpl)
 	if err != nil {
 		return nil, xerrors.Errorf("render subject: %w", err)
@@ -57,6 +64,19 @@ func (s *SMTPDispatcher) Dispatcher(payload types.MessagePayload, titleTmpl, bod
 	plainBody, err := render.Plaintext(bodyTmpl)
 	if err != nil {
 		return nil, xerrors.Errorf("render plaintext body: %w", err)
+	}
+
+	// Then, reuse these strings in the HTML & plain body templates.
+	payload.Labels.Set("_subject", subject)
+	payload.Labels.Set("_body", htmlBody)
+	htmlBody, err = render.GoTemplate(htmlTemplate, payload)
+	if err != nil {
+		return nil, xerrors.Errorf("render full html template: %w", err)
+	}
+	payload.Labels.Set("_body", plainBody)
+	plainBody, err = render.GoTemplate(plainTemplate, payload)
+	if err != nil {
+		return nil, xerrors.Errorf("render full plaintext template: %w", err)
 	}
 
 	return s.dispatch(subject, htmlBody, plainBody, payload.UserEmail), nil

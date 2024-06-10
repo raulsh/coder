@@ -474,17 +474,17 @@ func (mr *MockStoreMockRecorder) DeleteOAuth2ProviderAppTokensByAppAndUserID(arg
 }
 
 // DeleteOldNotificationMessages mocks base method.
-func (m *MockStore) DeleteOldNotificationMessages(arg0 context.Context, arg1 int32) error {
+func (m *MockStore) DeleteOldNotificationMessages(arg0 context.Context) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteOldNotificationMessages", arg0, arg1)
+	ret := m.ctrl.Call(m, "DeleteOldNotificationMessages", arg0)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // DeleteOldNotificationMessages indicates an expected call of DeleteOldNotificationMessages.
-func (mr *MockStoreMockRecorder) DeleteOldNotificationMessages(arg0, arg1 any) *gomock.Call {
+func (mr *MockStoreMockRecorder) DeleteOldNotificationMessages(arg0 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOldNotificationMessages", reflect.TypeOf((*MockStore)(nil).DeleteOldNotificationMessages), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOldNotificationMessages", reflect.TypeOf((*MockStore)(nil).DeleteOldNotificationMessages), arg0)
 }
 
 // DeleteOldProvisionerDaemons mocks base method.
@@ -686,6 +686,21 @@ func (m *MockStore) FavoriteWorkspace(arg0 context.Context, arg1 uuid.UUID) erro
 func (mr *MockStoreMockRecorder) FavoriteWorkspace(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FavoriteWorkspace", reflect.TypeOf((*MockStore)(nil).FavoriteWorkspace), arg0, arg1)
+}
+
+// FetchNewMessageMetadata mocks base method.
+func (m *MockStore) FetchNewMessageMetadata(arg0 context.Context, arg1 database.FetchNewMessageMetadataParams) (database.FetchNewMessageMetadataRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FetchNewMessageMetadata", arg0, arg1)
+	ret0, _ := ret[0].(database.FetchNewMessageMetadataRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FetchNewMessageMetadata indicates an expected call of FetchNewMessageMetadata.
+func (mr *MockStoreMockRecorder) FetchNewMessageMetadata(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchNewMessageMetadata", reflect.TypeOf((*MockStore)(nil).FetchNewMessageMetadata), arg0, arg1)
 }
 
 // GetAPIKeyByID mocks base method.
@@ -1406,6 +1421,36 @@ func (m *MockStore) GetLogoURL(arg0 context.Context) (string, error) {
 func (mr *MockStoreMockRecorder) GetLogoURL(arg0 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLogoURL", reflect.TypeOf((*MockStore)(nil).GetLogoURL), arg0)
+}
+
+// GetNotificationMessagesCountByStatus mocks base method.
+func (m *MockStore) GetNotificationMessagesCountByStatus(arg0 context.Context) ([]database.GetNotificationMessagesCountByStatusRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetNotificationMessagesCountByStatus", arg0)
+	ret0, _ := ret[0].([]database.GetNotificationMessagesCountByStatusRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetNotificationMessagesCountByStatus indicates an expected call of GetNotificationMessagesCountByStatus.
+func (mr *MockStoreMockRecorder) GetNotificationMessagesCountByStatus(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetNotificationMessagesCountByStatus", reflect.TypeOf((*MockStore)(nil).GetNotificationMessagesCountByStatus), arg0)
+}
+
+// GetNotificationsMessagesCountByTemplate mocks base method.
+func (m *MockStore) GetNotificationsMessagesCountByTemplate(arg0 context.Context) ([]database.GetNotificationsMessagesCountByTemplateRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetNotificationsMessagesCountByTemplate", arg0)
+	ret0, _ := ret[0].([]database.GetNotificationsMessagesCountByTemplateRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetNotificationsMessagesCountByTemplate indicates an expected call of GetNotificationsMessagesCountByTemplate.
+func (mr *MockStoreMockRecorder) GetNotificationsMessagesCountByTemplate(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetNotificationsMessagesCountByTemplate", reflect.TypeOf((*MockStore)(nil).GetNotificationsMessagesCountByTemplate), arg0)
 }
 
 // GetOAuth2ProviderAppByID mocks base method.

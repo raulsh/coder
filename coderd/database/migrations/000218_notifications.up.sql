@@ -20,6 +20,7 @@ CREATE TABLE notification_templates
     enabled        boolean DEFAULT TRUE NOT NULL,
     title_template text                 NOT NULL,
     body_template  text                 NOT NULL,
+    actions        jsonb,
     "group"        text,
     PRIMARY KEY (id),
     UNIQUE (name)
@@ -67,7 +68,16 @@ CREATE TABLE notification_preferences
 );
 
 -- TODO: autogenerate constants which reference the UUIDs
-INSERT INTO notification_templates (id, name, enabled, title_template, body_template, "group")
+INSERT INTO notification_templates (id, name, enabled, title_template, body_template, "group", actions)
 VALUES ('f517da0b-cdc9-410f-ab89-a86107c420ed', 'Workspace Deleted', true, E'Workspace "{{.Labels.name}}" deleted',
         E'Hi {{.UserName}}\n\nYour workspace **{{.Labels.name}}** was deleted.\nThe specified reason was "**{{.Labels.reason}}**".',
-        'Workspace Events');
+        'Workspace Events', '[
+        {
+            "label": "View workspaces",
+            "url": "[ACCESS_URL]/workspaces"
+        },
+        {
+            "label": "View templates",
+            "url": "[ACCESS_URL]/templates"
+        }
+    ]'::jsonb);
