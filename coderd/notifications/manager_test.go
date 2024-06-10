@@ -2,6 +2,7 @@ package notifications_test
 
 import (
 	"context"
+	"sync/atomic"
 	"testing"
 
 	"cdr.dev/slog"
@@ -83,23 +84,23 @@ func TestBufferedUpdates(t *testing.T) {
 	require.NoError(t, mgr.Stop(ctx))
 
 	// Wait until both success & failure updates have been sent to the store.
-	require.Eventually(t, func() bool { return len(interceptor.failed) == 1 && len(interceptor.sent) == 1 }, testutil.WaitMedium, testutil.IntervalFast)
+	require.Eventually(t, func() bool { return interceptor.failed.Load() == 1 && interceptor.sent.Load() == 1 }, testutil.WaitMedium, testutil.IntervalFast)
 }
 
 type bulkUpdateInterceptor struct {
 	notifications.Store
 
-	sent   []uuid.UUID
-	failed []uuid.UUID
+	sent   atomic.Int32
+	failed atomic.Int32
 }
 
 func (b *bulkUpdateInterceptor) BulkMarkNotificationMessagesSent(ctx context.Context, arg database.BulkMarkNotificationMessagesSentParams) (int64, error) {
-	b.sent = append(b.sent, arg.IDs...)
+	b.sent.Add(1)
 	return 1, nil
 }
 
 func (b *bulkUpdateInterceptor) BulkMarkNotificationMessagesFailed(ctx context.Context, arg database.BulkMarkNotificationMessagesFailedParams) (int64, error) {
-	b.failed = append(b.failed, arg.IDs...)
+	b.failed.Add(1)
 	return 1, nil
 }
 

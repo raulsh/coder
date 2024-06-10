@@ -28,12 +28,13 @@ var (
 //
 // Manager maintains a group of notifiers: these consume the queue of notification messages in the store.
 //
-// Notifiers dequeue messages from the store _n_ at a time and concurrently "dispatch" these messages, meaning they are
+// Notifiers dequeue messages from the store _CODER_NOTIFICATIONS_LEASE_COUNT_ at a time and concurrently "dispatch" these messages, meaning they are
 // sent by their respective methods (email, webhook, etc).
 //
 // To reduce load on the store, successful and failed dispatches are accumulated in two separate buffers (success/failure)
-// in the Manager, and updates are sent to the store about which messages succeeded or failed every _n_ seconds.
-// These buffers are limited in size, naturally introduces some backpressure; if there are hundreds of messages to be
+// of size CODER_NOTIFICATIONS_STORE_SYNC_INTERVAL in the Manager, and updates are sent to the store about which messages
+// succeeded or failed every CODER_NOTIFICATIONS_STORE_SYNC_INTERVAL seconds.
+// These buffers are limited in size, and naturally introduce some backpressure; if there are hundreds of messages to be
 // sent but they start failing too quickly, the buffers (receive channels) will fill up and block senders, which will
 // slow down the dispatch rate.
 //
@@ -136,8 +137,8 @@ func (m *Manager) loop(ctx context.Context, notifiers int) error {
 		// see BulkMarkNotificationMessagesSent/BulkMarkNotificationMessagesFailed. If we had the ability to batch updates,
 		// like is offered in https://docs.sqlc.dev/en/stable/reference/query-annotations.html#batchmany, we'd have a cleaner
 		// approach to this - but for now this will work fine.
-		success = make(chan dispatchResult, m.cfg.StoreSyncBufferSize/2)
-		failure = make(chan dispatchResult, m.cfg.StoreSyncBufferSize/2)
+		success = make(chan dispatchResult, m.cfg.StoreSyncBufferSize)
+		failure = make(chan dispatchResult, m.cfg.StoreSyncBufferSize)
 	)
 
 	// Create a specific number of notifiers to run concurrently.
@@ -326,38 +327,46 @@ func (m *Manager) bulkUpdate(ctx context.Context, success, failure <-chan dispat
 
 	go func() {
 		defer wg.Done()
+		if len(successParams.IDs) == 0 {
+			return
+		}
+
 		logger := m.log.With(slog.F("type", "update_sent"))
 
-		n, err := m.store.BulkMarkNotificationMessagesSent(ctx, successParams)
+		// Give up after waiting for the store for 30s.
+		uctx, cancel := context.WithTimeout(ctx, time.Second*30)
+		defer cancel()
+
+		n, err := m.store.BulkMarkNotificationMessagesSent(uctx, successParams)
 		if err != nil {
 			logger.Error(ctx, "bulk update failed", slog.Error(err))
 			return
 		}
 
-		if int(n) == nSuccess {
-			logger.Debug(ctx, "bulk update completed", slog.F("updated", n))
-		} else {
-			logger.Warn(ctx, "bulk update completed with discrepancy", slog.F("input", nSuccess), slog.F("updated", n))
-		}
+		logger.Debug(ctx, "bulk update completed", slog.F("updated", n))
 	}()
 
 	go func() {
 		defer wg.Done()
+		if len(failureParams.IDs) == 0 {
+			return
+		}
+
 		logger := m.log.With(slog.F("type", "update_failed"))
+
+		// Give up after waiting for the store for 30s.
+		uctx, cancel := context.WithTimeout(ctx, time.Second*30)
+		defer cancel()
 
 		failureParams.MaxAttempts = int32(m.cfg.MaxSendAttempts)
 		failureParams.RetryInterval = int32(m.cfg.RetryInterval.Value().Seconds())
-		n, err := m.store.BulkMarkNotificationMessagesFailed(ctx, failureParams)
+		n, err := m.store.BulkMarkNotificationMessagesFailed(uctx, failureParams)
 		if err != nil {
 			logger.Error(ctx, "bulk update failed", slog.Error(err))
 			return
 		}
 
-		if int(n) == nFailure {
-			logger.Debug(ctx, "bulk update completed", slog.F("updated", n))
-		} else {
-			logger.Warn(ctx, "bulk update completed with discrepancy", slog.F("input", nFailure), slog.F("updated", n))
-		}
+		logger.Debug(ctx, "bulk update completed", slog.F("updated", n))
 	}()
 
 	wg.Wait()

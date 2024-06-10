@@ -3,6 +3,7 @@ package notifications
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"sync"
 	"time"
 
@@ -60,11 +61,21 @@ func (n *notifier) run(ctx context.Context, success chan<- dispatchResult, failu
 	//		 PLUS we should also have an interval (but a longer one, maybe 1m) to account for retries (those will not get
 	//		 triggered by a code path, but rather by a timeout expiring which makes the message retryable)
 	for {
+		select {
+		case <-ctx.Done():
+			return xerrors.Errorf("notifier %d context canceled: %w", n.id, ctx.Err())
+		case <-n.quit:
+			return nil
+		default:
+		}
+
+		// Call process() immediately (i.e. don't wait an initial tick).
 		err := n.process(ctx, success, failure)
 		if err != nil {
 			n.log.Error(ctx, "failed to process messages", slog.Error(err))
 		}
 
+		// Shortcut to bail out quickly if stop() has been called or the context canceled.
 		select {
 		case <-ctx.Done():
 			return xerrors.Errorf("notifier %d context canceled: %w", n.id, ctx.Err())
@@ -77,6 +88,11 @@ func (n *notifier) run(ctx context.Context, success chan<- dispatchResult, failu
 }
 
 // process is responsible for coordinating the retrieval, processing, and delivery of messages.
+// Messages are dispatched concurrently, but they may block when success/failure channels are full.
+//
+// NOTE: it is _possible_ that these goroutines could block for long enough to exceed CODER_NOTIFICATIONS_DISPATCH_TIMEOUT,
+// resulting in a failed attempt for each notification when their contexts are canceled; this is not possible with the
+// default configurations but could be brought about by an operator tuning things incorrectly.
 func (n *notifier) process(ctx context.Context, success chan<- dispatchResult, failure chan<- dispatchResult) error {
 	n.log.Debug(ctx, "attempting to dequeue messages")
 
@@ -102,8 +118,6 @@ func (n *notifier) process(ctx context.Context, success chan<- dispatchResult, f
 
 		eg.Go(func() error {
 			// Dispatch must only return an error for exceptional cases, NOT for failed messages.
-			// The first message to return an error cancels the errgroup's context, and all in-flight dispatches will be canceled.
-			// TODO: validate this
 			return n.deliver(ctx, msg, deliverFn, success, failure)
 		})
 	}
@@ -186,9 +200,14 @@ func (n *notifier) deliver(ctx context.Context, msg database.AcquireNotification
 	retryable, err := deliver(ctx, msg.ID)
 	if err != nil {
 		// Don't try to accumulate message responses if the context has been canceled.
+		//
 		// This message's lease will expire in the store and will be requeued.
 		// It's possible this will lead to a message being delivered more than once, and that is why Stop() is preferable
 		// instead of canceling the context.
+		//
+		// In the case of backpressure (i.e. the success/failure channels are full because the database is slow),
+		// and this caused delivery timeout (CODER_NOTIFICATIONS_DISPATCH_TIMEOUT), we can't append any more updates to
+		// the channels otherwise this, too, will block.
 		if xerrors.Is(err, context.Canceled) || xerrors.Is(err, context.DeadlineExceeded) {
 			return err
 		}

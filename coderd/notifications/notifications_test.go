@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -104,7 +105,7 @@ func TestSMTPDispatch(t *testing.T) {
 		Smarthost: serpent.HostPort{Host: "localhost", Port: fmt.Sprintf("%d", mockSMTPSrv.PortNumber())},
 		Hello:     "localhost",
 	}
-	dispatcher := &interceptingSMTPDispatcher{SMTPDispatcher: dispatch.NewSMTPDispatcher(cfg.SMTP, logger)}
+	dispatcher := newDispatchInterceptor(dispatch.NewSMTPDispatcher(cfg.SMTP, logger))
 	fakeHandlers, err := notifications.NewHandlerRegistry(dispatcher)
 	require.NoError(t, err)
 
@@ -132,9 +133,9 @@ func TestSMTPDispatch(t *testing.T) {
 
 	// then
 	require.Eventually(t, func() bool {
-		require.NoError(t, dispatcher.err)
-		require.False(t, dispatcher.retryable)
-		return dispatcher.sent
+		require.Nil(t, dispatcher.lastErr.Load())
+		require.True(t, dispatcher.retryable.Load() == 0)
+		return dispatcher.sent.Load() == 1
 	}, testutil.WaitLong, testutil.IntervalMedium)
 
 	msgs := mockSMTPSrv.MessagesAndPurge()
@@ -217,6 +218,102 @@ func TestWebhookDispatch(t *testing.T) {
 	require.Eventually(t, func() bool { return <-sent }, testutil.WaitShort, testutil.IntervalFast)
 }
 
+// TestBackpressure validates that delays in processing the buffered updates will result in slowed dequeue rates.
+// As a side-effect, this also tests the graceful shutdown and flushing of the buffers.
+func TestBackpressure(t *testing.T) {
+	t.Parallel()
+
+	// setup
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("This test requires postgres")
+	}
+
+	ctx, logger, db, ps := setup(t)
+
+	// Mock server to simulate webhook endpoint.
+	var received atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var payload dispatch.WebhookPayload
+		err := json.NewDecoder(r.Body).Decode(&payload)
+		require.NoError(t, err)
+
+		w.WriteHeader(http.StatusOK)
+		_, err = w.Write([]byte("noted."))
+		require.NoError(t, err)
+
+		received.Add(1)
+	}))
+	defer server.Close()
+
+	endpoint, err := url.Parse(server.URL)
+	require.NoError(t, err)
+
+	cfg := defaultNotificationsConfig()
+	cfg.Method = serpent.String(database.NotificationMethodWebhook)
+	cfg.Webhook = codersdk.NotificationsWebhookConfig{
+		Endpoint: *serpent.URLOf(endpoint),
+	}
+
+	// Tune the queue to fetch often.
+	const fetchInterval = time.Millisecond * 200
+	const batchSize = 10
+	cfg.FetchInterval = serpent.Duration(fetchInterval)
+	cfg.LeaseCount = serpent.Int64(batchSize)
+
+	// Shrink buffers down and increase flush interval to provoke backpressure.
+	// Flush buffers every 5 fetch intervals.
+	const syncInterval = time.Second
+	cfg.StoreSyncInterval = serpent.Duration(syncInterval)
+	cfg.StoreSyncBufferSize = serpent.Int64(2)
+
+	dispatcher := newDispatchInterceptor(dispatch.NewWebhookDispatcher(cfg.Webhook, logger))
+	fakeHandlers, err := notifications.NewHandlerRegistry(dispatcher)
+	require.NoError(t, err)
+
+	// Intercept calls to submit the buffered updates to the store.
+	storeInterceptor := &bulkUpdateInterceptor{Store: db}
+
+	// given
+	manager, err := notifications.NewManager(cfg, storeInterceptor, logger, nil)
+	require.NoError(t, err)
+	manager.WithHandlers(fakeHandlers)
+
+	client := coderdtest.New(t, &coderdtest.Options{Database: db, Pubsub: ps})
+	first := coderdtest.CreateFirstUser(t, client)
+	_, user := coderdtest.CreateAnotherUserMutators(t, client, first.OrganizationID, nil, func(r *codersdk.CreateUserRequest) {
+		r.Email = "bob@coder.com"
+		r.Username = "bob"
+	})
+
+	// when
+	const totalMessages = 30
+	for i := 0; i < totalMessages; i++ {
+		_, err = manager.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted, types.Labels{"i": fmt.Sprintf("%d", i)}, "test")
+		require.NoError(t, err)
+	}
+
+	// Start two notifiers.
+	const notifiers = 2
+	manager.Run(ctx, notifiers)
+
+	// then
+
+	// Wait for 3 fetch intervals, then check progress.
+	time.Sleep(fetchInterval * 3)
+
+	// We expect the notifiers will have dispatched ONLY the initial batch of messages.
+	// In other words, the notifiers should have dispatched 3 batches by now, but because the buffered updates have not
+	// been processed there is backpressure.
+	require.EqualValues(t, notifiers*batchSize, dispatcher.sent.Load()+dispatcher.err.Load())
+	// We expect that the store will have received NO updates.
+	require.EqualValues(t, 0, storeInterceptor.sent.Load()+storeInterceptor.failed.Load())
+
+	// However, when we Stop() the manager the backpressure will be relieved and the buffered updates will ALL be flushed,
+	// since all the goroutines blocked on writing updates to the buffer will be unblocked and will complete.
+	require.NoError(t, manager.Stop(ctx))
+	require.EqualValues(t, batchSize, storeInterceptor.sent.Load()+storeInterceptor.failed.Load())
+}
+
 func setup(t *testing.T) (context.Context, slog.Logger, database.Store, *pubsub.PGPubsub) {
 	t.Helper()
 
@@ -264,24 +361,47 @@ func (f *fakeDispatcher) Dispatcher(payload types.MessagePayload, _, _ string) (
 	}, nil
 }
 
-type interceptingSMTPDispatcher struct {
-	*dispatch.SMTPDispatcher
+type dispatchInterceptor struct {
+	handler notifications.Handler
 
-	sent      bool
-	retryable bool
-	err       error
+	sent        atomic.Int32
+	retryable   atomic.Int32
+	unretryable atomic.Int32
+	err         atomic.Int32
+	lastErr     atomic.Value
 }
 
-func (i *interceptingSMTPDispatcher) Dispatcher(payload types.MessagePayload, title, body string) (dispatch.DeliveryFunc, error) {
+func newDispatchInterceptor(h notifications.Handler) *dispatchInterceptor {
+	return &dispatchInterceptor{handler: h}
+}
+
+func (i *dispatchInterceptor) NotificationMethod() database.NotificationMethod {
+	return i.handler.NotificationMethod()
+}
+
+func (i *dispatchInterceptor) Dispatcher(payload types.MessagePayload, title, body string) (dispatch.DeliveryFunc, error) {
 	return func(ctx context.Context, msgID uuid.UUID) (retryable bool, err error) {
-		deliveryFn, err := i.SMTPDispatcher.Dispatcher(payload, title, body)
+		deliveryFn, err := i.handler.Dispatcher(payload, title, body)
 		if err != nil {
 			return false, err
 		}
 
-		i.retryable, i.err = deliveryFn(ctx, msgID)
-		i.sent = true
-		return i.retryable, i.err
+		retryable, err = deliveryFn(ctx, msgID)
+
+		if err != nil {
+			i.err.Add(1)
+			i.lastErr.Store(err)
+		}
+
+		switch true {
+		case !retryable && err == nil:
+			i.sent.Add(1)
+		case retryable:
+			i.retryable.Add(1)
+		case !retryable && err != nil:
+			i.unretryable.Add(1)
+		}
+		return retryable, err
 	}, nil
 }
 

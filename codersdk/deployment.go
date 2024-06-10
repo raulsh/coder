@@ -2144,7 +2144,7 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name: "Notifications: Lease Period",
-			Description: "How long a notifier should lease a message. This is effectively how long a notification is owned " +
+			Description: "How long a notifier should lease a message. This is effectively how long a notification is 'owned' " +
 				"by a notifier, and once this period expires it will be available for lease by another notifier. Leasing " +
 				"is important in order for multiple running notifiers to not pick the same messages to deliver concurrently. " +
 				"This lease period will only expire if a notifier shuts down ungracefully; a dispatch of the notification " +
