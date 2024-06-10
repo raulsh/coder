@@ -49,7 +49,6 @@ WITH acquired AS (
             WHERE id IN (SELECT nm.id
                          FROM notification_messages AS nm
                                   LEFT JOIN notification_templates AS nt ON (nm.notification_template_id = nt.id)
-                                  LEFT JOIN notification_preferences np ON (np.notification_template_id = nt.id)
                          WHERE (
                              (
                                  -- message is in acquirable states
@@ -71,15 +70,6 @@ WITH acquired AS (
                              CASE
                                  WHEN nm.next_retry_after IS NOT NULL THEN nm.next_retry_after < NOW()
                                  ELSE true
-                                 END
-                             )
-                           -- only lease if user/org has not disabled this template
-                           -- TODO: validate this
-                           AND (
-                             CASE
-                                 WHEN np.disabled = FALSE THEN
-                                     (np.user_id = sqlc.arg('user_id')::uuid OR np.org_id = sqlc.arg('org_id')::uuid)
-                                 ELSE TRUE
                                  END
                              )
                          ORDER BY nm.created_at ASC
@@ -120,14 +110,6 @@ SET updated_at       = subquery.failed_at,
 FROM (SELECT id, status, status_reason, failed_at
       FROM new_values) AS subquery
 WHERE notification_messages.id = subquery.id;
-
--- name: BulkMarkNotificationMessagesInhibited :execrows
-UPDATE notification_messages
-SET updated_at       = NOW(),
-    status           = 'inhibited'::notification_message_status,
-    status_reason    = sqlc.narg('reason'),
-    next_retry_after = NULL
-WHERE notification_messages.id IN (UNNEST(@ids::uuid[]));
 
 -- name: BulkMarkNotificationMessagesSent :execrows
 WITH new_values AS (SELECT UNNEST(@ids::uuid[])             AS id,

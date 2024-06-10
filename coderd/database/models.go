@@ -668,7 +668,6 @@ const (
 	NotificationMessageStatusSent             NotificationMessageStatus = "sent"
 	NotificationMessageStatusPermanentFailure NotificationMessageStatus = "permanent_failure"
 	NotificationMessageStatusTemporaryFailure NotificationMessageStatus = "temporary_failure"
-	NotificationMessageStatusInhibited        NotificationMessageStatus = "inhibited"
 	NotificationMessageStatusUnknown          NotificationMessageStatus = "unknown"
 )
 
@@ -714,7 +713,6 @@ func (e NotificationMessageStatus) Valid() bool {
 		NotificationMessageStatusSent,
 		NotificationMessageStatusPermanentFailure,
 		NotificationMessageStatusTemporaryFailure,
-		NotificationMessageStatusInhibited,
 		NotificationMessageStatusUnknown:
 		return true
 	}
@@ -728,7 +726,6 @@ func AllNotificationMessageStatusValues() []NotificationMessageStatus {
 		NotificationMessageStatusSent,
 		NotificationMessageStatusPermanentFailure,
 		NotificationMessageStatusTemporaryFailure,
-		NotificationMessageStatusInhibited,
 		NotificationMessageStatusUnknown,
 	}
 }
@@ -2028,14 +2025,6 @@ type NotificationMessage struct {
 	UpdatedAt              sql.NullTime              `db:"updated_at" json:"updated_at"`
 	LeasedUntil            sql.NullTime              `db:"leased_until" json:"leased_until"`
 	NextRetryAfter         sql.NullTime              `db:"next_retry_after" json:"next_retry_after"`
-}
-
-type NotificationPreference struct {
-	ID                     uuid.UUID     `db:"id" json:"id"`
-	NotificationTemplateID uuid.UUID     `db:"notification_template_id" json:"notification_template_id"`
-	Disabled               sql.NullBool  `db:"disabled" json:"disabled"`
-	UserID                 uuid.NullUUID `db:"user_id" json:"user_id"`
-	OrgID                  uuid.NullUUID `db:"org_id" json:"org_id"`
 }
 
 // Templates from which to create notification messages.

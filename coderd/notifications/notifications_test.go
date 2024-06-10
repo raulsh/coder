@@ -53,7 +53,8 @@ func TestBasicNotificationRoundtrip(t *testing.T) {
 	require.NoError(t, err)
 
 	cfg := defaultNotificationsConfig()
-	manager := notifications.NewManager(cfg, db, logger, nil)
+	manager, err := notifications.NewManager(cfg, db, logger, nil)
+	require.NoError(t, err)
 	manager.WithHandlers(fakeHandlers)
 	notifications.RegisterInstance(manager)
 	t.Cleanup(func() {
@@ -64,9 +65,9 @@ func TestBasicNotificationRoundtrip(t *testing.T) {
 	user := coderdtest.CreateFirstUser(t, client)
 
 	// when
-	sid, err := manager.Enqueue(ctx, user.UserID, notifications.TemplateWorkspaceDeleted, database.NotificationMethodSmtp, types.Labels{"type": "success"}, "test")
+	sid, err := manager.Enqueue(ctx, user.UserID, notifications.TemplateWorkspaceDeleted, types.Labels{"type": "success"}, "test")
 	require.NoError(t, err)
-	fid, err := manager.Enqueue(ctx, user.UserID, notifications.TemplateWorkspaceDeleted, database.NotificationMethodSmtp, types.Labels{"type": "failure"}, "test")
+	fid, err := manager.Enqueue(ctx, user.UserID, notifications.TemplateWorkspaceDeleted, types.Labels{"type": "failure"}, "test")
 	require.NoError(t, err)
 
 	manager.Run(ctx, 1)
@@ -107,7 +108,8 @@ func TestSMTPDispatch(t *testing.T) {
 	fakeHandlers, err := notifications.NewHandlerRegistry(dispatcher)
 	require.NoError(t, err)
 
-	manager := notifications.NewManager(cfg, db, logger, nil)
+	manager, err := notifications.NewManager(cfg, db, logger, nil)
+	require.NoError(t, err)
 	manager.WithHandlers(fakeHandlers)
 
 	notifications.RegisterInstance(manager)
@@ -123,7 +125,7 @@ func TestSMTPDispatch(t *testing.T) {
 	})
 
 	// when
-	msgID, err := manager.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted, database.NotificationMethodSmtp, types.Labels{}, "test")
+	msgID, err := manager.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted, types.Labels{}, "test")
 	require.NoError(t, err)
 
 	manager.Run(ctx, 1)
@@ -183,10 +185,12 @@ func TestWebhookDispatch(t *testing.T) {
 
 	// given
 	cfg := defaultNotificationsConfig()
+	cfg.Method = serpent.String(database.NotificationMethodWebhook)
 	cfg.Webhook = codersdk.NotificationsWebhookConfig{
 		Endpoint: *serpent.URLOf(endpoint),
 	}
-	manager := notifications.NewManager(cfg, db, logger, nil)
+	manager, err := notifications.NewManager(cfg, db, logger, nil)
+	require.NoError(t, err)
 	notifications.RegisterInstance(manager)
 	t.Cleanup(func() {
 		require.NoError(t, manager.Stop(ctx))
@@ -204,7 +208,7 @@ func TestWebhookDispatch(t *testing.T) {
 		"a": "b",
 		"c": "d",
 	}
-	msgID, err = manager.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted, database.NotificationMethodWebhook, input, "test")
+	msgID, err = manager.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted, input, "test")
 	require.NoError(t, err)
 
 	manager.Run(ctx, 1)
@@ -283,6 +287,7 @@ func (i *interceptingSMTPDispatcher) Dispatcher(payload types.MessagePayload, ti
 
 func defaultNotificationsConfig() codersdk.NotificationsConfig {
 	return codersdk.NotificationsConfig{
+		Method:              serpent.String(database.NotificationMethodSmtp),
 		MaxSendAttempts:     5,
 		RetryInterval:       serpent.Duration(time.Minute * 5),
 		StoreSyncInterval:   serpent.Duration(time.Second * 2),

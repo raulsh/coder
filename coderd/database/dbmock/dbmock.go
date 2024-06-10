@@ -161,21 +161,6 @@ func (mr *MockStoreMockRecorder) BulkMarkNotificationMessagesFailed(arg0, arg1 a
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BulkMarkNotificationMessagesFailed", reflect.TypeOf((*MockStore)(nil).BulkMarkNotificationMessagesFailed), arg0, arg1)
 }
 
-// BulkMarkNotificationMessagesInhibited mocks base method.
-func (m *MockStore) BulkMarkNotificationMessagesInhibited(arg0 context.Context, arg1 database.BulkMarkNotificationMessagesInhibitedParams) (int64, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "BulkMarkNotificationMessagesInhibited", arg0, arg1)
-	ret0, _ := ret[0].(int64)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// BulkMarkNotificationMessagesInhibited indicates an expected call of BulkMarkNotificationMessagesInhibited.
-func (mr *MockStoreMockRecorder) BulkMarkNotificationMessagesInhibited(arg0, arg1 any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BulkMarkNotificationMessagesInhibited", reflect.TypeOf((*MockStore)(nil).BulkMarkNotificationMessagesInhibited), arg0, arg1)
-}
-
 // BulkMarkNotificationMessagesSent mocks base method.
 func (m *MockStore) BulkMarkNotificationMessagesSent(arg0 context.Context, arg1 database.BulkMarkNotificationMessagesSentParams) (int64, error) {
 	m.ctrl.T.Helper()

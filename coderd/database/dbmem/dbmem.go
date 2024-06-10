@@ -1220,15 +1220,6 @@ func (q *FakeQuerier) BulkMarkNotificationMessagesFailed(ctx context.Context, ar
 	panic("not implemented")
 }
 
-func (q *FakeQuerier) BulkMarkNotificationMessagesInhibited(ctx context.Context, arg database.BulkMarkNotificationMessagesInhibitedParams) (int64, error) {
-	err := validateDatabaseType(arg)
-	if err != nil {
-		return 0, err
-	}
-
-	panic("not implemented")
-}
-
 func (q *FakeQuerier) BulkMarkNotificationMessagesSent(ctx context.Context, arg database.BulkMarkNotificationMessagesSentParams) (int64, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {

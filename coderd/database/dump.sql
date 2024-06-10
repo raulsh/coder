@@ -84,7 +84,6 @@ CREATE TYPE notification_message_status AS ENUM (
     'sent',
     'permanent_failure',
     'temporary_failure',
-    'inhibited',
     'unknown'
 );
 
@@ -563,14 +562,6 @@ CREATE TABLE notification_messages (
     updated_at timestamp with time zone,
     leased_until timestamp with time zone,
     next_retry_after timestamp with time zone
-);
-
-CREATE TABLE notification_preferences (
-    id uuid NOT NULL,
-    notification_template_id uuid NOT NULL,
-    disabled boolean,
-    user_id uuid,
-    org_id uuid
 );
 
 CREATE TABLE notification_templates (
@@ -1526,9 +1517,6 @@ ALTER TABLE ONLY licenses
 ALTER TABLE ONLY notification_messages
     ADD CONSTRAINT notification_messages_pkey PRIMARY KEY (id);
 
-ALTER TABLE ONLY notification_preferences
-    ADD CONSTRAINT notification_preferences_pkey PRIMARY KEY (id);
-
 ALTER TABLE ONLY notification_templates
     ADD CONSTRAINT notification_templates_name_key UNIQUE (name);
 
@@ -1838,15 +1826,6 @@ ALTER TABLE ONLY notification_messages
 
 ALTER TABLE ONLY notification_messages
     ADD CONSTRAINT notification_messages_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
-
-ALTER TABLE ONLY notification_preferences
-    ADD CONSTRAINT notification_preferences_notification_template_id_fkey FOREIGN KEY (notification_template_id) REFERENCES notification_templates(id) ON DELETE CASCADE;
-
-ALTER TABLE ONLY notification_preferences
-    ADD CONSTRAINT notification_preferences_org_id_fkey FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE CASCADE;
-
-ALTER TABLE ONLY notification_preferences
-    ADD CONSTRAINT notification_preferences_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY oauth2_provider_app_codes
     ADD CONSTRAINT oauth2_provider_app_codes_app_id_fkey FOREIGN KEY (app_id) REFERENCES oauth2_provider_apps(id) ON DELETE CASCADE;

@@ -4,7 +4,6 @@ CREATE TYPE notification_message_status AS ENUM (
     'sent',
     'permanent_failure',
     'temporary_failure',
-    'inhibited',
     'unknown'
     );
 
@@ -28,9 +27,6 @@ CREATE TABLE notification_templates
 
 COMMENT ON TABLE notification_templates IS 'Templates from which to create notification messages.';
 
--- TODO: create a trigger to mark messages inhibited if notification_preferences disables them for a user/org
---          this will need to unnest the targets and check if they intersect with users or orgs
-
 CREATE TABLE notification_messages
 (
     id                       uuid                        NOT NULL,
@@ -53,19 +49,6 @@ CREATE TABLE notification_messages
 );
 
 CREATE INDEX idx_notification_messages_status ON notification_messages (status);
-
-CREATE TABLE notification_preferences
-(
-    id                       uuid NOT NULL,
-    notification_template_id uuid NOT NULL,
-    disabled                 boolean,
-    user_id                  uuid,
-    org_id                   uuid,
-    PRIMARY KEY (id),
-    FOREIGN KEY (notification_template_id) REFERENCES notification_templates (id) ON DELETE CASCADE,
-    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
-    FOREIGN KEY (org_id) REFERENCES organizations (id) ON DELETE CASCADE
-);
 
 -- TODO: autogenerate constants which reference the UUIDs
 INSERT INTO notification_templates (id, name, enabled, title_template, body_template, "group", actions)

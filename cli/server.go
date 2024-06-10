@@ -993,12 +993,16 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			// Manage notifications.
 			if experiments.Enabled(codersdk.ExperimentNotifications) {
 				cfg := options.DeploymentValues.Notifications
-				notificationsManager = notifications.NewManager(cfg, options.Database, logger.Named("notifications-manager"), map[string]func() string{
+				notificationsManager, err = notifications.NewManager(cfg, options.Database, logger.Named("notifications-manager"), map[string]func() string{
 					// Build set of macros which can be replaced in templates.
 					// We build them here to avoid an import cycle by using coderd.Options in notifications.Manager.
 					// TODO: a better approach?
 					"ACCESS_URL": func() string { return options.AccessURL.String() },
 				})
+				if err != nil {
+					return xerrors.Errorf("failed to instantiate notification manager: %w", err)
+				}
+
 				notificationsManager.Run(dbauthz.AsSystemRestricted(ctx), int(cfg.WorkerCount.Value()))
 				notifications.RegisterInstance(notificationsManager)
 			} else {

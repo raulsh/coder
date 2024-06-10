@@ -42,6 +42,10 @@ var (
 // will need an alternative mechanism for handling backpressure.
 type Manager struct {
 	cfg codersdk.NotificationsConfig
+	// TODO: expand this to allow for each notification to have custom delivery methods, or multiple, or none.
+	// 		 For example, Larry might want email notifications for "workspace deleted" notifications, but Harry wants
+	//		 Slack notifications, and Mary doesn't want any.
+	method database.NotificationMethod
 
 	store Store
 	log   slog.Logger
@@ -57,18 +61,24 @@ type Manager struct {
 	done     chan any
 }
 
-func NewManager(cfg codersdk.NotificationsConfig, store Store, log slog.Logger, macroMap map[string]func() string) *Manager {
+func NewManager(cfg codersdk.NotificationsConfig, store Store, log slog.Logger, macroMap map[string]func() string) (*Manager, error) {
+	var method database.NotificationMethod
+	if err := method.Scan(cfg.Method.String()); err != nil {
+		return nil, xerrors.Errorf("given notification method %q is invalid", cfg.Method)
+	}
+
 	return &Manager{
-		log:   log,
-		cfg:   cfg,
-		store: store,
+		log:    log,
+		cfg:    cfg,
+		store:  store,
+		method: method,
 
 		stop: make(chan any),
 		done: make(chan any),
 
 		handlers: defaultHandlers(cfg, log),
 		macroMap: macroMap,
-	}
+	}, nil
 }
 
 // defaultHandlers builds a set of known handlers; panics if any error occurs as these handlers should be valid at compile time.
@@ -189,8 +199,7 @@ func (m *Manager) loop(ctx context.Context, notifiers int) error {
 
 // Enqueue queues a notification message for later delivery.
 // Messages will be dequeued by a notifier later and dispatched.
-// TODO: don't accept method here; determine which method to use from notification_preferences.
-func (m *Manager) Enqueue(ctx context.Context, userID, templateID uuid.UUID, method database.NotificationMethod, labels types.Labels, createdBy string, targets ...uuid.UUID) (*uuid.UUID, error) {
+func (m *Manager) Enqueue(ctx context.Context, userID, templateID uuid.UUID, labels types.Labels, createdBy string, targets ...uuid.UUID) (*uuid.UUID, error) {
 	// Build payload.
 	payload, err := m.buildPayload(ctx, userID, templateID, labels)
 	if err != nil {
@@ -208,7 +217,7 @@ func (m *Manager) Enqueue(ctx context.Context, userID, templateID uuid.UUID, met
 		ID:                     id,
 		UserID:                 userID,
 		NotificationTemplateID: templateID,
-		Method:                 method,
+		Method:                 m.method,
 		Payload:                input,
 		Targets:                targets,
 		CreatedBy:              createdBy,

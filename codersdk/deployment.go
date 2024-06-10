@@ -472,6 +472,7 @@ type NotificationsConfig struct {
 	FetchInterval serpent.Duration `json:"fetch_interval"`
 
 	// Dispatch.
+	Method          serpent.String             `json:"method"`
 	DispatchTimeout serpent.Duration           `json:"dispatch_timeout"`
 	SMTP            NotificationsEmailConfig   `json:"email" typescript:",notnull"`
 	Webhook         NotificationsWebhookConfig `json:"webhook" typescript:",notnull"`
@@ -2174,6 +2175,16 @@ Write out the current server config as YAML to stdout.`,
 			Default:     (time.Second * 15).String(),
 			Group:       &deploymentGroupNotifications,
 			YAML:        "fetch-interval",
+		},
+		{
+			Name:        "Notifications: Method",
+			Description: "Which delivery method to use (available options: 'smtp', 'webhook').",
+			Flag:        "notifications-method",
+			Env:         "CODER_NOTIFICATIONS_METHOD",
+			Value:       &c.Notifications.Method,
+			Default:     "smtp",
+			Group:       &deploymentGroupNotifications,
+			YAML:        "method",
 		},
 		{
 			Name:        "Notifications: Dispatch Timeout",

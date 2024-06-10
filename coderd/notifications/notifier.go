@@ -10,7 +10,6 @@ import (
 	"github.com/coder/coder/v2/coderd/notifications/render"
 	"github.com/coder/coder/v2/coderd/notifications/types"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/google/uuid"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
@@ -126,8 +125,6 @@ func (n *notifier) fetch(ctx context.Context) ([]database.AcquireNotificationMes
 		MaxAttemptCount: int32(n.cfg.MaxSendAttempts),
 		NotifierID:      int32(n.id),
 		LeaseSeconds:    int32(n.cfg.LeasePeriod.Value().Seconds()),
-		UserID:          uuid.New(), // TODO: use real user ID
-		OrgID:           uuid.New(), // TODO: use real org ID
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("acquire messages: %w", err)

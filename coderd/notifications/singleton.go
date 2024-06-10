@@ -3,7 +3,6 @@ package notifications
 import (
 	"context"
 
-	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/notifications/types"
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -24,10 +23,10 @@ func RegisterInstance(m Enqueuer) {
 
 // Enqueue queues a notification message for later delivery.
 // This is a delegator for the underlying notifications singleton.
-func Enqueue(ctx context.Context, userID, templateID uuid.UUID, method database.NotificationMethod, labels types.Labels, createdBy string, targets ...uuid.UUID) (*uuid.UUID, error) {
+func Enqueue(ctx context.Context, userID, templateID uuid.UUID, labels types.Labels, createdBy string, targets ...uuid.UUID) (*uuid.UUID, error) {
 	if singleton == nil {
 		return nil, SingletonNotRegisteredErr
 	}
 
-	return singleton.Enqueue(ctx, userID, templateID, method, labels, createdBy, targets...)
+	return singleton.Enqueue(ctx, userID, templateID, labels, createdBy, targets...)
 }

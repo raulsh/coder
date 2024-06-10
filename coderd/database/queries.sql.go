@@ -3203,7 +3203,6 @@ WITH acquired AS (
             WHERE id IN (SELECT nm.id
                          FROM notification_messages AS nm
                                   LEFT JOIN notification_templates AS nt ON (nm.notification_template_id = nt.id)
-                                  LEFT JOIN notification_preferences np ON (np.notification_template_id = nt.id)
                          WHERE (
                              (
                                  -- message is in acquirable states
@@ -3227,20 +3226,11 @@ WITH acquired AS (
                                  ELSE true
                                  END
                              )
-                           -- only lease if user/org has not disabled this template
-                           -- TODO: validate this
-                           AND (
-                             CASE
-                                 WHEN np.disabled = FALSE THEN
-                                     (np.user_id = $4::uuid OR np.org_id = $5::uuid)
-                                 ELSE TRUE
-                                 END
-                             )
                          ORDER BY nm.created_at ASC
                                   -- Ensure that multiple concurrent readers cannot retrieve the same rows
                              FOR UPDATE OF nm
                                  SKIP LOCKED
-                         LIMIT $6)
+                         LIMIT $4)
             RETURNING id)
 SELECT
     -- message
@@ -3257,12 +3247,10 @@ FROM acquired
 `
 
 type AcquireNotificationMessagesParams struct {
-	NotifierID      int32     `db:"notifier_id" json:"notifier_id"`
-	LeaseSeconds    int32     `db:"lease_seconds" json:"lease_seconds"`
-	MaxAttemptCount int32     `db:"max_attempt_count" json:"max_attempt_count"`
-	UserID          uuid.UUID `db:"user_id" json:"user_id"`
-	OrgID           uuid.UUID `db:"org_id" json:"org_id"`
-	Count           int32     `db:"count" json:"count"`
+	NotifierID      int32 `db:"notifier_id" json:"notifier_id"`
+	LeaseSeconds    int32 `db:"lease_seconds" json:"lease_seconds"`
+	MaxAttemptCount int32 `db:"max_attempt_count" json:"max_attempt_count"`
+	Count           int32 `db:"count" json:"count"`
 }
 
 type AcquireNotificationMessagesRow struct {
@@ -3286,8 +3274,6 @@ func (q *sqlQuerier) AcquireNotificationMessages(ctx context.Context, arg Acquir
 		arg.NotifierID,
 		arg.LeaseSeconds,
 		arg.MaxAttemptCount,
-		arg.UserID,
-		arg.OrgID,
 		arg.Count,
 	)
 	if err != nil {
@@ -3357,28 +3343,6 @@ func (q *sqlQuerier) BulkMarkNotificationMessagesFailed(ctx context.Context, arg
 		pq.Array(arg.Statuses),
 		pq.Array(arg.StatusReasons),
 	)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected()
-}
-
-const bulkMarkNotificationMessagesInhibited = `-- name: BulkMarkNotificationMessagesInhibited :execrows
-UPDATE notification_messages
-SET updated_at       = NOW(),
-    status           = 'inhibited'::notification_message_status,
-    status_reason    = $1,
-    next_retry_after = NULL
-WHERE notification_messages.id IN (UNNEST($2::uuid[]))
-`
-
-type BulkMarkNotificationMessagesInhibitedParams struct {
-	Reason sql.NullString `db:"reason" json:"reason"`
-	IDs    []uuid.UUID    `db:"ids" json:"ids"`
-}
-
-func (q *sqlQuerier) BulkMarkNotificationMessagesInhibited(ctx context.Context, arg BulkMarkNotificationMessagesInhibitedParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, bulkMarkNotificationMessagesInhibited, arg.Reason, pq.Array(arg.IDs))
 	if err != nil {
 		return 0, err
 	}

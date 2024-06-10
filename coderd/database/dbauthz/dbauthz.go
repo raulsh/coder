@@ -843,13 +843,6 @@ func (q *querier) BulkMarkNotificationMessagesFailed(ctx context.Context, arg da
 	return q.db.BulkMarkNotificationMessagesFailed(ctx, arg)
 }
 
-func (q *querier) BulkMarkNotificationMessagesInhibited(ctx context.Context, arg database.BulkMarkNotificationMessagesInhibitedParams) (int64, error) {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
-		return 0, err
-	}
-	return q.db.BulkMarkNotificationMessagesInhibited(ctx, arg)
-}
-
 func (q *querier) BulkMarkNotificationMessagesSent(ctx context.Context, arg database.BulkMarkNotificationMessagesSentParams) (int64, error) {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
 		return 0, err

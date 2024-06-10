@@ -27,18 +27,19 @@ func TestSingletonRegistration(t *testing.T) {
 	ctx := context.Background()
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true, IgnoredErrorIs: []error{}}).Leveled(slog.LevelDebug)
 
-	mgr := notifications.NewManager(defaultNotificationsConfig(), dbmem.New(), logger, nil)
+	mgr, err := notifications.NewManager(defaultNotificationsConfig(), dbmem.New(), logger, nil)
+	require.NoError(t, err)
 	t.Cleanup(func() {
 		require.NoError(t, mgr.Stop(ctx))
 	})
 
 	// Not registered yet.
-	_, err := notifications.Enqueue(ctx, uuid.New(), notifications.TemplateWorkspaceDeleted, database.NotificationMethodSmtp, nil, "")
+	_, err = notifications.Enqueue(ctx, uuid.New(), notifications.TemplateWorkspaceDeleted, nil, "")
 	require.ErrorIs(t, err, notifications.SingletonNotRegisteredErr)
 
 	// Works after registering.
 	notifications.RegisterInstance(mgr)
-	_, err = notifications.Enqueue(ctx, uuid.New(), notifications.TemplateWorkspaceDeleted, database.NotificationMethodSmtp, nil, "")
+	_, err = notifications.Enqueue(ctx, uuid.New(), notifications.TemplateWorkspaceDeleted, nil, "")
 	require.NoError(t, err)
 }
 
@@ -55,17 +56,18 @@ func TestBufferedUpdates(t *testing.T) {
 	santa := &santaDispatcher{}
 	handlers, err := notifications.NewHandlerRegistry(santa)
 	require.NoError(t, err)
-	mgr := notifications.NewManager(defaultNotificationsConfig(), interceptor, logger.Named("notifications"), nil)
+	mgr, err := notifications.NewManager(defaultNotificationsConfig(), interceptor, logger.Named("notifications"), nil)
+	require.NoError(t, err)
 	mgr.WithHandlers(handlers)
 
 	client := coderdtest.New(t, &coderdtest.Options{Database: db, Pubsub: pubsub.NewInMemory()})
 	user := coderdtest.CreateFirstUser(t, client)
 
 	// given
-	if _, err := mgr.Enqueue(ctx, user.UserID, notifications.TemplateWorkspaceDeleted, database.NotificationMethodSmtp, types.Labels{"nice": "true"}, ""); true {
+	if _, err := mgr.Enqueue(ctx, user.UserID, notifications.TemplateWorkspaceDeleted, types.Labels{"nice": "true"}, ""); true {
 		require.NoError(t, err)
 	}
-	if _, err := mgr.Enqueue(ctx, user.UserID, notifications.TemplateWorkspaceDeleted, database.NotificationMethodSmtp, types.Labels{"nice": "false"}, ""); true {
+	if _, err := mgr.Enqueue(ctx, user.UserID, notifications.TemplateWorkspaceDeleted, types.Labels{"nice": "false"}, ""); true {
 		require.NoError(t, err)
 	}
 

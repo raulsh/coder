@@ -137,13 +137,6 @@ func (m metricsStore) BulkMarkNotificationMessagesFailed(ctx context.Context, ar
 	return r0, r1
 }
 
-func (m metricsStore) BulkMarkNotificationMessagesInhibited(ctx context.Context, arg database.BulkMarkNotificationMessagesInhibitedParams) (int64, error) {
-	start := time.Now()
-	r0, r1 := m.s.BulkMarkNotificationMessagesInhibited(ctx, arg)
-	m.queryLatencies.WithLabelValues("BulkMarkNotificationMessagesInhibited").Observe(time.Since(start).Seconds())
-	return r0, r1
-}
-
 func (m metricsStore) BulkMarkNotificationMessagesSent(ctx context.Context, arg database.BulkMarkNotificationMessagesSentParams) (int64, error) {
 	start := time.Now()
 	r0, r1 := m.s.BulkMarkNotificationMessagesSent(ctx, arg)
