@@ -6,6 +6,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/notifications/dispatch"
 	"github.com/coder/coder/v2/coderd/notifications/types"
+	"github.com/google/uuid"
 )
 
 // Store defines the API between the notifications system and the storage.
@@ -26,4 +27,8 @@ type Handler interface {
 
 	// Dispatcher delivers the notification by a given method.
 	Dispatcher(payload types.MessagePayload, title, body string) (dispatch.DeliveryFunc, error)
+}
+
+type Enqueuer interface {
+	Enqueue(ctx context.Context, userID, templateID uuid.UUID, method database.NotificationMethod, labels types.Labels, createdBy string, targets ...uuid.UUID) (*uuid.UUID, error)
 }

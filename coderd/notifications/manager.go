@@ -24,19 +24,6 @@ var (
 	PayloadVersion = apiversion.New(1, 0)
 )
 
-var (
-	singleton *Manager
-
-	SingletonNotRegisteredErr = xerrors.New("singleton not registered")
-)
-
-// RegisterInstance receives a Manager reference to act as a Singleton.
-// We use a Singleton to centralize the logic around enqueueing notifications, instead of requiring that an instance
-// of the Manager be passed around the codebase.
-func RegisterInstance(m *Manager) {
-	singleton = m
-}
-
 // Manager manages all notifications being enqueued and dispatched.
 //
 // Manager maintains a group of notifiers: these consume the queue of notification messages in the store.
@@ -200,16 +187,6 @@ func (m *Manager) loop(ctx context.Context, notifiers int) error {
 }
 
 // Enqueue queues a notification message for later delivery.
-// This is a delegator for the underlying notifications singleton.
-func Enqueue(ctx context.Context, userID, templateID uuid.UUID, method database.NotificationMethod, labels types.Labels, createdBy string, targets ...uuid.UUID) (*uuid.UUID, error) {
-	if singleton == nil {
-		return nil, SingletonNotRegisteredErr
-	}
-
-	return singleton.Enqueue(ctx, userID, templateID, method, labels, createdBy, targets...)
-}
-
-// Enqueue queues a notification message for later delivery.
 // Messages will be dequeued by a notifier later and dispatched.
 // TODO: don't accept method here; determine which method to use from notification_preferences.
 func (m *Manager) Enqueue(ctx context.Context, userID, templateID uuid.UUID, method database.NotificationMethod, labels types.Labels, createdBy string, targets ...uuid.UUID) (*uuid.UUID, error) {
@@ -244,6 +221,9 @@ func (m *Manager) Enqueue(ctx context.Context, userID, templateID uuid.UUID, met
 	return &id, nil
 }
 
+// buildPayload creates the payload that the notification will use to construct its body.
+// The payload contains information about the recipient, the event that triggered the notification, and any subsequent
+// actions which can be taken by the recipient.
 func (m *Manager) buildPayload(ctx context.Context, userID uuid.UUID, templateID uuid.UUID, labels types.Labels) (*types.MessagePayload, error) {
 	metadata, err := m.store.FetchNewMessageMetadata(ctx, database.FetchNewMessageMetadataParams{
 		UserID:                 userID,

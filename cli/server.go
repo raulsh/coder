@@ -662,6 +662,10 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				options.OIDCConfig = oc
 			}
 
+			experiments := coderd.ReadExperiments(
+				options.Logger, options.DeploymentValues.Experiments.Value(),
+			)
+
 			// We'll read from this channel in the select below that tracks shutdown.  If it remains
 			// nil, that case of the select will just never fire, but it's important not to have a
 			// "bare" read on this channel.
@@ -984,16 +988,21 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			options.WorkspaceUsageTracker = tracker
 			defer tracker.Close()
 
+			var notificationsManager *notifications.Manager
 			// Manage notifications.
-			cfg := options.DeploymentValues.Notifications
-			notificationsManager := notifications.NewManager(cfg, options.Database, logger.Named("notifications-manager"), map[string]func() string{
-				// Build set of macros which can be replaced in templates.
-				// We build them here to avoid an import cycle by using coderd.Options in notifications.Manager.
-				// TODO: a better approach?
-				"ACCESS_URL": func() string { return options.AccessURL.String() },
-			})
-			notificationsManager.StartNotifiers(ctx, 3) // TODO: configurable
-			notifications.RegisterInstance(notificationsManager)
+			if experiments.Enabled(codersdk.ExperimentNotifications) {
+				cfg := options.DeploymentValues.Notifications
+				notificationsManager = notifications.NewManager(cfg, options.Database, logger.Named("notifications-manager"), map[string]func() string{
+					// Build set of macros which can be replaced in templates.
+					// We build them here to avoid an import cycle by using coderd.Options in notifications.Manager.
+					// TODO: a better approach?
+					"ACCESS_URL": func() string { return options.AccessURL.String() },
+				})
+				notificationsManager.StartNotifiers(ctx, 3) // TODO: configurable
+				notifications.RegisterInstance(notificationsManager)
+			} else {
+				notifications.RegisterInstance(notifications.NewNoopManager())
+			}
 
 			// Wrap the server in middleware that redirects to the access URL if
 			// the request is not to a local IP.
@@ -1114,18 +1123,20 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			// Cancel any remaining in-flight requests.
 			shutdownConns()
 
-			// Stop the notification manager, which will cause any buffered updates to the store to be flushed.
-			// If the Stop() call times out, messages that were sent but not reflected as such in the store will have
-			// their leases expire after a period of time and will be re-queued for sending.
-			// TODO: reference config for lease time
-			// TODO: link error to documentation page
-			cliui.Info(inv.Stdout, "Shutting down notifications manager..."+"\n")
-			err = shutdownWithTimeout(notificationsManager.Stop, 5*time.Second)
-			if err != nil {
-				cliui.Warnf(inv.Stderr, "Notifications manager shutdown took longer than 5s, "+
-					"this may result in duplicate notifications being sent: %s\n", err)
-			} else {
-				cliui.Info(inv.Stdout, "Gracefully shut down notifications manager\n")
+			if experiments.Enabled(codersdk.ExperimentNotifications) {
+				// Stop the notification manager, which will cause any buffered updates to the store to be flushed.
+				// If the Stop() call times out, messages that were sent but not reflected as such in the store will have
+				// their leases expire after a period of time and will be re-queued for sending.
+				// TODO: reference config for lease time
+				// TODO: link error to documentation page
+				cliui.Info(inv.Stdout, "Shutting down notifications manager..."+"\n")
+				err = shutdownWithTimeout(notificationsManager.Stop, 5*time.Second)
+				if err != nil {
+					cliui.Warnf(inv.Stderr, "Notifications manager shutdown took longer than 5s, "+
+						"this may result in duplicate notifications being sent: %s\n", err)
+				} else {
+					cliui.Info(inv.Stdout, "Gracefully shut down notifications manager\n")
+				}
 			}
 
 			// Shut down provisioners before waiting for WebSockets
