@@ -762,6 +762,7 @@ func TestProvision_SafeEnv(t *testing.T) {
 	// #nosec
 	const (
 		passedValue = "superautopets"
+		// nolint:gosec // not sensitive
 		secretValue = "oinae3uinxase"
 	)
 

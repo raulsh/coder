@@ -2341,11 +2341,11 @@ func (q *querier) GetWorkspaceResourcesCreatedAfter(ctx context.Context, created
 	return q.db.GetWorkspaceResourcesCreatedAfter(ctx, createdAt)
 }
 
-func (q *querier) GetWorkspaceUniqueOwnerCountByTemplateIDs(ctx context.Context, templateIds []uuid.UUID) ([]database.GetWorkspaceUniqueOwnerCountByTemplateIDsRow, error) {
+func (q *querier) GetWorkspaceUniqueOwnerCountByTemplateIDs(ctx context.Context, templateIDs []uuid.UUID) ([]database.GetWorkspaceUniqueOwnerCountByTemplateIDsRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return nil, err
 	}
-	return q.db.GetWorkspaceUniqueOwnerCountByTemplateIDs(ctx, templateIds)
+	return q.db.GetWorkspaceUniqueOwnerCountByTemplateIDs(ctx, templateIDs)
 }
 
 func (q *querier) GetWorkspaces(ctx context.Context, arg database.GetWorkspacesParams) ([]database.GetWorkspacesRow, error) {

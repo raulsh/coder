@@ -2381,15 +2381,15 @@ func (q *FakeQuerier) GetGroupsByOrganizationAndUserID(_ context.Context, arg da
 
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
-	var groupIds []uuid.UUID
+	var groupIDs []uuid.UUID
 	for _, member := range q.groupMembers {
 		if member.UserID == arg.UserID {
-			groupIds = append(groupIds, member.GroupID)
+			groupIDs = append(groupIDs, member.GroupID)
 		}
 	}
 	groups := []database.Group{}
 	for _, group := range q.groups {
-		if slices.Contains(groupIds, group.ID) && group.OrganizationID == arg.OrganizationID {
+		if slices.Contains(groupIDs, group.ID) && group.OrganizationID == arg.OrganizationID {
 			groups = append(groups, group)
 		}
 	}
@@ -5684,7 +5684,7 @@ func (q *FakeQuerier) GetWorkspaceResourcesCreatedAfter(_ context.Context, after
 	return resources, nil
 }
 
-func (q *FakeQuerier) GetWorkspaceUniqueOwnerCountByTemplateIDs(_ context.Context, templateIds []uuid.UUID) ([]database.GetWorkspaceUniqueOwnerCountByTemplateIDsRow, error) {
+func (q *FakeQuerier) GetWorkspaceUniqueOwnerCountByTemplateIDs(_ context.Context, templateIDs []uuid.UUID) ([]database.GetWorkspaceUniqueOwnerCountByTemplateIDsRow, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -5693,7 +5693,7 @@ func (q *FakeQuerier) GetWorkspaceUniqueOwnerCountByTemplateIDs(_ context.Contex
 		if workspace.Deleted {
 			continue
 		}
-		if !slices.Contains(templateIds, workspace.TemplateID) {
+		if !slices.Contains(templateIDs, workspace.TemplateID) {
 			continue
 		}
 		_, ok := workspaceOwners[workspace.TemplateID]
@@ -5703,7 +5703,7 @@ func (q *FakeQuerier) GetWorkspaceUniqueOwnerCountByTemplateIDs(_ context.Contex
 		workspaceOwners[workspace.TemplateID][workspace.OwnerID] = struct{}{}
 	}
 	resp := make([]database.GetWorkspaceUniqueOwnerCountByTemplateIDsRow, 0)
-	for _, templateID := range templateIds {
+	for _, templateID := range templateIDs {
 		count := len(workspaceOwners[templateID])
 		resp = append(resp, database.GetWorkspaceUniqueOwnerCountByTemplateIDsRow{
 			TemplateID:      templateID,

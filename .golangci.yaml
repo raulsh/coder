@@ -189,7 +189,7 @@ linters-settings:
       - name: unhandled-error
       - name: unnecessary-stmt
       - name: unreachable-code
-      - name: unused-parameter
+      # - name: unused-parameter # too noisy as of v1.56.1
       - name: unused-receiver
       - name: var-declaration
       - name: var-naming

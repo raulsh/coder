@@ -83,6 +83,7 @@ func (b WorkspaceBuildBuilder) Resource(resource ...*sdkproto.Resource) Workspac
 }
 
 func (b WorkspaceBuildBuilder) Params(params ...database.WorkspaceBuildParameter) WorkspaceBuildBuilder {
+	//nolint: revive // returns modified struct
 	b.params = params
 	return b
 }
@@ -100,6 +101,7 @@ func (b WorkspaceBuildBuilder) WithAgent(mutations ...func([]*sdkproto.Agent) []
 	for _, m := range mutations {
 		agents = m(agents)
 	}
+	//nolint: revive // returns modified struct
 	b.resources = append(b.resources, &sdkproto.Resource{
 		Name:   "example",
 		Type:   "aws_instance",
