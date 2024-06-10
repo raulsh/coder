@@ -786,7 +786,9 @@ func (q *querier) AcquireLock(ctx context.Context, id int64) error {
 }
 
 func (q *querier) AcquireNotificationMessages(ctx context.Context, arg database.AcquireNotificationMessagesParams) ([]database.AcquireNotificationMessagesRow, error) {
-	// TODO: auth?
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
 	return q.db.AcquireNotificationMessages(ctx, arg)
 }
 
@@ -835,17 +837,23 @@ func (q *querier) BatchUpdateWorkspaceLastUsedAt(ctx context.Context, arg databa
 }
 
 func (q *querier) BulkMarkNotificationMessagesFailed(ctx context.Context, arg database.BulkMarkNotificationMessagesFailedParams) (int64, error) {
-	// TODO: auth?
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return 0, err
+	}
 	return q.db.BulkMarkNotificationMessagesFailed(ctx, arg)
 }
 
 func (q *querier) BulkMarkNotificationMessagesInhibited(ctx context.Context, arg database.BulkMarkNotificationMessagesInhibitedParams) (int64, error) {
-	// TODO: auth?
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return 0, err
+	}
 	return q.db.BulkMarkNotificationMessagesInhibited(ctx, arg)
 }
 
 func (q *querier) BulkMarkNotificationMessagesSent(ctx context.Context, arg database.BulkMarkNotificationMessagesSentParams) (int64, error) {
-	// TODO: auth?
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return 0, err
+	}
 	return q.db.BulkMarkNotificationMessagesSent(ctx, arg)
 }
 
@@ -999,7 +1007,9 @@ func (q *querier) DeleteOAuth2ProviderAppTokensByAppAndUserID(ctx context.Contex
 }
 
 func (q *querier) DeleteOldNotificationMessages(ctx context.Context) error {
-	// TODO: auth?
+	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceSystem); err != nil {
+		return err
+	}
 	return q.db.DeleteOldNotificationMessages(ctx)
 }
 
@@ -1098,7 +1108,9 @@ func (q *querier) DeleteWorkspaceAgentPortSharesByTemplate(ctx context.Context, 
 }
 
 func (q *querier) EnqueueNotificationMessage(ctx context.Context, arg database.EnqueueNotificationMessageParams) (database.NotificationMessage, error) {
-	// TODO: auth?
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
+		return database.NotificationMessage{}, err
+	}
 	return q.db.EnqueueNotificationMessage(ctx, arg)
 }
 
@@ -1110,7 +1122,9 @@ func (q *querier) FavoriteWorkspace(ctx context.Context, id uuid.UUID) error {
 }
 
 func (q *querier) FetchNewMessageMetadata(ctx context.Context, arg database.FetchNewMessageMetadataParams) (database.FetchNewMessageMetadataRow, error) {
-	// TODO: auth?
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return database.FetchNewMessageMetadataRow{}, err
+	}
 	return q.db.FetchNewMessageMetadata(ctx, arg)
 }
 
@@ -1397,16 +1411,6 @@ func (q *querier) GetLicenses(ctx context.Context) ([]database.License, error) {
 func (q *querier) GetLogoURL(ctx context.Context) (string, error) {
 	// No authz checks
 	return q.db.GetLogoURL(ctx)
-}
-
-func (q *querier) GetNotificationMessagesCountByStatus(ctx context.Context) ([]database.GetNotificationMessagesCountByStatusRow, error) {
-	// TODO: auth?
-	return q.db.GetNotificationMessagesCountByStatus(ctx)
-}
-
-func (q *querier) GetNotificationsMessagesCountByTemplate(ctx context.Context) ([]database.GetNotificationsMessagesCountByTemplateRow, error) {
-	// TODO: auth?
-	return q.db.GetNotificationsMessagesCountByTemplate(ctx)
 }
 
 func (q *querier) GetOAuth2ProviderAppByID(ctx context.Context, id uuid.UUID) (database.OAuth2ProviderApp, error) {
@@ -2479,7 +2483,9 @@ func (q *querier) InsertMissingGroups(ctx context.Context, arg database.InsertMi
 }
 
 func (q *querier) InsertNotificationTemplate(ctx context.Context, arg database.InsertNotificationTemplateParams) (database.NotificationTemplate, error) {
-	// TODO: auth?
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
+		return database.NotificationTemplate{}, err
+	}
 	return q.db.InsertNotificationTemplate(ctx, arg)
 }
 

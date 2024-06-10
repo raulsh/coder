@@ -32,6 +32,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/coreos/go-systemd/daemon"
 	embeddedpostgres "github.com/fergusstrange/embedded-postgres"
@@ -998,7 +999,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 					// TODO: a better approach?
 					"ACCESS_URL": func() string { return options.AccessURL.String() },
 				})
-				notificationsManager.StartNotifiers(ctx, 3) // TODO: configurable
+				notificationsManager.Run(dbauthz.AsSystemRestricted(ctx), int(cfg.WorkerCount.Value()))
 				notifications.RegisterInstance(notificationsManager)
 			} else {
 				notifications.RegisterInstance(notifications.NewNoopManager())

@@ -1850,10 +1850,16 @@ func (q *FakeQuerier) FetchNewMessageMetadata(ctx context.Context, arg database.
 		return database.FetchNewMessageMetadataRow{}, err
 	}
 
+	actions, err := json.Marshal([]types.TemplateAction{{URL: "http://xyz.com", Label: "XYZ"}})
+	if err != nil {
+		return database.FetchNewMessageMetadataRow{}, err
+	}
+
 	return database.FetchNewMessageMetadataRow{
 		UserEmail:        "test@test.com",
 		UserName:         "Testy McTester",
 		NotificationName: "Some notification",
+		Actions:          actions,
 		UserID:           arg.UserID,
 	}, nil
 }
@@ -2679,52 +2685,6 @@ func (q *FakeQuerier) GetLogoURL(_ context.Context) (string, error) {
 	}
 
 	return q.logoURL, nil
-}
-
-func (q *FakeQuerier) GetNotificationMessagesCountByStatus(context.Context) ([]database.GetNotificationMessagesCountByStatusRow, error) {
-	q.mutex.Lock()
-	defer q.mutex.Unlock()
-
-	count := make(map[database.NotificationMessageStatus]int64)
-	for _, nm := range q.notificationMessages {
-		sc, found := count[nm.Status]
-		if !found {
-			count[nm.Status] = 0
-		}
-		sc += 1
-	}
-
-	var out []database.GetNotificationMessagesCountByStatusRow
-	for status, total := range count {
-		out = append(out, database.GetNotificationMessagesCountByStatusRow{
-			Status: status,
-			Count:  total,
-		})
-	}
-	return out, nil
-}
-
-func (q *FakeQuerier) GetNotificationsMessagesCountByTemplate(context.Context) ([]database.GetNotificationsMessagesCountByTemplateRow, error) {
-	q.mutex.Lock()
-	defer q.mutex.Unlock()
-
-	count := make(map[uuid.UUID]int64)
-	for _, nm := range q.notificationMessages {
-		sc, found := count[nm.NotificationTemplateID]
-		if !found {
-			count[nm.NotificationTemplateID] = 0
-		}
-		sc += 1
-	}
-
-	var out []database.GetNotificationsMessagesCountByTemplateRow
-	for id, total := range count {
-		out = append(out, database.GetNotificationsMessagesCountByTemplateRow{
-			ID:    id,
-			Count: total,
-		})
-	}
-	return out, nil
 }
 
 func (q *FakeQuerier) GetOAuth2ProviderAppByID(_ context.Context, id uuid.UUID) (database.OAuth2ProviderApp, error) {

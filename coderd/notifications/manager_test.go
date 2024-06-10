@@ -8,6 +8,7 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/notifications"
@@ -45,16 +46,17 @@ func TestBufferedUpdates(t *testing.T) {
 	t.Parallel()
 
 	// setup
-	ctx := context.Background()
+	ctx := dbauthz.AsSystemRestricted(context.Background())
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true, IgnoredErrorIs: []error{}}).Leveled(slog.LevelDebug)
 
 	db := dbmem.New()
 	interceptor := &bulkUpdateInterceptor{Store: db}
 
 	santa := &santaDispatcher{}
-	dispatchers, err := notifications.NewHandlerRegistry(santa)
+	handlers, err := notifications.NewHandlerRegistry(santa)
 	require.NoError(t, err)
-	mgr := notifications.NewManager(defaultNotificationsConfig(), interceptor, logger.Named("notifications"), dispatchers)
+	mgr := notifications.NewManager(defaultNotificationsConfig(), interceptor, logger.Named("notifications"), nil)
+	mgr.WithHandlers(handlers)
 
 	client := coderdtest.New(t, &coderdtest.Options{Database: db, Pubsub: pubsub.NewInMemory()})
 	user := coderdtest.CreateFirstUser(t, client)
@@ -68,7 +70,7 @@ func TestBufferedUpdates(t *testing.T) {
 	}
 
 	// when
-	mgr.StartNotifiers(ctx, 1)
+	mgr.Run(ctx, 1)
 
 	// then
 

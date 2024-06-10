@@ -15,6 +15,7 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/notifications"
@@ -48,11 +49,12 @@ func TestBasicNotificationRoundtrip(t *testing.T) {
 
 	// given
 	dispatcher := &fakeDispatcher{}
-	fakeDispatchers, err := notifications.NewHandlerRegistry(dispatcher)
+	fakeHandlers, err := notifications.NewHandlerRegistry(dispatcher)
 	require.NoError(t, err)
 
 	cfg := defaultNotificationsConfig()
-	manager := notifications.NewManager(cfg, db, logger, fakeDispatchers)
+	manager := notifications.NewManager(cfg, db, logger, nil)
+	manager.WithHandlers(fakeHandlers)
 	notifications.RegisterInstance(manager)
 	t.Cleanup(func() {
 		require.NoError(t, manager.Stop(ctx))
@@ -67,8 +69,7 @@ func TestBasicNotificationRoundtrip(t *testing.T) {
 	fid, err := manager.Enqueue(ctx, user.UserID, notifications.TemplateWorkspaceDeleted, database.NotificationMethodSmtp, types.Labels{"type": "failure"}, "test")
 	require.NoError(t, err)
 
-	// TODO: can be reordered once tick interval is configurable so we don't have to wait long if no messages are enqueued yet.
-	manager.StartNotifiers(ctx, 1)
+	manager.Run(ctx, 1)
 
 	// then
 	require.Eventually(t, func() bool { return dispatcher.succeeded == sid.String() }, testutil.WaitLong, testutil.IntervalMedium)
@@ -103,10 +104,12 @@ func TestSMTPDispatch(t *testing.T) {
 		Hello:     "localhost",
 	}
 	dispatcher := &interceptingSMTPDispatcher{SMTPDispatcher: dispatch.NewSMTPDispatcher(cfg.SMTP, logger)}
-	fakeDispatchers, err := notifications.NewHandlerRegistry(dispatcher)
+	fakeHandlers, err := notifications.NewHandlerRegistry(dispatcher)
 	require.NoError(t, err)
 
-	manager := notifications.NewManager(cfg, db, logger, fakeDispatchers)
+	manager := notifications.NewManager(cfg, db, logger, nil)
+	manager.WithHandlers(fakeHandlers)
+
 	notifications.RegisterInstance(manager)
 	t.Cleanup(func() {
 		require.NoError(t, manager.Stop(ctx))
@@ -123,7 +126,7 @@ func TestSMTPDispatch(t *testing.T) {
 	msgID, err := manager.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted, database.NotificationMethodSmtp, types.Labels{}, "test")
 	require.NoError(t, err)
 
-	manager.StartNotifiers(ctx, 1)
+	manager.Run(ctx, 1)
 
 	// then
 	require.Eventually(t, func() bool {
@@ -204,7 +207,7 @@ func TestWebhookDispatch(t *testing.T) {
 	msgID, err = manager.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted, database.NotificationMethodWebhook, input, "test")
 	require.NoError(t, err)
 
-	manager.StartNotifiers(ctx, 1)
+	manager.Run(ctx, 1)
 
 	// then
 	require.Eventually(t, func() bool { return <-sent }, testutil.WaitShort, testutil.IntervalFast)
@@ -234,7 +237,7 @@ func setup(t *testing.T) (context.Context, slog.Logger, database.Store, *pubsub.
 		require.NoError(t, ps.Close())
 	})
 
-	return ctx, logger, db, ps
+	return dbauthz.AsSystemRestricted(ctx), logger, db, ps
 }
 
 type fakeDispatcher struct {

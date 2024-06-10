@@ -88,8 +88,9 @@ func (m *Manager) WithHandlers(reg *HandlerRegistry) {
 	m.handlers = reg
 }
 
-// StartNotifiers initiates the control loop in the background, which spawns a given number of notifier goroutines.
-func (m *Manager) StartNotifiers(ctx context.Context, notifiers int) {
+// Run initiates the control loop in the background, which spawns a given number of notifier goroutines.
+// Manager requires system-level permissions to interact with the store.
+func (m *Manager) Run(ctx context.Context, notifiers int) {
 	// Closes when Stop() is called or context is canceled.
 	go func() {
 		err := m.loop(ctx, notifiers)

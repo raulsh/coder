@@ -1423,36 +1423,6 @@ func (mr *MockStoreMockRecorder) GetLogoURL(arg0 any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLogoURL", reflect.TypeOf((*MockStore)(nil).GetLogoURL), arg0)
 }
 
-// GetNotificationMessagesCountByStatus mocks base method.
-func (m *MockStore) GetNotificationMessagesCountByStatus(arg0 context.Context) ([]database.GetNotificationMessagesCountByStatusRow, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetNotificationMessagesCountByStatus", arg0)
-	ret0, _ := ret[0].([]database.GetNotificationMessagesCountByStatusRow)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetNotificationMessagesCountByStatus indicates an expected call of GetNotificationMessagesCountByStatus.
-func (mr *MockStoreMockRecorder) GetNotificationMessagesCountByStatus(arg0 any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetNotificationMessagesCountByStatus", reflect.TypeOf((*MockStore)(nil).GetNotificationMessagesCountByStatus), arg0)
-}
-
-// GetNotificationsMessagesCountByTemplate mocks base method.
-func (m *MockStore) GetNotificationsMessagesCountByTemplate(arg0 context.Context) ([]database.GetNotificationsMessagesCountByTemplateRow, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetNotificationsMessagesCountByTemplate", arg0)
-	ret0, _ := ret[0].([]database.GetNotificationsMessagesCountByTemplateRow)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetNotificationsMessagesCountByTemplate indicates an expected call of GetNotificationsMessagesCountByTemplate.
-func (mr *MockStoreMockRecorder) GetNotificationsMessagesCountByTemplate(arg0 any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetNotificationsMessagesCountByTemplate", reflect.TypeOf((*MockStore)(nil).GetNotificationsMessagesCountByTemplate), arg0)
-}
-
 // GetOAuth2ProviderAppByID mocks base method.
 func (m *MockStore) GetOAuth2ProviderAppByID(arg0 context.Context, arg1 uuid.UUID) (database.OAuth2ProviderApp, error) {
 	m.ctrl.T.Helper()
