@@ -312,7 +312,98 @@ func TestBackpressure(t *testing.T) {
 	// However, when we Stop() the manager the backpressure will be relieved and the buffered updates will ALL be flushed,
 	// since all the goroutines blocked on writing updates to the buffer will be unblocked and will complete.
 	require.NoError(t, manager.Stop(ctx))
-	require.EqualValues(t, batchSize, storeInterceptor.sent.Load()+storeInterceptor.failed.Load())
+	require.EqualValues(t, notifiers*batchSize, storeInterceptor.sent.Load()+storeInterceptor.failed.Load())
+}
+
+func TestRetries(t *testing.T) {
+	t.Parallel()
+
+	// setup
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("This test requires postgres")
+	}
+
+	ctx, logger, db, ps := setup(t)
+
+	const maxAttempts = 3
+
+	// Mock server to simulate webhook endpoint.
+	receivedMap := make(map[uuid.UUID]*atomic.Int32)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var payload dispatch.WebhookPayload
+		err := json.NewDecoder(r.Body).Decode(&payload)
+		require.NoError(t, err)
+
+		if _, ok := receivedMap[payload.MsgID]; !ok {
+			receivedMap[payload.MsgID] = &atomic.Int32{}
+		}
+
+		counter := receivedMap[payload.MsgID]
+
+		// Let the request succeed if this is its last attempt.
+		if counter.Add(1) == maxAttempts {
+			w.WriteHeader(http.StatusOK)
+			_, err = w.Write([]byte("noted."))
+			require.NoError(t, err)
+			return
+		}
+
+		w.WriteHeader(http.StatusInternalServerError)
+		_, err = w.Write([]byte("retry again later..."))
+		require.NoError(t, err)
+	}))
+	defer server.Close()
+
+	endpoint, err := url.Parse(server.URL)
+	require.NoError(t, err)
+
+	cfg := defaultNotificationsConfig()
+	cfg.Method = serpent.String(database.NotificationMethodWebhook)
+	cfg.Webhook = codersdk.NotificationsWebhookConfig{
+		Endpoint: *serpent.URLOf(endpoint),
+	}
+
+	cfg.MaxSendAttempts = maxAttempts
+
+	// Tune intervals low to speed up test.
+	cfg.StoreSyncInterval = serpent.Duration(time.Millisecond * 100)
+	cfg.RetryInterval = serpent.Duration(time.Second) // query uses second-precision
+	cfg.FetchInterval = serpent.Duration(time.Millisecond * 100)
+
+	handler := newDispatchInterceptor(dispatch.NewWebhookHandler(cfg.Webhook, logger))
+	fakeHandlers, err := notifications.NewHandlerRegistry(handler)
+	require.NoError(t, err)
+
+	// Intercept calls to submit the buffered updates to the store.
+	storeInterceptor := &bulkUpdateInterceptor{Store: db}
+
+	// given
+	manager, err := notifications.NewManager(cfg, storeInterceptor, logger, nil)
+	require.NoError(t, err)
+	manager.WithHandlers(fakeHandlers)
+
+	client := coderdtest.New(t, &coderdtest.Options{Database: db, Pubsub: ps})
+	first := coderdtest.CreateFirstUser(t, client)
+	_, user := coderdtest.CreateAnotherUserMutators(t, client, first.OrganizationID, nil, func(r *codersdk.CreateUserRequest) {
+		r.Email = "bob@coder.com"
+		r.Username = "bob"
+	})
+
+	// when
+	for i := 0; i < 1; i++ {
+		_, err = manager.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted, types.Labels{"i": fmt.Sprintf("%d", i)}, "test")
+		require.NoError(t, err)
+	}
+
+	// Start two notifiers.
+	const notifiers = 2
+	manager.Run(ctx, notifiers)
+
+	// then
+	require.Eventually(t, func() bool {
+		return storeInterceptor.failed.Load() == maxAttempts-1 &&
+			storeInterceptor.sent.Load() == 1
+	}, testutil.WaitLong, testutil.IntervalFast)
 }
 
 func setup(t *testing.T) (context.Context, slog.Logger, database.Store, *pubsub.PGPubsub) {

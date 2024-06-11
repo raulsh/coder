@@ -13,9 +13,7 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbmem"
-	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/dispatch"
 	"github.com/coder/coder/v2/coderd/notifications/types"
@@ -49,11 +47,7 @@ func TestBufferedUpdates(t *testing.T) {
 	t.Parallel()
 
 	// setup
-	// nolint:gocritic // unit tests.
-	ctx := dbauthz.AsSystemRestricted(context.Background())
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true, IgnoredErrorIs: []error{}}).Leveled(slog.LevelDebug)
-
-	db := dbmem.New()
+	ctx, logger, db, ps := setup(t)
 	interceptor := &bulkUpdateInterceptor{Store: db}
 
 	santa := &santaHandler{}
@@ -63,7 +57,7 @@ func TestBufferedUpdates(t *testing.T) {
 	require.NoError(t, err)
 	mgr.WithHandlers(handlers)
 
-	client := coderdtest.New(t, &coderdtest.Options{Database: db, Pubsub: pubsub.NewInMemory()})
+	client := coderdtest.New(t, &coderdtest.Options{Database: db, Pubsub: ps})
 	user := coderdtest.CreateFirstUser(t, client)
 
 	// given
@@ -80,7 +74,7 @@ func TestBufferedUpdates(t *testing.T) {
 	// then
 
 	// Wait for messages to be dispatched.
-	require.Eventually(t, func() bool { return len(santa.naughty) == 1 && len(santa.nice) == 1 }, testutil.WaitMedium, testutil.IntervalFast)
+	require.Eventually(t, func() bool { return santa.naughty.Load() == 1 && santa.nice.Load() == 1 }, testutil.WaitMedium, testutil.IntervalFast)
 
 	// Stop the manager which forces an update of buffered updates.
 	require.NoError(t, mgr.Stop(ctx))
@@ -96,20 +90,20 @@ type bulkUpdateInterceptor struct {
 	failed atomic.Int32
 }
 
-func (b *bulkUpdateInterceptor) BulkMarkNotificationMessagesSent(context.Context, database.BulkMarkNotificationMessagesSentParams) (int64, error) {
-	b.sent.Add(1)
-	return 1, nil
+func (b *bulkUpdateInterceptor) BulkMarkNotificationMessagesSent(ctx context.Context, arg database.BulkMarkNotificationMessagesSentParams) (int64, error) {
+	b.sent.Add(int32(len(arg.IDs)))
+	return b.Store.BulkMarkNotificationMessagesSent(ctx, arg)
 }
 
-func (b *bulkUpdateInterceptor) BulkMarkNotificationMessagesFailed(context.Context, database.BulkMarkNotificationMessagesFailedParams) (int64, error) {
-	b.failed.Add(1)
-	return 1, nil
+func (b *bulkUpdateInterceptor) BulkMarkNotificationMessagesFailed(ctx context.Context, arg database.BulkMarkNotificationMessagesFailedParams) (int64, error) {
+	b.failed.Add(int32(len(arg.IDs)))
+	return b.Store.BulkMarkNotificationMessagesFailed(ctx, arg)
 }
 
 // santaHandler only dispatches nice messages.
 type santaHandler struct {
-	naughty []uuid.UUID
-	nice    []uuid.UUID
+	naughty atomic.Int32
+	nice    atomic.Int32
 }
 
 func (*santaHandler) NotificationMethod() database.NotificationMethod {
@@ -119,11 +113,11 @@ func (*santaHandler) NotificationMethod() database.NotificationMethod {
 func (s *santaHandler) Dispatcher(payload types.MessagePayload, _, _ string) (dispatch.DeliveryFunc, error) {
 	return func(ctx context.Context, msgID uuid.UUID) (retryable bool, err error) {
 		if payload.Labels.Get("nice") != "true" {
-			s.naughty = append(s.naughty, msgID)
+			s.naughty.Add(1)
 			return false, xerrors.New("be nice")
 		}
 
-		s.nice = append(s.nice, msgID)
+		s.nice.Add(1)
 		return false, nil
 	}, nil
 }
