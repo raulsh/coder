@@ -994,7 +994,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			if experiments.Enabled(codersdk.ExperimentNotifications) {
 				cfg := options.DeploymentValues.Notifications
 				nlog := logger.Named("notifications-manager")
-				notificationsManager, err = notifications.NewManager(cfg, options.Database, nlog, buildMacroMap(options))
+				notificationsManager, err = notifications.NewManager(cfg, options.Database, nlog, templateHelpers(options))
 				if err != nil {
 					return xerrors.Errorf("failed to instantiate notification manager: %w", err)
 				}
@@ -1279,12 +1279,12 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 	return serverCmd
 }
 
-// buildMacroMap builds a set of macros which can be replaced in templates.
+// templateHelpers builds a set of functions which can be called in templates.
 // We build them here to avoid an import cycle by using coderd.Options in notifications.Manager.
-// TODO: a better approach?
-func buildMacroMap(options *coderd.Options) map[string]func() string {
-	return map[string]func() string{
-		"ACCESS_URL": func() string { return options.AccessURL.String() },
+// We can later use this to inject whitelabel fields when app name / logo URL are overridden.
+func templateHelpers(options *coderd.Options) map[string]any {
+	return map[string]any{
+		"base_url": func() string { return options.AccessURL.String() },
 	}
 }
 

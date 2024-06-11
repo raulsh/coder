@@ -74,12 +74,12 @@ func (s *SMTPHandler) Dispatcher(payload types.MessagePayload, titleTmpl, bodyTm
 	// Then, reuse these strings in the HTML & plain body templates.
 	payload.Labels.Set("_subject", subject)
 	payload.Labels.Set("_body", htmlBody)
-	htmlBody, err = render.GoTemplate(htmlTemplate, payload)
+	htmlBody, err = render.GoTemplate(htmlTemplate, payload, nil)
 	if err != nil {
 		return nil, xerrors.Errorf("render full html template: %w", err)
 	}
 	payload.Labels.Set("_body", plainBody)
-	plainBody, err = render.GoTemplate(plainTemplate, payload)
+	plainBody, err = render.GoTemplate(plainTemplate, payload, nil)
 	if err != nil {
 		return nil, xerrors.Errorf("render full plaintext template: %w", err)
 	}

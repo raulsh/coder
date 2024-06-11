@@ -11,8 +11,8 @@ import (
 
 // GoTemplate attempts to substitute the given payload into the given template using Go's templating syntax.
 // TODO: memoize templates for memory efficiency?
-func GoTemplate(in string, payload types.MessagePayload) (string, error) {
-	tmpl, err := template.New("text").Parse(in)
+func GoTemplate(in string, payload types.MessagePayload, extraFuncs template.FuncMap) (string, error) {
+	tmpl, err := template.New("text").Funcs(extraFuncs).Parse(in)
 	if err != nil {
 		return "", xerrors.Errorf("template parse: %w", err)
 	}

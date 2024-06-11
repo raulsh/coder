@@ -173,10 +173,10 @@ func (n *notifier) prepare(ctx context.Context, msg database.AcquireNotification
 	var (
 		title, body string
 	)
-	if title, err = render.GoTemplate(msg.TitleTemplate, payload); err != nil {
+	if title, err = render.GoTemplate(msg.TitleTemplate, payload, nil); err != nil {
 		return nil, xerrors.Errorf("render title: %w", err)
 	}
-	if body, err = render.GoTemplate(msg.BodyTemplate, payload); err != nil {
+	if body, err = render.GoTemplate(msg.BodyTemplate, payload, nil); err != nil {
 		return nil, xerrors.Errorf("render body: %w", err)
 	}
 

@@ -46,7 +46,7 @@ func TestGoTemplate(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			out, err := render.GoTemplate(tc.in, tc.payload)
+			out, err := render.GoTemplate(tc.in, tc.payload, nil)
 			if tc.expectedErr == nil {
 				require.NoError(t, err)
 			} else {

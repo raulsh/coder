@@ -57,10 +57,10 @@ VALUES ('f517da0b-cdc9-410f-ab89-a86107c420ed', 'Workspace Deleted', true, E'Wor
         'Workspace Events', '[
         {
             "label": "View workspaces",
-            "url": "[ACCESS_URL]/workspaces"
+            "url": "{{ base_url }}/workspaces"
         },
         {
             "label": "View templates",
-            "url": "[ACCESS_URL]/templates"
+            "url": "{{ base_url }}/templates"
         }
     ]'::jsonb);

@@ -51,14 +51,18 @@ type Manager struct {
 	notifierMu sync.Mutex
 
 	handlers *HandlerRegistry
-	macroMap map[string]func() string
+	helpers  map[string]any
 
 	stopOnce sync.Once
 	stop     chan any
 	done     chan any
 }
 
-func NewManager(cfg codersdk.NotificationsConfig, store Store, log slog.Logger, macroMap map[string]func() string) (*Manager, error) {
+// NewManager instantiates a new Manager instance which coordinates notification enqueuing and delivery.
+//
+// helpers is a map of template helpers which are used to customize notification messages to use global settings like
+// access URL etc.
+func NewManager(cfg codersdk.NotificationsConfig, store Store, log slog.Logger, helpers map[string]any) (*Manager, error) {
 	var method database.NotificationMethod
 	if err := method.Scan(cfg.Method.String()); err != nil {
 		return nil, xerrors.Errorf("given notification method %q is invalid", cfg.Method)
@@ -74,7 +78,7 @@ func NewManager(cfg codersdk.NotificationsConfig, store Store, log slog.Logger, 
 		done: make(chan any),
 
 		handlers: defaultHandlers(cfg, log),
-		macroMap: macroMap,
+		helpers:  helpers,
 	}, nil
 }
 
@@ -239,10 +243,10 @@ func (m *Manager) buildPayload(ctx context.Context, userID uuid.UUID, templateID
 		return nil, xerrors.Errorf("new message metadata: %w", err)
 	}
 
-	// Replace macros in actions.
-	out, err := render.Macros(m.macroMap, string(metadata.Actions))
+	// Execute any templates in actions.
+	out, err := render.GoTemplate(string(metadata.Actions), types.MessagePayload{}, m.helpers)
 	if err != nil {
-		return nil, xerrors.Errorf("render macros: %w", err)
+		return nil, xerrors.Errorf("render actions: %w", err)
 	}
 	metadata.Actions = []byte(out)
 
