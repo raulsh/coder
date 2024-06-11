@@ -56,7 +56,7 @@ func TestBufferedUpdates(t *testing.T) {
 	db := dbmem.New()
 	interceptor := &bulkUpdateInterceptor{Store: db}
 
-	santa := &santaDispatcher{}
+	santa := &santaHandler{}
 	handlers, err := notifications.NewHandlerRegistry(santa)
 	require.NoError(t, err)
 	mgr, err := notifications.NewManager(defaultNotificationsConfig(), interceptor, logger.Named("notifications"), nil)
@@ -106,17 +106,17 @@ func (b *bulkUpdateInterceptor) BulkMarkNotificationMessagesFailed(context.Conte
 	return 1, nil
 }
 
-// santaDispatcher only dispatches nice messages.
-type santaDispatcher struct {
+// santaHandler only dispatches nice messages.
+type santaHandler struct {
 	naughty []uuid.UUID
 	nice    []uuid.UUID
 }
 
-func (*santaDispatcher) NotificationMethod() database.NotificationMethod {
+func (*santaHandler) NotificationMethod() database.NotificationMethod {
 	return database.NotificationMethodSmtp
 }
 
-func (s *santaDispatcher) Dispatcher(payload types.MessagePayload, _, _ string) (dispatch.DeliveryFunc, error) {
+func (s *santaHandler) Dispatcher(payload types.MessagePayload, _, _ string) (dispatch.DeliveryFunc, error) {
 	return func(ctx context.Context, msgID uuid.UUID) (retryable bool, err error) {
 		if payload.Labels.Get("nice") != "true" {
 			s.naughty = append(s.naughty, msgID)

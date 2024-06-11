@@ -33,11 +33,15 @@ RETURNING *;
 
 -- Acquires the lease for a given count of notification messages, to enable concurrent dequeuing and subsequent sending.
 -- Only rows that aren't already leased (or ones which are leased but have exceeded their lease period) are returned.
--- "Lease" here refers to marking the row as 'leased'.
 --
--- SKIP LOCKED is used to jump over locked rows. This prevents
--- multiple notifiers from acquiring the same messages. See:
--- https://www.postgresql.org/docs/9.5/sql-select.html#SQL-FOR-UPDATE-SHARE
+-- A "lease" here refers to a notifier taking ownership of a notification_messages row. A lease survives for the duration
+-- of CODER_NOTIFICATIONS_LEASE_PERIOD. Once a message is delivered, its status is updated and the lease expires (set to NULL).
+-- If a message exceeds its lease, that implies the notifier did not shutdown cleanly, or the table update failed somehow,
+-- and the row will then be eligible to be dequeued by another notifier.
+--
+-- SKIP LOCKED is used to jump over locked rows. This prevents multiple notifiers from acquiring the same messages.
+-- See: https://www.postgresql.org/docs/9.5/sql-select.html#SQL-FOR-UPDATE-SHARE
+--
 -- name: AcquireNotificationMessages :many
 WITH acquired AS (
     UPDATE
@@ -63,8 +67,10 @@ WITH acquired AS (
                                      AND nm.leased_until < NOW()
                                  )
                              )
-                           -- exclude all messages which have exceeded the max attempts; these will be purged later
-                           AND (nm.attempt_count IS NULL OR nm.attempt_count < sqlc.arg('max_attempt_count')::int)
+                           AND (
+                             -- exclude all messages which have exceeded the max attempts; these will be purged later
+                             nm.attempt_count IS NULL OR nm.attempt_count < sqlc.arg('max_attempt_count')::int
+                             )
                            -- if set, do not retry until we've exceeded the wait time
                            AND (
                              CASE

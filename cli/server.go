@@ -989,16 +989,12 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			options.WorkspaceUsageTracker = tracker
 			defer tracker.Close()
 
-			var notificationsManager *notifications.Manager
 			// Manage notifications.
+			var notificationsManager *notifications.Manager
 			if experiments.Enabled(codersdk.ExperimentNotifications) {
 				cfg := options.DeploymentValues.Notifications
-				notificationsManager, err = notifications.NewManager(cfg, options.Database, logger.Named("notifications-manager"), map[string]func() string{
-					// Build set of macros which can be replaced in templates.
-					// We build them here to avoid an import cycle by using coderd.Options in notifications.Manager.
-					// TODO: a better approach?
-					"ACCESS_URL": func() string { return options.AccessURL.String() },
-				})
+				nlog := logger.Named("notifications-manager")
+				notificationsManager, err = notifications.NewManager(cfg, options.Database, nlog, buildMacroMap(options))
 				if err != nil {
 					return xerrors.Errorf("failed to instantiate notification manager: %w", err)
 				}
@@ -1129,12 +1125,11 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			// Cancel any remaining in-flight requests.
 			shutdownConns()
 
-			if experiments.Enabled(codersdk.ExperimentNotifications) {
+			if notificationsManager != nil {
 				// Stop the notification manager, which will cause any buffered updates to the store to be flushed.
 				// If the Stop() call times out, messages that were sent but not reflected as such in the store will have
 				// their leases expire after a period of time and will be re-queued for sending.
-				// TODO: reference config for lease time
-				// TODO: link error to documentation page
+				// See CODER_NOTIFICATIONS_LEASE_PERIOD.
 				cliui.Info(inv.Stdout, "Shutting down notifications manager..."+"\n")
 				err = shutdownWithTimeout(notificationsManager.Stop, 5*time.Second)
 				if err != nil {
@@ -1282,6 +1277,15 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 	)
 
 	return serverCmd
+}
+
+// buildMacroMap builds a set of macros which can be replaced in templates.
+// We build them here to avoid an import cycle by using coderd.Options in notifications.Manager.
+// TODO: a better approach?
+func buildMacroMap(options *coderd.Options) map[string]func() string {
+	return map[string]func() string{
+		"ACCESS_URL": func() string { return options.AccessURL.String() },
+	}
 }
 
 // printDeprecatedOptions loops through all command options, and prints

@@ -11,7 +11,7 @@ import (
 )
 
 // Store defines the API between the notifications system and the storage.
-// This abstract is in place so that we can intercept the direct database interactions, or (later) swap out these calls
+// This abstraction is in place so that we can intercept the direct database interactions, or (later) swap out these calls
 // with dRPC calls should we want to split the notifiers out into their own component for high availability/throughput.
 // TODO: don't use database types here
 type Store interface {
@@ -26,10 +26,11 @@ type Store interface {
 type Handler interface {
 	NotificationMethod() database.NotificationMethod
 
-	// Dispatcher delivers the notification by a given method.
+	// Dispatcher constructs a DeliveryFunc to be used for delivering a notification via the chosen method.
 	Dispatcher(payload types.MessagePayload, title, body string) (dispatch.DeliveryFunc, error)
 }
 
+// Enqueuer enqueues a new notification message in the store and returns its ID, should it enqueue without failure.
 type Enqueuer interface {
 	Enqueue(ctx context.Context, userID, templateID uuid.UUID, labels types.Labels, createdBy string, targets ...uuid.UUID) (*uuid.UUID, error)
 }

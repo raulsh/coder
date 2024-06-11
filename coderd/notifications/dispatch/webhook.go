@@ -11,20 +11,21 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/v2/apiversion"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/notifications/render"
 	"github.com/coder/coder/v2/coderd/notifications/types"
 	"github.com/coder/coder/v2/codersdk"
 )
 
-type WebhookDispatcher struct {
+// WebhookHandler dispatches notification messages via an HTTP POST webhook.
+type WebhookHandler struct {
 	cfg codersdk.NotificationsWebhookConfig
 	log slog.Logger
 
 	cl *http.Client
 }
 
+// WebhookPayload describes the JSON payload to be delivered to the configured webhook endpoint.
 type WebhookPayload struct {
 	Version string               `json:"_version"`
 	MsgID   uuid.UUID            `json:"msg_id"`
@@ -33,20 +34,20 @@ type WebhookPayload struct {
 	Body    string               `json:"body"`
 }
 
-var (
-	PayloadVersion = apiversion.New(1, 0)
-)
-
-func NewWebhookDispatcher(cfg codersdk.NotificationsWebhookConfig, log slog.Logger) *WebhookDispatcher {
-	return &WebhookDispatcher{cfg: cfg, log: log, cl: &http.Client{}}
+func NewWebhookHandler(cfg codersdk.NotificationsWebhookConfig, log slog.Logger) *WebhookHandler {
+	return &WebhookHandler{cfg: cfg, log: log, cl: &http.Client{}}
 }
 
-func (*WebhookDispatcher) NotificationMethod() database.NotificationMethod {
+func (*WebhookHandler) NotificationMethod() database.NotificationMethod {
 	// TODO: don't use database types
 	return database.NotificationMethodWebhook
 }
 
-func (w *WebhookDispatcher) Dispatcher(payload types.MessagePayload, titleTmpl, bodyTmpl string) (DeliveryFunc, error) {
+func (w *WebhookHandler) Dispatcher(payload types.MessagePayload, titleTmpl, bodyTmpl string) (DeliveryFunc, error) {
+	if w.cfg.Endpoint.String() == "" {
+		return nil, xerrors.New("webhook endpoint not defined")
+	}
+
 	title, err := render.Plaintext(titleTmpl)
 	if err != nil {
 		return nil, xerrors.Errorf("render title: %w", err)
@@ -59,11 +60,11 @@ func (w *WebhookDispatcher) Dispatcher(payload types.MessagePayload, titleTmpl, 
 	return w.dispatch(payload, title, body, w.cfg.Endpoint.String()), nil
 }
 
-func (w *WebhookDispatcher) dispatch(msgPayload types.MessagePayload, title, body, endpoint string) DeliveryFunc {
+func (w *WebhookHandler) dispatch(msgPayload types.MessagePayload, title, body, endpoint string) DeliveryFunc {
 	return func(ctx context.Context, msgID uuid.UUID) (retryable bool, err error) {
 		// Prepare payload.
 		payload := WebhookPayload{
-			Version: PayloadVersion.String(),
+			Version: "1.0",
 			MsgID:   msgID,
 			Title:   title,
 			Body:    body,

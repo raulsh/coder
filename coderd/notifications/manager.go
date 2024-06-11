@@ -10,7 +10,6 @@ import (
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/apiversion"
 	"github.com/coder/coder/v2/coderd/notifications/render"
 	"github.com/coder/coder/v2/codersdk"
 
@@ -19,10 +18,6 @@ import (
 	"github.com/coder/coder/v2/coderd/notifications/types"
 
 	"cdr.dev/slog"
-)
-
-var (
-	PayloadVersion = apiversion.New(1, 0)
 )
 
 // Manager manages all notifications being enqueued and dispatched.
@@ -86,8 +81,8 @@ func NewManager(cfg codersdk.NotificationsConfig, store Store, log slog.Logger, 
 // defaultHandlers builds a set of known handlers; panics if any error occurs as these handlers should be valid at compile time.
 func defaultHandlers(cfg codersdk.NotificationsConfig, log slog.Logger) *HandlerRegistry {
 	reg, err := NewHandlerRegistry(
-		dispatch.NewSMTPDispatcher(cfg.SMTP, log.Named("dispatcher.smtp")),
-		dispatch.NewWebhookDispatcher(cfg.Webhook, log.Named("dispatcher.webhook")),
+		dispatch.NewSMTPHandler(cfg.SMTP, log.Named("dispatcher.smtp")),
+		dispatch.NewWebhookHandler(cfg.Webhook, log.Named("dispatcher.webhook")),
 	)
 	if err != nil {
 		panic(err)
@@ -202,7 +197,6 @@ func (m *Manager) loop(ctx context.Context, notifiers int) error {
 // Enqueue queues a notification message for later delivery.
 // Messages will be dequeued by a notifier later and dispatched.
 func (m *Manager) Enqueue(ctx context.Context, userID, templateID uuid.UUID, labels types.Labels, createdBy string, targets ...uuid.UUID) (*uuid.UUID, error) {
-	// Build payload.
 	payload, err := m.buildPayload(ctx, userID, templateID, labels)
 	if err != nil {
 		m.log.Warn(ctx, "failed to build payload", slog.F("template_id", templateID), slog.F("user_id", userID), slog.Error(err))
@@ -233,7 +227,7 @@ func (m *Manager) Enqueue(ctx context.Context, userID, templateID uuid.UUID, lab
 	return &id, nil
 }
 
-// buildPayload creates the payload that the notification will use to construct its body.
+// buildPayload creates the payload that the notification will for variable substitution and/or routing.
 // The payload contains information about the recipient, the event that triggered the notification, and any subsequent
 // actions which can be taken by the recipient.
 func (m *Manager) buildPayload(ctx context.Context, userID uuid.UUID, templateID uuid.UUID, labels types.Labels) (*types.MessagePayload, error) {
@@ -258,7 +252,7 @@ func (m *Manager) buildPayload(ctx context.Context, userID uuid.UUID, templateID
 	}
 
 	return &types.MessagePayload{
-		Version: PayloadVersion.String(),
+		Version: "1.0",
 
 		NotificationName: metadata.NotificationName,
 

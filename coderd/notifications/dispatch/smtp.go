@@ -37,20 +37,24 @@ var (
 	plainTemplate string
 )
 
-type SMTPDispatcher struct {
+// SMTPHandler is responsible for dispatching notification messages via SMTP.
+// NOTE: auth and TLS is currently *not* enabled in this initial thin slice.
+// TODO: implement auth
+// TODO: implement TLS
+type SMTPHandler struct {
 	cfg codersdk.NotificationsEmailConfig
 	log slog.Logger
 }
 
-func NewSMTPDispatcher(cfg codersdk.NotificationsEmailConfig, log slog.Logger) *SMTPDispatcher {
-	return &SMTPDispatcher{cfg: cfg, log: log}
+func NewSMTPHandler(cfg codersdk.NotificationsEmailConfig, log slog.Logger) *SMTPHandler {
+	return &SMTPHandler{cfg: cfg, log: log}
 }
 
-func (*SMTPDispatcher) NotificationMethod() database.NotificationMethod {
+func (*SMTPHandler) NotificationMethod() database.NotificationMethod {
 	return database.NotificationMethodSmtp
 }
 
-func (s *SMTPDispatcher) Dispatcher(payload types.MessagePayload, titleTmpl, bodyTmpl string) (DeliveryFunc, error) {
+func (s *SMTPHandler) Dispatcher(payload types.MessagePayload, titleTmpl, bodyTmpl string) (DeliveryFunc, error) {
 	// First render the subject & body into their own discrete strings.
 	subject, err := render.Plaintext(titleTmpl)
 	if err != nil {
@@ -87,7 +91,7 @@ func (s *SMTPDispatcher) Dispatcher(payload types.MessagePayload, titleTmpl, bod
 //
 // NOTE: this is heavily inspired by Alertmanager's email notifier:
 // https://github.com/prometheus/alertmanager/blob/342f6a599ce16c138663f18ed0b880e777c3017d/notify/email/email.go
-func (s *SMTPDispatcher) dispatch(subject, htmlBody, plainBody, to string) DeliveryFunc {
+func (s *SMTPHandler) dispatch(subject, htmlBody, plainBody, to string) DeliveryFunc {
 	return func(ctx context.Context, msgID uuid.UUID) (bool, error) {
 		select {
 		case <-ctx.Done():
@@ -109,7 +113,6 @@ func (s *SMTPDispatcher) dispatch(subject, htmlBody, plainBody, to string) Deliv
 			return false, xerrors.Errorf("'smarthost' validation: %w", err)
 		}
 		if smarthostPort == "465" {
-			// TODO: implement TLS
 			return false, xerrors.New("TLS is not currently supported")
 		}
 
@@ -147,7 +150,6 @@ func (s *SMTPDispatcher) dispatch(subject, htmlBody, plainBody, to string) Deliv
 		}
 
 		// Check for authentication capabilities.
-		// TODO: implement authentication
 		// if ok, mech := c.Extension("AUTH"); ok {
 		//	auth, err := s.auth(mech)
 		//	if err != nil {
@@ -265,12 +267,11 @@ func (s *SMTPDispatcher) dispatch(subject, htmlBody, plainBody, to string) Deliv
 }
 
 // auth returns a value which implements the smtp.Auth based on the available auth mechanism.
-// func (*SMTPDispatcher) auth(_ string) (smtp.Auth, error) {
-//	// TODO
+// func (*SMTPHandler) auth(_ string) (smtp.Auth, error) {
 //	return nil, nil
 //}
 
-func (*SMTPDispatcher) validateFromAddr(from string) (string, error) {
+func (*SMTPHandler) validateFromAddr(from string) (string, error) {
 	addrs, err := mail.ParseAddressList(from)
 	if err != nil {
 		return "", xerrors.Errorf("parse 'from' address: %w", err)
@@ -281,7 +282,7 @@ func (*SMTPDispatcher) validateFromAddr(from string) (string, error) {
 	return from, nil
 }
 
-func (*SMTPDispatcher) validateToAddrs(to string) ([]string, error) {
+func (*SMTPHandler) validateToAddrs(to string) ([]string, error) {
 	addrs, err := mail.ParseAddressList(to)
 	if err != nil {
 		return nil, xerrors.Errorf("parse 'to' addresses: %w", err)
@@ -302,7 +303,7 @@ func (*SMTPDispatcher) validateToAddrs(to string) ([]string, error) {
 // smarthost retrieves the host/port defined and validates them.
 // Does not allow overriding.
 // nolint:revive // documented.
-func (s *SMTPDispatcher) smarthost() (string, string, error) {
+func (s *SMTPHandler) smarthost() (string, string, error) {
 	host := s.cfg.Smarthost.Host
 	port := s.cfg.Smarthost.Port
 
@@ -319,7 +320,7 @@ func (s *SMTPDispatcher) smarthost() (string, string, error) {
 
 // hello retrieves the hostname identifying the SMTP server.
 // Does not allow overriding.
-func (s *SMTPDispatcher) hello() (string, error) {
+func (s *SMTPHandler) hello() (string, error) {
 	val := s.cfg.Hello.String()
 	if val == "" {
 		return "", ValidationNoHelloErr
@@ -327,7 +328,7 @@ func (s *SMTPDispatcher) hello() (string, error) {
 	return val, nil
 }
 
-func (*SMTPDispatcher) hostname() string {
+func (*SMTPHandler) hostname() string {
 	h, err := os.Hostname()
 	// If we can't get the hostname, we'll use localhost
 	if err != nil {

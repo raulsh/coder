@@ -38,9 +38,8 @@ func TestMain(m *testing.M) {
 }
 
 // TestBasicNotificationRoundtrip enqueues a message to the store, waits for it to be acquired by a notifier,
-// and passes it off to a fake dispatcher.
+// and passes it off to a fake handler.
 // TODO: split this test up into table tests or separate tests.
-// TODO: implement retries, validate final statuses
 func TestBasicNotificationRoundtrip(t *testing.T) {
 	t.Parallel()
 
@@ -51,8 +50,8 @@ func TestBasicNotificationRoundtrip(t *testing.T) {
 	ctx, logger, db, ps := setup(t)
 
 	// given
-	dispatcher := &fakeDispatcher{}
-	fakeHandlers, err := notifications.NewHandlerRegistry(dispatcher)
+	handler := &fakeHandler{}
+	fakeHandlers, err := notifications.NewHandlerRegistry(handler)
 	require.NoError(t, err)
 
 	cfg := defaultNotificationsConfig()
@@ -76,8 +75,8 @@ func TestBasicNotificationRoundtrip(t *testing.T) {
 	manager.Run(ctx, 1)
 
 	// then
-	require.Eventually(t, func() bool { return dispatcher.succeeded == sid.String() }, testutil.WaitLong, testutil.IntervalMedium)
-	require.Eventually(t, func() bool { return dispatcher.failed == fid.String() }, testutil.WaitLong, testutil.IntervalMedium)
+	require.Eventually(t, func() bool { return handler.succeeded == sid.String() }, testutil.WaitLong, testutil.IntervalMedium)
+	require.Eventually(t, func() bool { return handler.failed == fid.String() }, testutil.WaitLong, testutil.IntervalMedium)
 }
 
 func TestSMTPDispatch(t *testing.T) {
@@ -107,8 +106,8 @@ func TestSMTPDispatch(t *testing.T) {
 		Smarthost: serpent.HostPort{Host: "localhost", Port: fmt.Sprintf("%d", mockSMTPSrv.PortNumber())},
 		Hello:     "localhost",
 	}
-	dispatcher := newDispatchInterceptor(dispatch.NewSMTPDispatcher(cfg.SMTP, logger))
-	fakeHandlers, err := notifications.NewHandlerRegistry(dispatcher)
+	handler := newDispatchInterceptor(dispatch.NewSMTPHandler(cfg.SMTP, logger))
+	fakeHandlers, err := notifications.NewHandlerRegistry(handler)
 	require.NoError(t, err)
 
 	manager, err := notifications.NewManager(cfg, db, logger, nil)
@@ -135,9 +134,9 @@ func TestSMTPDispatch(t *testing.T) {
 
 	// then
 	require.Eventually(t, func() bool {
-		assert.Nil(t, dispatcher.lastErr.Load())
-		assert.True(t, dispatcher.retryable.Load() == 0)
-		return dispatcher.sent.Load() == 1
+		assert.Nil(t, handler.lastErr.Load())
+		assert.True(t, handler.retryable.Load() == 0)
+		return handler.sent.Load() == 1
 	}, testutil.WaitLong, testutil.IntervalMedium)
 
 	msgs := mockSMTPSrv.MessagesAndPurge()
@@ -268,8 +267,8 @@ func TestBackpressure(t *testing.T) {
 	cfg.StoreSyncInterval = serpent.Duration(syncInterval)
 	cfg.StoreSyncBufferSize = serpent.Int64(2)
 
-	dispatcher := newDispatchInterceptor(dispatch.NewWebhookDispatcher(cfg.Webhook, logger))
-	fakeHandlers, err := notifications.NewHandlerRegistry(dispatcher)
+	handler := newDispatchInterceptor(dispatch.NewWebhookHandler(cfg.Webhook, logger))
+	fakeHandlers, err := notifications.NewHandlerRegistry(handler)
 	require.NoError(t, err)
 
 	// Intercept calls to submit the buffered updates to the store.
@@ -306,7 +305,7 @@ func TestBackpressure(t *testing.T) {
 	// We expect the notifiers will have dispatched ONLY the initial batch of messages.
 	// In other words, the notifiers should have dispatched 3 batches by now, but because the buffered updates have not
 	// been processed there is backpressure.
-	require.EqualValues(t, notifiers*batchSize, dispatcher.sent.Load()+dispatcher.err.Load())
+	require.EqualValues(t, notifiers*batchSize, handler.sent.Load()+handler.err.Load())
 	// We expect that the store will have received NO updates.
 	require.EqualValues(t, 0, storeInterceptor.sent.Load()+storeInterceptor.failed.Load())
 
@@ -344,16 +343,16 @@ func setup(t *testing.T) (context.Context, slog.Logger, database.Store, *pubsub.
 	return dbauthz.AsSystemRestricted(ctx), logger, db, ps
 }
 
-type fakeDispatcher struct {
+type fakeHandler struct {
 	succeeded string
 	failed    string
 }
 
-func (*fakeDispatcher) NotificationMethod() database.NotificationMethod {
+func (*fakeHandler) NotificationMethod() database.NotificationMethod {
 	return database.NotificationMethodSmtp
 }
 
-func (f *fakeDispatcher) Dispatcher(payload types.MessagePayload, _, _ string) (dispatch.DeliveryFunc, error) {
+func (f *fakeHandler) Dispatcher(payload types.MessagePayload, _, _ string) (dispatch.DeliveryFunc, error) {
 	return func(ctx context.Context, msgID uuid.UUID) (retryable bool, err error) {
 		if payload.Labels.Get("type") == "success" {
 			f.succeeded = msgID.String()

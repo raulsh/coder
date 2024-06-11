@@ -1525,7 +1525,8 @@ func (*server) notifyWorkspaceDeleted(ctx context.Context, workspace database.Wo
 		}
 	}
 
-	system.EnqueueWorkspaceDeleted(ctx, workspace.OwnerID, workspace.Name, reason, "provisionerdserver",
+	system.NotifyWorkspaceDeleted(ctx, workspace.OwnerID, workspace.Name, reason, "provisionerdserver",
+		// Associate this notification with all the related entities.
 		workspace.ID, workspace.OwnerID, workspace.TemplateID, workspace.OrganizationID)
 }
 

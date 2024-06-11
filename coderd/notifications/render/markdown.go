@@ -12,7 +12,7 @@ import (
 	"golang.org/x/xerrors"
 )
 
-// TODO: this is (mostly) a copy of coderd/parameter/renderer.go; unify them.
+// TODO: this is (mostly) a copy of coderd/parameter/renderer.go; unify them?
 
 var plaintextStyle = ansi.StyleConfig{
 	Document: ansi.StyleBlock{
