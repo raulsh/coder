@@ -9024,6 +9024,9 @@ const docTemplate = `{
                 "metrics_cache_refresh_interval": {
                     "type": "integer"
                 },
+                "notifications": {
+                    "$ref": "#/definitions/codersdk.NotificationsConfig"
+                },
                 "oauth2": {
                     "$ref": "#/definitions/codersdk.OAuth2Config"
                 },
@@ -9200,7 +9203,8 @@ const docTemplate = `{
                 "example",
                 "auto-fill-parameters",
                 "multi-organization",
-                "custom-roles"
+                "custom-roles",
+                "notifications"
             ],
             "x-enum-comments": {
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
@@ -9212,7 +9216,8 @@ const docTemplate = `{
                 "ExperimentExample",
                 "ExperimentAutoFillParameters",
                 "ExperimentMultiOrganization",
-                "ExperimentCustomRoles"
+                "ExperimentCustomRoles",
+                "ExperimentNotifications"
             ]
         },
         "codersdk.ExternalAuth": {
@@ -9749,6 +9754,80 @@ const docTemplate = `{
                 },
                 "username": {
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.NotificationsConfig": {
+            "type": "object",
+            "properties": {
+                "dispatch_timeout": {
+                    "type": "integer"
+                },
+                "email": {
+                    "$ref": "#/definitions/codersdk.NotificationsEmailConfig"
+                },
+                "fetch_interval": {
+                    "type": "integer"
+                },
+                "lease_count": {
+                    "type": "integer"
+                },
+                "lease_period": {
+                    "type": "integer"
+                },
+                "max_send_attempts": {
+                    "description": "Retries.",
+                    "type": "integer"
+                },
+                "method": {
+                    "description": "Dispatch.",
+                    "type": "string"
+                },
+                "retry_interval": {
+                    "type": "integer"
+                },
+                "sync_buffer_size": {
+                    "type": "integer"
+                },
+                "sync_interval": {
+                    "description": "Store updates.",
+                    "type": "integer"
+                },
+                "webhook": {
+                    "$ref": "#/definitions/codersdk.NotificationsWebhookConfig"
+                },
+                "worker_count": {
+                    "description": "Queue.",
+                    "type": "integer"
+                }
+            }
+        },
+        "codersdk.NotificationsEmailConfig": {
+            "type": "object",
+            "properties": {
+                "from": {
+                    "description": "The sender's address.",
+                    "type": "string"
+                },
+                "hello": {
+                    "description": "The hostname identifying the SMTP server.",
+                    "type": "string"
+                },
+                "smarthost": {
+                    "description": "The intermediary SMTP host through which emails are sent (host:port).",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/serpent.HostPort"
+                        }
+                    ]
+                }
+            }
+        },
+        "codersdk.NotificationsWebhookConfig": {
+            "type": "object",
+            "properties": {
+                "endpoint": {
+                    "$ref": "#/definitions/serpent.URL"
                 }
             }
         },
@@ -14012,7 +14091,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "host": {
-                    "description": "host or host:port",
+                    "description": "host or host:port (see Hostname and Port methods)",
                     "type": "string"
                 },
                 "omitHost": {
