@@ -119,6 +119,8 @@ jobs:
 
   update-flake:
     needs: changes
+    permissions:
+      contents: write
     if: needs.changes.outputs.gomod == 'true'
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     steps:
@@ -132,6 +134,14 @@ jobs:
 
       - name: Update Nix Flake SRI Hash
         run: ./scripts/update-flake.sh
+
+      - name: Auto update flake.nix for dependabot PRs
+        if: ${{ github.actor == 'dependabot[bot]' }}
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: '`./scripts/update-flake.sh`'
+          file_pattern: "flake.nix"
+          branch: ${{ github.head_ref }}
 
       - name: Ensure No Changes
         run: git diff --exit-code
