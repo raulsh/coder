@@ -364,7 +364,8 @@ func (c *Client) TemplatesByOrganization(ctx context.Context, organizationID uui
 }
 
 type TemplateFilter struct {
-	OrganizationID uuid.UUID
+	OrganizationID uuid.UUID `json:"organization_id,omitempty" typescript:"-"`
+	FilterQuery    string    `json:"q,omitempty"`
 }
 
 // asRequestOption returns a function that can be used in (*Client).Request.
@@ -376,6 +377,11 @@ func (f TemplateFilter) asRequestOption() RequestOption {
 		// string.
 		if f.OrganizationID != uuid.Nil {
 			params = append(params, fmt.Sprintf("organization:%q", f.OrganizationID.String()))
+		}
+
+		if f.FilterQuery != "" {
+			// If custom stuff is added, just add it on here.
+			params = append(params, f.FilterQuery)
 		}
 
 		q := r.URL.Query()
