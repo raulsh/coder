@@ -1455,7 +1455,7 @@ func (api *API) CreateInMemoryTaggedProvisionerDaemon(dialCtx context.Context, n
 		}
 	}()
 
-	orgs, _ := api.Database.GetOrganizations(context.Background())
+	orgs, _ := api.Database.GetOrganizations(dbauthz.AsSystemRestricted(dialCtx))
 	defaultOrg := orgs[i%len(orgs)]
 	i++
 
