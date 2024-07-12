@@ -1443,6 +1443,8 @@ func (api *API) CreateInMemoryProvisionerDaemon(dialCtx context.Context, name st
 	return api.CreateInMemoryTaggedProvisionerDaemon(dialCtx, name, provisionerTypes, nil)
 }
 
+var i int
+
 func (api *API) CreateInMemoryTaggedProvisionerDaemon(dialCtx context.Context, name string, provisionerTypes []codersdk.ProvisionerType, provisionerTags map[string]string) (client proto.DRPCProvisionerDaemonClient, err error) {
 	tracer := api.TracerProvider.Tracer(tracing.TracerName)
 	clientSession, serverSession := drpc.MemTransportPipe()
@@ -1453,12 +1455,16 @@ func (api *API) CreateInMemoryTaggedProvisionerDaemon(dialCtx context.Context, n
 		}
 	}()
 
+	orgs, _ := api.Database.GetOrganizations(context.Background())
+	defaultOrg := orgs[i%len(orgs)]
+	i++
+
 	// All in memory provisioners will be part of the default org for now.
 	//nolint:gocritic // in-memory provisioners are owned by system
-	defaultOrg, err := api.Database.GetDefaultOrganization(dbauthz.AsSystemRestricted(dialCtx))
-	if err != nil {
-		return nil, xerrors.Errorf("unable to fetch default org for in memory provisioner: %w", err)
-	}
+	//defaultOrg, err := api.Database.GetDefaultOrganization(dbauthz.AsSystemRestricted(dialCtx))
+	//if err != nil {
+	//	return nil, xerrors.Errorf("unable to fetch default org for in memory provisioner: %w", err)
+	//}
 
 	dbTypes := make([]database.ProvisionerType, 0, len(provisionerTypes))
 	for _, tp := range provisionerTypes {
