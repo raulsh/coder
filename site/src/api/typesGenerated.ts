@@ -1204,6 +1204,7 @@ export interface TemplateExample {
 export interface TemplateFilter {
   readonly OrganizationID: string;
   readonly ExactName: string;
+  readonly q?: string;
 }
 
 // From codersdk/templates.go
