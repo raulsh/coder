@@ -78,14 +78,18 @@ SELECT
     nm.id,
     nm.payload,
     nm.method,
-    nm.attempt_count::int AS attempt_count,
+    nm.attempt_count::int    AS attempt_count,
     nm.queued_seconds::float AS queued_seconds,
     -- template
-    nt.id AS template_id,
+    nt.id                    AS template_id,
     nt.title_template,
-    nt.body_template
+    nt.body_template,
+    -- preferences
+    (CASE WHEN np.disabled IS NULL THEN false ELSE np.disabled END)::bool AS disabled
 FROM acquired nm
-         JOIN notification_templates nt ON nm.notification_template_id = nt.id;
+         JOIN notification_templates nt ON nm.notification_template_id = nt.id
+         LEFT JOIN notification_preferences AS np
+                   ON (np.user_id = nm.user_id AND np.notification_template_id = nm.notification_template_id);
 
 -- name: BulkMarkNotificationMessagesFailed :execrows
 UPDATE notification_messages
@@ -130,5 +134,24 @@ WHERE id IN
        WHERE nested.updated_at < NOW() - INTERVAL '7 days');
 
 -- name: GetNotificationMessagesByStatus :many
-SELECT * FROM notification_messages WHERE status = @status LIMIT sqlc.arg('limit')::int;
+SELECT *
+FROM notification_messages
+WHERE status = @status
+LIMIT sqlc.arg('limit')::int;
 
+-- name: GetUserNotificationPreferences :many
+SELECT *
+FROM notification_preferences
+WHERE user_id = @user_id::uuid;
+
+-- name: UpdateUserNotificationPreferences :execrows
+WITH new_values AS
+         (SELECT UNNEST(@notification_template_ids::uuid[]) AS notification_template_id,
+                 UNNEST(@disableds::bool[])                 AS disabled)
+INSERT
+INTO notification_preferences (user_id, notification_template_id, disabled)
+SELECT @user_id::uuid, new_values.notification_template_id, new_values.disabled
+FROM new_values
+ON CONFLICT (user_id, notification_template_id) DO UPDATE
+    SET disabled   = EXCLUDED.disabled,
+        updated_at = CURRENT_TIMESTAMP;

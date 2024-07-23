@@ -160,6 +160,7 @@ type data struct {
 	jfrogXRayScans                []database.JfrogXrayScan
 	licenses                      []database.License
 	notificationMessages          []database.NotificationMessage
+	notificationPreferences       []database.NotificationPreference
 	oauth2ProviderApps            []database.OAuth2ProviderApp
 	oauth2ProviderAppSecrets      []database.OAuth2ProviderAppSecret
 	oauth2ProviderAppCodes        []database.OAuth2ProviderAppCode
@@ -4933,6 +4934,22 @@ func (q *FakeQuerier) GetUserLinksByUserID(_ context.Context, userID uuid.UUID) 
 	return uls, nil
 }
 
+func (q *FakeQuerier) GetUserNotificationPreferences(_ context.Context, userID uuid.UUID) ([]database.NotificationPreference, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	out := make([]database.NotificationPreference, 0, len(q.notificationPreferences))
+	for _, np := range q.notificationPreferences {
+		if np.UserID != userID {
+			continue
+		}
+
+		out = append(out, np)
+	}
+
+	return out, nil
+}
+
 func (q *FakeQuerier) GetUserWorkspaceBuildParameters(_ context.Context, params database.GetUserWorkspaceBuildParametersParams) ([]database.GetUserWorkspaceBuildParametersRow, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -8177,6 +8194,47 @@ func (q *FakeQuerier) UpdateUserLoginType(_ context.Context, arg database.Update
 		}
 	}
 	return database.User{}, sql.ErrNoRows
+}
+
+func (q *FakeQuerier) UpdateUserNotificationPreferences(ctx context.Context, arg database.UpdateUserNotificationPreferencesParams) (int64, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return 0, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	var upserted int64
+	for i, templateID := range arg.NotificationTemplateIds {
+		var (
+			found    *database.NotificationPreference
+			disabled = arg.Disableds[i]
+		)
+
+		for _, np := range q.notificationPreferences {
+			if np.UserID != arg.UserID && np.NotificationTemplateID != templateID {
+				continue
+			}
+
+			found = &np
+		}
+
+		if found != nil {
+			found.Disabled = disabled
+			found.UpdatedAt = time.Now()
+		} else {
+			q.notificationPreferences = append(q.notificationPreferences, database.NotificationPreference{
+				Disabled:               disabled,
+				UserID:                 arg.UserID,
+				NotificationTemplateID: templateID,
+				CreatedAt:              time.Now(),
+				UpdatedAt:              time.Now(),
+			})
+		}
+	}
+
+	return upserted, nil
 }
 
 func (q *FakeQuerier) UpdateUserProfile(_ context.Context, arg database.UpdateUserProfileParams) (database.User, error) {

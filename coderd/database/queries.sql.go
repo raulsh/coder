@@ -3345,14 +3345,18 @@ SELECT
     nm.id,
     nm.payload,
     nm.method,
-    nm.attempt_count::int AS attempt_count,
+    nm.attempt_count::int    AS attempt_count,
     nm.queued_seconds::float AS queued_seconds,
     -- template
-    nt.id AS template_id,
+    nt.id                    AS template_id,
     nt.title_template,
-    nt.body_template
+    nt.body_template,
+    -- preferences
+    (CASE WHEN np.disabled IS NULL THEN false ELSE np.disabled END)::bool AS disabled
 FROM acquired nm
          JOIN notification_templates nt ON nm.notification_template_id = nt.id
+         LEFT JOIN notification_preferences AS np
+                   ON (np.user_id = nm.user_id AND np.notification_template_id = nm.notification_template_id)
 `
 
 type AcquireNotificationMessagesParams struct {
@@ -3371,6 +3375,7 @@ type AcquireNotificationMessagesRow struct {
 	TemplateID    uuid.UUID          `db:"template_id" json:"template_id"`
 	TitleTemplate string             `db:"title_template" json:"title_template"`
 	BodyTemplate  string             `db:"body_template" json:"body_template"`
+	Disabled      bool               `db:"disabled" json:"disabled"`
 }
 
 // Acquires the lease for a given count of notification messages, to enable concurrent dequeuing and subsequent sending.
@@ -3406,6 +3411,7 @@ func (q *sqlQuerier) AcquireNotificationMessages(ctx context.Context, arg Acquir
 			&i.TemplateID,
 			&i.TitleTemplate,
 			&i.BodyTemplate,
+			&i.Disabled,
 		); err != nil {
 			return nil, err
 		}
@@ -3581,7 +3587,10 @@ func (q *sqlQuerier) FetchNewMessageMetadata(ctx context.Context, arg FetchNewMe
 }
 
 const getNotificationMessagesByStatus = `-- name: GetNotificationMessagesByStatus :many
-SELECT id, notification_template_id, user_id, method, status, status_reason, created_by, payload, attempt_count, targets, created_at, updated_at, leased_until, next_retry_after, queued_seconds FROM notification_messages WHERE status = $1 LIMIT $2::int
+SELECT id, notification_template_id, user_id, method, status, status_reason, created_by, payload, attempt_count, targets, created_at, updated_at, leased_until, next_retry_after, queued_seconds
+FROM notification_messages
+WHERE status = $1
+LIMIT $2::int
 `
 
 type GetNotificationMessagesByStatusParams struct {
@@ -3626,6 +3635,68 @@ func (q *sqlQuerier) GetNotificationMessagesByStatus(ctx context.Context, arg Ge
 		return nil, err
 	}
 	return items, nil
+}
+
+const getUserNotificationPreferences = `-- name: GetUserNotificationPreferences :many
+SELECT user_id, notification_template_id, disabled, created_at, updated_at
+FROM notification_preferences
+WHERE user_id = $1::uuid
+`
+
+func (q *sqlQuerier) GetUserNotificationPreferences(ctx context.Context, userID uuid.UUID) ([]NotificationPreference, error) {
+	rows, err := q.db.QueryContext(ctx, getUserNotificationPreferences, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []NotificationPreference
+	for rows.Next() {
+		var i NotificationPreference
+		if err := rows.Scan(
+			&i.UserID,
+			&i.NotificationTemplateID,
+			&i.Disabled,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const updateUserNotificationPreferences = `-- name: UpdateUserNotificationPreferences :execrows
+WITH new_values AS
+         (SELECT UNNEST($2::uuid[]) AS notification_template_id,
+                 UNNEST($3::bool[])                 AS disabled)
+INSERT
+INTO notification_preferences (user_id, notification_template_id, disabled)
+SELECT $1::uuid, new_values.notification_template_id, new_values.disabled
+FROM new_values
+ON CONFLICT (user_id, notification_template_id) DO UPDATE
+    SET disabled   = EXCLUDED.disabled,
+        updated_at = CURRENT_TIMESTAMP
+`
+
+type UpdateUserNotificationPreferencesParams struct {
+	UserID                  uuid.UUID   `db:"user_id" json:"user_id"`
+	NotificationTemplateIds []uuid.UUID `db:"notification_template_ids" json:"notification_template_ids"`
+	Disableds               []bool      `db:"disableds" json:"disableds"`
+}
+
+func (q *sqlQuerier) UpdateUserNotificationPreferences(ctx context.Context, arg UpdateUserNotificationPreferencesParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, updateUserNotificationPreferences, arg.UserID, pq.Array(arg.NotificationTemplateIds), pq.Array(arg.Disableds))
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const deleteOAuth2ProviderAppByID = `-- name: DeleteOAuth2ProviderAppByID :exec
