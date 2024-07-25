@@ -165,7 +165,8 @@ CREATE TYPE resource_type AS ENUM (
     'oauth2_provider_app_secret',
     'custom_role',
     'organization_member',
-    'notifications_settings'
+    'notifications_settings',
+    'notification_template'
 );
 
 CREATE TYPE startup_script_behavior AS ENUM (
@@ -254,7 +255,7 @@ CREATE FUNCTION inhibit_enqueue_if_disabled() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
 BEGIN
-    -- Fail the insertion if the user has disabled this notification
+    -- Fail the insertion if the user has disabled this notification.
     IF EXISTS (SELECT 1
                FROM notification_preferences
                WHERE disabled = TRUE
