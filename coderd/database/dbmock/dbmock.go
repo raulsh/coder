@@ -4131,19 +4131,19 @@ func (mr *MockStoreMockRecorder) UpdateMemberRoles(arg0, arg1 any) *gomock.Call 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateMemberRoles", reflect.TypeOf((*MockStore)(nil).UpdateMemberRoles), arg0, arg1)
 }
 
-// UpdateNotificationTemplateMethod mocks base method.
-func (m *MockStore) UpdateNotificationTemplateMethod(arg0 context.Context, arg1 database.UpdateNotificationTemplateMethodParams) (int64, error) {
+// UpdateNotificationTemplateMethodById mocks base method.
+func (m *MockStore) UpdateNotificationTemplateMethodById(arg0 context.Context, arg1 database.UpdateNotificationTemplateMethodByIdParams) (database.NotificationTemplate, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateNotificationTemplateMethod", arg0, arg1)
-	ret0, _ := ret[0].(int64)
+	ret := m.ctrl.Call(m, "UpdateNotificationTemplateMethodById", arg0, arg1)
+	ret0, _ := ret[0].(database.NotificationTemplate)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// UpdateNotificationTemplateMethod indicates an expected call of UpdateNotificationTemplateMethod.
-func (mr *MockStoreMockRecorder) UpdateNotificationTemplateMethod(arg0, arg1 any) *gomock.Call {
+// UpdateNotificationTemplateMethodById indicates an expected call of UpdateNotificationTemplateMethodById.
+func (mr *MockStoreMockRecorder) UpdateNotificationTemplateMethodById(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateNotificationTemplateMethod", reflect.TypeOf((*MockStore)(nil).UpdateNotificationTemplateMethod), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateNotificationTemplateMethodById", reflect.TypeOf((*MockStore)(nil).UpdateNotificationTemplateMethodById), arg0, arg1)
 }
 
 // UpdateOAuth2ProviderAppByID mocks base method.

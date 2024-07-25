@@ -1433,6 +1433,11 @@ export interface UpdateCheckResponse {
   readonly url: string;
 }
 
+// From codersdk/notifications.go
+export interface UpdateNotificationTemplateMethod {
+  readonly method?: string;
+}
+
 // From codersdk/organizations.go
 export interface UpdateOrganizationRequest {
   readonly name?: string;
